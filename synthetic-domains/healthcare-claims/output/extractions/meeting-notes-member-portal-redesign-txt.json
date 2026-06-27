@@ -1,0 +1,419 @@
+{
+  "source_document": "meeting-notes-member-portal-redesign.txt",
+  "document_summary": "Sprint planning meeting for Member Portal redesign focused on November launch, covering new claims status timeline view, benefit balance improvements, provider search enhancements, digital ID card redesign, and secure messaging integration with Zendesk.",
+  "entities": [
+    {
+      "entity_type": "api",
+      "id": "claims-status-history-endpoint",
+      "name": "Claims Status History Endpoint",
+      "description": "New API endpoint to expose claims processing timeline data for member portal redesign",
+      "overview": "GET /claims/{id}/history endpoint that returns each status transition with timestamps for the claims timeline view. The endpoint will expose existing audit data from the claims_status_history table through Claims Gateway API.",
+      "details": "The endpoint will be added to Claims Gateway as part of sprint 46 to support the Member Portal redesign timeline feature. It exposes the claims_status_history table data which already tracks status transitions for auditing purposes. The API will return timestamped status transitions including states like Received → Validated → Eligibility Verified → Adjudicated → Payment Scheduled → Paid. This enables the member portal to show a visual timeline of claim processing progress.",
+      "status": "planned",
+      "tags": [
+        "member-portal",
+        "claims-processing",
+        "november-launch"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "provider-portal-bff",
+          "target_entity_name": "Provider Portal Backend-for-Frontend",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "claims-status-history-model",
+          "target_entity_name": "Claims Status History Model",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as a specific new API endpoint with defined purpose and implementation details"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "claims-status-history-model",
+      "name": "Claims Status History Model",
+      "description": "Data model for claims status transitions with timestamps used in timeline view",
+      "overview": "Data structure representing the sequence of status changes a claim goes through during processing, with timestamps for each transition. This model enables the member portal to display a visual timeline of claim progress.",
+      "details": "The model contains status transition data including states like Received, Validated, Eligibility Verified, Adjudicated, Payment Scheduled, and Paid, each with associated timestamps. The data is sourced from the claims_status_history table which is maintained for auditing purposes. The model supports the new claims timeline feature in the Member Portal redesign, allowing members to see exactly where their claim is in the processing pipeline.",
+      "status": "active",
+      "tags": [
+        "claims-processing",
+        "member-portal",
+        "audit-data"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-status-history-endpoint",
+          "target_entity_name": "Claims Status History Endpoint",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "sourced_from",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Implied data structure based on the API endpoint requirements and existing claims_status_history table"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-status-masking-workflow",
+      "name": "Claims Status Masking Workflow",
+      "description": "Business process for displaying appropriate claim status to members while hiding fraud investigation details",
+      "overview": "Workflow that ensures members see 'Under Review' status for both manual pend and SIU fraud investigation holds, with identical visual treatment and messaging. This protects the integrity of fraud investigations while providing transparency to members.",
+      "details": "The workflow masks sensitive claim statuses to prevent members from knowing their claims are under fraud investigation. Both claims pended for manual review and claims held for SIU investigation display as 'Under Review' with the message 'your claim requires additional review' and no estimated completion time. This compliance-driven requirement ensures fraud investigations remain confidential while still providing members with status information. The workflow applies to all member-facing status displays in the portal redesign.",
+      "status": "active",
+      "tags": [
+        "compliance",
+        "fraud-detection",
+        "member-experience"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "compliance-team",
+          "target_entity_name": "Compliance Team",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business process with compliance requirements and specific rules for status masking"
+    },
+    {
+      "entity_type": "process",
+      "id": "benefit-balance-visualization",
+      "name": "Benefit Balance Visualization Process",
+      "description": "Enhanced display of member deductible and out-of-pocket maximum progress with visual progress bars",
+      "overview": "Process for presenting member benefit balances with visual progress indicators showing amount met, pending claims, and remaining amounts. The visualization breaks down balance components by category to provide clearer member understanding.",
+      "details": "The process retrieves accumulator data from the Eligibility Service including pending reservation amounts to show comprehensive benefit balance information. Visual progress bars display deductible and out-of-pocket maximum progress, with breakdowns showing 'amount met' categorized by claims paid, pending claims, and other components. This enhancement is part of the November Member Portal redesign to improve member understanding of their benefit utilization and remaining coverage amounts.",
+      "status": "planned",
+      "tags": [
+        "member-portal",
+        "benefit-tracking",
+        "november-launch"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Well-defined process for member benefit display with clear data dependencies"
+    },
+    {
+      "entity_type": "process",
+      "id": "digital-id-card-redesign",
+      "name": "Digital ID Card Redesign Process",
+      "description": "Redesign of member ID card display from static image to dynamic data-driven view with sharing functionality",
+      "overview": "Process to transform the current static image ID card into a dynamic display showing member ID, group number, plan name, PCP (for HMO plans), and copay summary. Includes sharing functionality allowing members to save as image.",
+      "details": "The redesign replaces the existing static image approach with a data-driven ID card that pulls current member information to display relevant details. For HMO members, the card shows their assigned Primary Care Physician. The card includes a copay summary for quick reference. Members can share the ID card by saving it as an image file. Apple Wallet integration was considered but descoped from the November launch and moved to the backlog as a separate project.",
+      "status": "planned",
+      "tags": [
+        "member-portal",
+        "november-launch",
+        "member-experience"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear process definition with specific requirements and scope decisions"
+    },
+    {
+      "entity_type": "process",
+      "id": "provider-search-enhancement",
+      "name": "Provider Search Enhancement Process",
+      "description": "Enhancement of provider search with accepting new patients filter and future distance-based search capability",
+      "overview": "Process to improve provider search functionality by adding an 'accepting new patients' filter using existing Provider Directory data. Distance-based search was considered but descoped from November launch due to geocoding requirements.",
+      "details": "The enhancement adds filtering capability to show only providers accepting new patients, utilizing data already available in the Provider Directory system. Distance-based search functionality (within X miles) was discussed but requires geocoding capabilities and latitude/longitude coordinates on provider locations, which would need development by the Provider Network team. For the November launch, the current zip code-based search remains, with distance search moved to the backlog for future implementation.",
+      "status": "planned",
+      "tags": [
+        "member-portal",
+        "november-launch",
+        "provider-directory"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "elasticsearch",
+          "target_entity_name": "Elasticsearch",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Distance-based search might need geocoding capabilities"
+      ],
+      "reasoning": "Process with clear current scope and future enhancements identified"
+    },
+    {
+      "entity_type": "process",
+      "id": "secure-messaging-claim-context",
+      "name": "Secure Messaging Claim Context Process",
+      "description": "Enhancement to show claim details inline when members message about specific claims",
+      "overview": "Process to provide Member Services representatives with claim context when members send messages about specific claims. This requires integration with the Zendesk messaging backend to pass claim information through their API.",
+      "details": "The process enhances the existing secure messaging functionality by detecting when member messages relate to specific claims and providing representatives with inline access to those claim details. The implementation requires utilizing Zendesk API capabilities to pass claim context information. Feasibility assessment is needed to determine the technical approach for integrating claim data with the third-party messaging platform. This enhancement aims to improve representative efficiency and member service quality by providing immediate access to relevant claim information during conversations.",
+      "status": "proposed",
+      "tags": [
+        "member-services",
+        "integration",
+        "third-party"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "zendesk-integration",
+          "target_entity_name": "Zendesk Integration",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.7,
+      "hedged_statements": [
+        "The messaging service appears to be Zendesk",
+        "This might need backend work on the messaging service"
+      ],
+      "reasoning": "Process with uncertain technical feasibility requiring further investigation"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "zendesk-integration",
+      "name": "Zendesk Integration",
+      "description": "Third-party customer service platform underlying secure messaging functionality",
+      "overview": "Zendesk serves as the backend platform for member secure messaging capabilities in the Member Portal. The integration enables members to communicate with Member Services representatives through the portal interface.",
+      "details": "Zendesk provides the underlying messaging infrastructure for member-to-representative communication within the Member Portal. The platform handles message routing, conversation management, and representative workflow tools. For the secure messaging enhancement, the Zendesk API would need to be utilized to pass claim context information when members message about specific claims. The integration's API capabilities need to be assessed to determine feasibility for the claim context feature.",
+      "status": "active",
+      "tags": [
+        "third-party",
+        "messaging",
+        "member-services"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "serves",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "The messaging service is likely Zendesk"
+      ],
+      "reasoning": "Identified as the third-party messaging platform but with some uncertainty in the source"
+    },
+    {
+      "entity_type": "persona",
+      "id": "clinical-reviewer",
+      "name": "Clinical Reviewer",
+      "description": "Internal staff persona who reviews pended claims and pre-authorization requests requiring clinical evaluation",
+      "overview": "Clinical reviewers evaluate claims that require manual review and pre-authorization requests that cannot be auto-approved. They currently use basic database query tools but need improved workflow interfaces for efficient claim review.",
+      "details": "Clinical reviewers are internal Clearview staff responsible for evaluating claims pended for manual review and pre-authorization requests requiring clinical judgment. They currently work with an internal tool described as 'database queries wrapped in a web form' which lacks proper workflow capabilities. The persona is requesting improved tooling that would show claim details, member history, clinical criteria, and provide an approve/deny workflow interface. This improvement project is planned for Q1 2026 and would utilize similar backend APIs as the member-facing portal but with different user interface requirements focused on clinical decision-making workflows.",
+      "status": "active",
+      "tags": [
+        "internal-user",
+        "clinical-workflow",
+        "tooling-improvement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "manual-data-entry-tool",
+          "target_entity_name": "Manual Data Entry Tool",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "served_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "initiates",
+          "target_entity_id": "manual-auth-override",
+          "target_entity_name": "Manual Auth Override Process",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined internal user persona with clear responsibilities and tooling needs"
+    },
+    {
+      "entity_type": "process",
+      "id": "clinical-reviewer-interface-project",
+      "name": "Clinical Reviewer Interface Project",
+      "description": "Q1 2026 project to build proper review interface for clinical reviewers replacing current database query tools",
+      "overview": "Project to develop a comprehensive review interface for clinical reviewers who evaluate pended claims and pre-authorization requests. The interface will replace current basic database query tools with proper workflow capabilities.",
+      "details": "The project aims to build a proper clinical review interface to replace the current system described as 'database queries wrapped in a web form'. The new interface will display claim details, member history, clinical criteria, and provide an approve/deny workflow for clinical reviewers. The project is scheduled for Q1 2026 and will utilize similar backend APIs as the member portal but with interfaces designed for internal clinical staff rather than members. The project addresses the most common persona requesting tooling improvements alongside claims adjudicators.",
+      "status": "planned",
+      "tags": [
+        "q1-2026",
+        "clinical-workflow",
+        "internal-tooling"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "serves",
+          "target_entity_id": "clinical-reviewer",
+          "target_entity_name": "Clinical Reviewer",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": ""
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "manual-data-entry-tool",
+          "target_entity_name": "Manual Data Entry Tool",
+          "reasoning": ""
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Clear project description with timeline and requirements, though still in planning phase"
+    }
+  ],
+  "questions": [
+    "What specific data fields are included in the claims_status_history table that will be exposed by the new API endpoint?",
+    "How does the Member Portal BFF currently handle claims status data, and what changes are needed to consume the new timeline endpoint?",
+    "What are the specific compliance requirements that mandate masking fraud investigation status from members?",
+    "What geocoding service or approach would be needed for distance-based provider search implementation?",
+    "What is the current technical architecture of the Zendesk integration and what API capabilities exist for passing claim context?",
+    "Who specifically owns the messaging service integration - Member Services team or a different technical team?",
+    "What are the specific clinical criteria that clinical reviewers need to see in their improved interface?",
+    "Is the claims adjudicator persona mentioned the same as clinical reviewer or a separate role?",
+    "What is the current database query tool that clinical reviewers use, and what team built/maintains it?"
+  ],
+  "new_jargon": [
+    "Apple Wallet integration",
+    "Accepting new patients filter",
+    "Claims adjudicator queue",
+    "Clinical criteria files"
+  ],
+  "decision_log": [
+    {
+      "subject": "Claims Status History Endpoint",
+      "decision": "classified as api entity type",
+      "reasoning": "Clearly described as a specific GET endpoint with defined purpose and implementation details, fits api entity definition"
+    },
+    {
+      "subject": "Claims Status History Model",
+      "decision": "created new data-model entity",
+      "reasoning": "Represents the data structure returned by the API endpoint, distinct from the existing Claim data model as it focuses specifically on status transition history"
+    },
+    {
+      "subject": "Claims Status Masking",
+      "decision": "classified as process entity type",
+      "reasoning": "Represents a business workflow with defined steps and compliance requirements for handling member-facing status displays"
+    },
+    {
+      "subject": "Clinical Reviewer",
+      "decision": "created new persona entity",
+      "reasoning": "Distinct user role with specific responsibilities different from existing personas, clearly described with current tools and future needs"
+    },
+    {
+      "subject": "Zendesk",
+      "decision": "classified as software-component rather than external-party",
+      "reasoning": "Functions as infrastructure software supporting the messaging capability, not as a business partner or external organization"
+    },
+    {
+      "subject": "Member Portal Redesign project",
+      "decision": "referenced existing process entity",
+      "reasoning": "This document provides details about the existing Member Portal Redesign process, adding new information rather than creating duplicate"
+    },
+    {
+      "subject": "November launch scope decisions",
+      "decision": "captured as part of existing processes rather than separate decision entities",
+      "reasoning": "These are project scoping decisions embedded within the redesign processes rather than architectural decisions that would constrain future system design"
+    }
+  ]
+}

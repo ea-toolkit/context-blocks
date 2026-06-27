@@ -1,0 +1,99 @@
+2024-03-14
+Incident Post Mortem
+
+Title: Claims Gateway Complete Outage — Connection Pool Exhaustion
+Authors: Priya Anand
+Severity: SEV-1
+Time the incident started: 2024-03-12 @ 02:17 UTC
+Time to detect: 2024-03-12 @ 02:43 UTC (26 minutes)
+Time to resolve: 2024-03-12 @ 04:52 UTC (2 hours 35 minutes total)
+
+Context and Root Cause
+
+The Claims Gateway uses a HikariCP connection pool with a max of 100 connections to the PostgreSQL database (Cloud SQL instance claims-gw-prod-01). On March 12, a batch of ~14,000 institutional claims (837I) from the Northeast Clearinghouse was submitted at 02:15 UTC. This is abnormal — they usually send batches of 2,000-3,000.
+
+The batch processing path acquires a DB connection for each claim to insert the tracking record. Because institutional claims are processed in bulk (4-hour batch window), the gateway tried to insert all 14,000 tracking records in rapid succession. The connection pool was exhausted within 2 minutes.
+
+Once the pool was exhausted, ALL claims processing stopped — including real-time professional claims (837P) which share the same database and connection pool. The gateway started returning 503 errors to all submitters.
+
+The Eligibility Service was also impacted because it receives synchronous calls from the gateway during intake. With the gateway failing, eligibility check requests were timing out and filling up the Eligibility Service's own connection pool. Cascading failure.
+
+How was the incident detected?
+
+Datadog alert fired at 02:43 UTC: "[CLAIMS-GW-ERROR-RATE] Error rate exceeded 50% for 5 minutes." Marcus Reeves was on call and acknowledged at 02:47.
+
+Marcus initially thought it was a network issue because the error messages in Splunk were "Connection is not available, request timed out after 30000ms" which is pretty generic. He restarted the gateway pods at 02:55 — this temporarily cleared the pool but it filled up again within 3 minutes because the batch was still being processed.
+
+At 03:10 Priya joined the call and identified the actual root cause by looking at the pg_stat_activity output — 100 connections, all active, all running INSERT statements for the institutional claims batch.
+
+Resolution:
+1. Killed the batch processing job for the institutional claims (03:15)
+2. Restarted gateway pods to clear connection pool (03:18)
+3. Professional claims processing restored (03:20)
+4. Resubmitted the institutional batch in smaller chunks of 500 (03:30 - 04:52)
+5. Verified all claims processed successfully by 05:00
+
+Could have the incident been prevented?
+
+Yes. Several issues:
+
+1. No separate connection pool for batch vs real-time processing. A single pool means batch operations can starve real-time operations. This is a known design issue that was deprioritized in Q4 2023.
+
+2. No admission control on batch size. The Claims Submission API's /claims/batch endpoint accepts arbitrarily large batches. We should cap batch size and require large submissions to be split.
+
+3. No circuit breaker between Claims Gateway and Eligibility Service. The cascading failure to the Eligibility Service was unnecessary — if the gateway is failing, it shouldn't be making downstream calls.
+
+Once happened, can the impact be reduced?
+
+The 26-minute detection gap is too long. The Datadog alert threshold was set at 50% error rate sustained for 5 minutes. A connection pool exhaustion alert (e.g., "pool utilization >90% for 2 minutes") would have fired earlier.
+
+Also Marcus initially misdiagnosed the problem because the error messages didn't clearly indicate connection pool exhaustion. Better logging would help.
+
+Impact
+
+- Professional claims processing was down for ~65 minutes (02:17 - 03:20)
+- Institutional claims processing was delayed by ~3 hours
+- Eligibility Service was degraded for ~40 minutes (cascading failure)
+- Member Portal eligibility checks were failing during the incident
+- Approximately 2,100 professional claims were delayed
+- No data loss — all claims were eventually processed
+- SLA breach for professional claims (30-second SLA was violated for ~2,100 claims)
+- One provider group (Northeast Family Medicine Associates) called to complain about real-time submission failures
+
+Timeline
+
+2024-03-12 02:15 — Northeast Clearinghouse submits batch of 14,000 institutional claims
+2024-03-12 02:17 — Connection pool exhausted, Claims Gateway begins returning 503
+2024-03-12 02:22 — Eligibility Service starts seeing timeout errors on requests from gateway
+2024-03-12 02:43 — Datadog alert fires: error rate >50%
+2024-03-12 02:47 — Marcus (on-call) acknowledges
+2024-03-12 02:55 — Marcus restarts gateway pods (temporary relief, pool fills again in 3 min)
+2024-03-12 03:10 — Priya joins, identifies connection pool exhaustion via pg_stat_activity
+2024-03-12 03:15 — Batch processing job killed
+2024-03-12 03:18 — Gateway pods restarted again
+2024-03-12 03:20 — Professional claims processing restored
+2024-03-12 03:30 — Begin resubmitting institutional batch in chunks of 500
+2024-03-12 04:52 — All institutional claims from the batch processed
+2024-03-12 05:00 — Incident closed after verification
+
+Actions
+
+1. CLV-3901 — Separate connection pools for batch and real-time processing. (Priya, target: sprint 38)
+   Status: COMPLETED (merged 2024-04-02)
+
+2. CLV-3902 — Add batch size limit to Claims Submission API /claims/batch endpoint. Cap at 2,000 per batch.
+   Status: COMPLETED (merged 2024-03-25)
+
+3. CLV-3903 — Add connection pool utilization alert to Datadog. Trigger at >90% utilization for 2 minutes.
+   Status: COMPLETED (merged 2024-03-19)
+
+4. CLV-3904 — Add circuit breaker between Claims Gateway and Eligibility Service.
+   Status: NOT STARTED — deprioritized in favor of the rules engine migration. Still in backlog.
+
+5. CLV-3905 — Improve error logging for connection pool exhaustion. Include pool stats in error messages.
+   Status: COMPLETED (merged 2024-03-20)
+
+6. CLV-3906 — Notify Northeast Clearinghouse about batch size limits.
+   Status: DONE — James reached out to them, they adjusted their submission process.
+
+NOTE (added 2025-01): The HikariCP pool settings referenced above were changed in Q3 2024 when we moved to connection pooling via PgBouncer. The max connections number in this doc is no longer accurate. See the updated infra page for current settings (if anyone knows where that page is, please link it here).

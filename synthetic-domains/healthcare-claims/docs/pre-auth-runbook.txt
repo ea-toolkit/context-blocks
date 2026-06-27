@@ -1,0 +1,127 @@
+Pre-Auth Service — Runbook
+Last updated: 2025-09-18
+
+Before using this runbook, make sure you have:
+  - kubectl access to the prod-claims-01 cluster
+  - Read access to the pre-auth PostgreSQL database (ask Marcus for credentials if you don't have them)
+  - Access to the Datadog dashboard: "Pre-Auth Service — Production"
+
+
+== Alert: Auth Request Processing Backlog ==
+
+Example alert:
+  [PRE-AUTH-BACKLOG] Pending auth requests exceed threshold: 342 requests older than 4 hours
+
+Resolution steps:
+  1. Check if the Pre-Auth Service pods are running:
+     kubectl get pods -n claims-ops -l app=pre-auth-service
+
+  2. If pods are crashlooping, check logs:
+     kubectl logs -n claims-ops -l app=pre-auth-service --tail=100
+
+  3. Common causes:
+     a) Eligibility Service is down — pre-auth checks eligibility before processing. Check the Eligibility Service health endpoint:
+        curl http://eligibility-service.member-svc.svc.cluster.local:8080/health
+
+     b) Database connection pool exhaustion — if you see "Unable to acquire JDBC connection" in logs:
+        - Check active connections: SELECT count(*) FROM pg_stat_activity WHERE datname = 'preauth_prod';
+        - If connections are near the limit (default 50), identify idle connections:
+          SELECT pid, state, query_start, query FROM pg_stat_activity WHERE datname = 'preauth_prod' AND state = 'idle' ORDER BY query_start;
+        - Kill long-idle connections if needed:
+          SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'preauth_prod' AND state = 'idle' AND query_start < now() - interval '30 minutes';
+
+     c) Clinical criteria rules file failed to load — the service loads criteria files from GCS on startup. Check:
+        kubectl logs -n claims-ops -l app=pre-auth-service | grep "CriteriaLoader"
+        If you see "Failed to load criteria", the GCS bucket might have access issues. Check with Platform Engineering.
+
+  4. If none of the above, escalate to Priya Anand or Marcus Reeves.
+
+
+== Alert: Auto-Approval Rate Drop ==
+
+Example alert:
+  [PRE-AUTH-RATE] Auto-approval rate dropped below 50% (current: 43%). Target: 60%.
+
+This usually means the clinical criteria rules changed and are being more aggressive. Steps:
+
+  1. Check when the criteria file was last updated:
+     SELECT criteria_version, loaded_at FROM criteria_load_history ORDER BY loaded_at DESC LIMIT 5;
+
+  2. If a new version was loaded recently, that's probably the cause. Compare with the previous version:
+     - Criteria files are in GCS: gs://clearview-preauth-config/criteria/
+     - Download the last two versions and diff them
+
+  3. Check which service categories are seeing the drop:
+     SELECT service_category,
+            count(*) FILTER (WHERE determination = 'APPROVED') * 100.0 / count(*) as approval_pct
+     FROM auth_requests
+     WHERE created_at > now() - interval '24 hours'
+     GROUP BY service_category
+     ORDER BY approval_pct;
+
+  4. If one category tanked (e.g., imaging dropped from 70% to 20%), that's a criteria update issue. Talk to the clinical team — they may have intentionally tightened criteria, or it might be a config mistake.
+
+  5. If the rate dropped across all categories, it's more likely a system issue. Check that the Eligibility Service is returning correct benefit plan data — wrong plan assignment can cause auth denials.
+
+
+== Alert: Auth Expiration Warning ==
+
+Example alert:
+  [PRE-AUTH-EXPIRY] 87 authorizations expiring in next 7 days without associated claims
+
+This is informational, not urgent. But it's worth checking:
+
+  1. Pull the list of expiring auths:
+     SELECT auth_id, member_id, provider_npi, service_category, approved_date, expiry_date
+     FROM authorizations
+     WHERE expiry_date BETWEEN now() AND now() + interval '7 days'
+     AND auth_id NOT IN (SELECT auth_id FROM claims WHERE auth_id IS NOT NULL)
+     ORDER BY expiry_date;
+
+  2. Standard auths are valid for 90 days, surgical auths for 60 days. If a bunch of surgical auths are expiring, it might mean surgeries are being delayed. Not our problem to fix, but Member Services might want to know.
+
+  3. No action needed unless the count is unusually high (>200). If so, flag it to Dana Okafor on the Member Services side — there might be a provider scheduling issue.
+
+
+== Manual Operations ==
+
+Force-reprocessing a stuck auth request:
+  1. Find the stuck request:
+     SELECT * FROM auth_requests WHERE status = 'PROCESSING' AND updated_at < now() - interval '2 hours';
+
+  2. Reset it for reprocessing:
+     UPDATE auth_requests SET status = 'PENDING', updated_at = now() WHERE auth_id = '<auth_id>';
+
+  3. The scheduler picks up PENDING requests every 60 seconds. Monitor in Datadog.
+
+Manually approving an auth (emergency only — requires clinical lead sign-off):
+  1. Get written approval from Dr. Sarah Lin (Clinical Review Lead) via email or Slack
+  2. Update the auth:
+     UPDATE authorizations
+     SET determination = 'APPROVED',
+         approval_code = 'MANUAL-' || to_char(now(), 'YYYYMMDD-HH24MI'),
+         determined_at = now(),
+         determined_by = 'manual-override',
+         notes = 'Emergency manual approval per Dr. Lin, reference: <email/slack link>'
+     WHERE auth_id = '<auth_id>';
+  3. Log this in the #preauth-ops Slack channel with the reason and reference
+
+
+== Useful Queries ==
+
+Auth request volume by day (last 7 days):
+  SELECT date_trunc('day', created_at) as day, count(*)
+  FROM auth_requests
+  WHERE created_at > now() - interval '7 days'
+  GROUP BY 1 ORDER BY 1;
+
+TODO: add query for tracking average clinical review time
+TODO: document the new batch auth import process (Priya is writing this)
+
+
+== Contacts ==
+
+Pre-Auth Service issues: Priya Anand (engineering lead), Marcus Reeves (claims ops lead)
+Clinical criteria questions: Dr. Sarah Lin (clinical review lead)
+Eligibility issues during auth processing: Dana Okafor (member services)
+Provider credential issues: James Whitfield (provider network)

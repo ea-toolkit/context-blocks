@@ -1,0 +1,77 @@
+2023-05-03
+Post-Mortem: Payment File Corruption — Duplicate Provider Payments
+
+Postmortem owner: Marcus Reeves
+Incident: INC-2023-0031
+Severity: SEV-1
+Duration: 5 days from detection to full resolution (financial impact)
+Affected services: Payment Engine
+
+Executive summary:
+On April 28, 2023, the Payment Engine's nightly batch job generated a NACHA EFT file containing duplicate payment records for 147 provider TINs. The duplicate payments totaling $2.3M were sent to the banking partner and processed before the error was detected. The root cause was a race condition in the payment batching logic that was triggered by an unusually large number of void/reissue operations happening concurrently with the nightly payment cycle.
+
+Timeline:
+
+  2023-04-27 22:00 — Claims Ops initiates a bulk reprocessing of 3,200 claims due to a fee schedule correction for the Statewide Physicians Group contract. The reprocessing generates ~800 void/reissue payment operations.
+
+  2023-04-28 02:00 — Nightly payment cycle batch job starts. The job queries the payments table for all claims with PAY disposition awaiting payment. Due to the concurrent void/reissue operations, some payments are in a transitional state — the original payment is voided but the replacement hasn't been committed yet.
+
+  2023-04-28 02:15 — The batch job picks up both the original payment (marked as voided but the void hasn't been committed to the batch view) and the replacement payment. Both get included in the NACHA file.
+
+  2023-04-28 02:30 — NACHA file is generated and submitted to the banking partner's SFTP.
+
+  2023-04-28 06:00 — Banking partner processes the EFT file. Duplicate payments are sent.
+
+  2023-04-28 14:30 — First call from a provider group reporting they received double payment. Leo Chen investigates.
+
+  2023-04-28 16:00 — Leo identifies the duplicate payments in the payment records. Flags it to Marcus.
+
+  2023-04-28 17:00 — Marcus declares SEV-1 incident. Begins counting affected TINs and total overpayment amount.
+
+  2023-04-29 — Marcus contacts the banking partner to initiate payment reversals where possible. Only 23 of the 147 duplicate payments can be reversed (the rest have already been deposited to provider accounts).
+
+  2023-04-30 through 2023-05-02 — Claims Ops team manually identifies all duplicate payments and initiates recoupment requests for the remaining 124 TINs. Total overpayment: $2,318,450.
+
+  2023-05-03 — Post-mortem meeting. This document created.
+
+Root cause:
+The payment batching query used a snapshot of the payments table that didn't account for in-flight void/reissue operations. The query was:
+
+  SELECT claim_id, SUM(plan_paid) as total
+  FROM payment_claims pc
+  JOIN payments p ON pc.payment_id = p.payment_id
+  WHERE p.status NOT IN ('VOIDED', 'HELD')
+  AND p.payment_date IS NULL
+  GROUP BY claim_id
+
+The problem: a payment record being voided in a concurrent transaction still had status = 'PROCESSED' until the void transaction committed. The batch job's snapshot saw it as a valid payment.
+
+Additionally, the replacement payment (created by the void/reissue process) was also visible because it had been inserted and committed separately from the void update. So both the original and the replacement were picked up.
+
+Impact:
+  - $2,318,450 in duplicate payments to 147 provider TINs
+  - 23 payments reversed via banking partner ($412K)
+  - 124 recoupment requests initiated (remainder: ~$1.9M)
+  - Recoupment recovery took 4 months (through August 2023)
+  - 7 provider offices called to complain about recoupment letters
+  - Reputational damage with the Statewide Physicians Group (the fee schedule correction that triggered the bulk reprocessing was for their contract)
+
+Could have been prevented:
+  1. The payment batching query should use FOR UPDATE SKIP LOCKED to avoid picking up rows being modified by concurrent transactions
+  2. Void/reissue operations should be fenced — no void/reissue should be allowed to run within 4 hours of the payment cycle batch job
+  3. The NACHA file should include a duplicate detection pass before submission
+  4. We should have a reconciliation check that compares the NACHA file total against expected totals before releasing to the banking partner
+
+Follow-up actions:
+  1. INC-2023-0031-A1: Fix the payment batching query to handle concurrent void/reissue — COMPLETED (Leo, merged 2023-05-10)
+  2. INC-2023-0031-A2: Add NACHA file duplicate detection — COMPLETED (Leo, merged 2023-05-15)
+  3. INC-2023-0031-A3: Add reconciliation check with human approval before NACHA file release — COMPLETED (Marcus, merged 2023-05-20)
+  4. INC-2023-0031-A4: Implement fencing for void/reissue during payment cycle windows — NOT STARTED (deprioritized)
+  5. INC-2023-0031-A5: Add void_reason and linked_payment_id to payment records for better tracking — COMPLETED (2025-06, as part of the payment reconciliation rework. Took 2 years but we got there.)
+
+Lessons learned:
+  - Financial operations need more safeguards than non-financial operations. The payment batch should have had a human gate before releasing to the bank. It does now.
+  - Concurrent operations on shared state are the root cause of most of our production issues. The same class of problem hit accumulators (CLV-4521), hit payments here, and will hit anything else that has concurrent writers without proper isolation.
+  - The void/reissue workflow was designed by someone who left before I joined (I think it was Nina Petrovich?). The code had no tests covering the concurrent void scenario. We need better test coverage for edge cases in financial workflows.
+
+Note added 2024-04: Nina Petrovich confirmed via LinkedIn that she designed the original void/reissue flow in 2020. She said at the time they considered the concurrent scenario but didn't have the transaction isolation support in the old database layer. The migration to Cloud SQL in 2021 would have been a good time to fix it but nobody revisited the void logic. Hindsight.

@@ -1,0 +1,153 @@
+Monitoring & Alerting Runbook — Claims Platform
+Last updated: 2025-09-05 by Nadia Volkov
+
+This covers the alerting setup for all claims platform services. If you're on-call and get paged, start here. For service-specific runbooks (like the Pre-Auth runbook), follow the links in each section.
+
+== Monitoring Stack ==
+
+Metrics: Datadog
+Logs: Splunk
+Tracing: Datadog APM
+Alerting: Datadog Monitors → PagerDuty → on-call engineer
+Dashboards: Datadog (links below require VPN)
+
+On-call rotation:
+  - Claims Ops: weekly rotation, Mon 9AM to Mon 9AM ET
+  - Member Services: same schedule, separate rotation
+  - On-call schedule: https://pagerduty.clearviewhealth.internal/schedules/claims-ops
+
+
+== Critical Alerts (SEV-1 — page immediately) ==
+
+CLAIMS-GW-ERROR-RATE
+  Condition: Claims Gateway error rate >50% for 5 minutes
+  Dashboard: https://datadog.clearviewhealth.internal/dashboard/claims-gateway-prod
+  Runbook: check gateway pods, check downstream services (eligibility, fraud), check database connections
+  Common causes: connection pool exhaustion (see 2024 postmortem), downstream service outage, bad deployment
+  Escalation: Marcus Reeves, then Priya Anand
+
+CLAIMS-GW-POOL-EXHAUSTION
+  Condition: HikariCP pool utilization >90% for 2 minutes
+  Added after: 2024-03-12 incident (CLV-3903)
+  Runbook: immediately check pg_stat_activity for stuck queries. If batch processing is the cause, kill the batch job first, then restart pods.
+  Note: after the PgBouncer migration (Q3 2024), the connection pool config changed. Current max: 200 connections via PgBouncer.
+
+RULES-ENGINE-DOWN
+  Condition: Rules Engine health check failing for 3 minutes
+  Impact: claims pile up in the gateway queue. Auto-adjudication stops entirely.
+  Runbook: check pods, check HealthLogic Adjudicator connectivity (SOAP endpoint), check Kafka consumer lag
+  Escalation: Priya Anand
+
+PAYMENT-ENGINE-FAILURE
+  Condition: Payment Engine nightly batch job fails
+  Impact: provider payments delayed, ERA 835 not generated
+  Runbook: check batch job logs in Splunk (index: claims-batch-processing), check database, check NACHA file generation
+  Note: this is time-sensitive during payment cycle nights. If the batch fails after midnight, we need to resolve before 6 AM to make the bank's cutoff.
+  Escalation: Leo Chen, then Marcus Reeves
+
+ELIGIBILITY-SERVICE-DOWN
+  Condition: Eligibility Service health check failing for 2 minutes
+  Impact: claims can't be verified at intake, member portal benefit balances unavailable
+  Runbook: check pods, check Cloud SQL instance health, check if a retroactive enrollment batch is running (these can spike DB load)
+  Escalation: Dana Okafor (Member Services lead)
+
+
+== Warning Alerts (SEV-2 — acknowledge within 30 min) ==
+
+CLAIMS-PROCESSING-BACKLOG
+  Condition: >5000 claims in VALIDATED status older than 30 minutes
+  Meaning: claims are validated but not moving to adjudication. Likely a Rules Engine issue.
+  Runbook: check Rules Engine health, check Kafka consumer lag on clearview.claims.claim.submitted topic
+
+FRAUD-SCORING-DEGRADED
+  Condition: Fraud Detection p99 latency >500ms for 10 minutes
+  Runbook: check Fraud Detection pods, check model loading status, check if retraining just happened
+  Note: if the circuit breaker trips, claims proceed without fraud scoring (score defaults to 0.0). This is by design — we'd rather miss a fraud flag than block the pipeline.
+
+PRE-AUTH-BACKLOG
+  Condition: >200 auth requests in PENDING status older than 4 hours
+  Runbook: see Pre-Auth Service runbook
+
+AUTO-ADJUDICATION-RATE-DROP
+  Condition: auto-adjudication rate drops below 75% (rolling 24h)
+  Target: 85%. Current: ~81%.
+  Runbook: check which denial/pend reasons are spiking. Common cause: rules engine migration — some rules not yet ported from HealthLogic.
+  Check: SELECT pend_reason, count(*) FROM claims WHERE status='PENDED' AND created_at > now() - interval '24 hours' GROUP BY 1 ORDER BY 2 DESC;
+
+MEMBER-PORTAL-LATENCY
+  Condition: Member Portal p95 response time >3s for 10 minutes
+  Runbook: check BFF layer, check eligibility cache TTL, check provider search (ElasticSearch) health
+
+
+== Informational Alerts (SEV-3 — review next business day) ==
+
+EDI-BATCH-PARTIAL-FAILURE
+  Condition: EDI 837I batch processing had >5% parse errors
+  Runbook: check OCR pipeline accuracy, check if a new clearinghouse is sending unexpected formats
+
+ACCUMULATOR-RESERVATION-CLEANUP
+  Condition: >100 expired reservations cleaned up in one run
+  Meaning: Rules Engine might be crashing mid-adjudication more than usual
+  Runbook: check Rules Engine error logs, check CLV-4521 status
+
+PROVIDER-CRED-EXPIRING
+  Condition: >20 providers with credentials expiring in next 30 days
+  Runbook: notify James Whitfield (Provider Network). This is their process.
+
+
+== Dashboards ==
+
+Claims Gateway — Production
+  URL: https://datadog.clearviewhealth.internal/dashboard/claims-gw-prod
+  Key metrics: request rate, error rate, p50/p95/p99 latency, connection pool utilization, claims by status
+
+Rules Engine — Production
+  URL: https://datadog.clearviewhealth.internal/dashboard/rules-engine-prod
+  Key metrics: adjudication rate, auto-adj rate, avg adjudication time, pend rate by reason, denial rate by reason
+
+Payment Engine — Production
+  URL: https://datadog.clearviewhealth.internal/dashboard/payment-engine-prod
+  Key metrics: payment volume, payment cycle status, void/reissue count, recoupment queue depth
+
+Fraud Detection — Production
+  URL: https://datadog.clearviewhealth.internal/dashboard/fraud-detection-prod
+  Key metrics: pre-payment scoring volume, score distribution, hold rate, model latency, false positive rate
+
+Eligibility Service — Production
+  URL: https://datadog.clearviewhealth.internal/dashboard/eligibility-prod
+  Key metrics: query rate, accumulator updates, retroactive reprocessing triggers, batch 270/271 volume
+
+TODO: add Member Portal dashboard (Dana's team is setting this up)
+TODO: add consolidated "claims pipeline health" dashboard that shows end-to-end flow
+
+
+== Splunk Queries ==
+
+Claims Gateway errors (last hour):
+  index=claims-gateway level=ERROR earliest=-1h
+
+Rules Engine adjudication failures:
+  index=rules-engine "adjudication failed" earliest=-1h
+
+Payment Engine batch job status:
+  index=claims-batch-processing job_name="payment-cycle-*" earliest=-24h
+
+Trace a specific claim across services:
+  index=claims-* claim_id="CLM-20250901-001234" earliest=-7d
+  (this works because all services log the claim_id as a structured field)
+
+
+== Contacts ==
+
+On-call escalation path:
+  1. On-call engineer (check PagerDuty schedule)
+  2. Claims Ops lead: Marcus Reeves
+  3. Engineering lead: Priya Anand
+  4. VP Engineering: only for SEV-1 lasting >2 hours
+
+Service-specific contacts:
+  Eligibility: Dana Okafor
+  Fraud Detection: Tariq Hassan
+  Provider Directory: James Whitfield
+  Payment Engine: Leo Chen
+  Pre-Auth: Priya Anand

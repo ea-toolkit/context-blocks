@@ -1,0 +1,422 @@
+{
+  "source_document": "meeting-notes-fraud-detection-integration.txt",
+  "document_summary": "Meeting notes from July 22, 2025 discussing integration of real-time fraud detection scoring into Claims Gateway routing, including performance requirements, failure modes, scoring thresholds, and implementation timeline.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "fraud-detection-pre-payment-integration",
+      "name": "Fraud Detection Pre-Payment Integration",
+      "description": "Migration from asynchronous to synchronous fraud scoring in Claims Gateway intake flow",
+      "overview": "Process to integrate real-time fraud detection scoring directly into the Claims Gateway routing logic, replacing the current asynchronous sidecar model. The integration aims to enable pre-payment blocking of high-fraud-score claims before they reach the Rules Engine.",
+      "details": "Currently fraud scoring runs as a sidecar process where Claims Gateway sends a Kafka message for async scoring, but by the time scores return, claims have already entered the Rules Engine making pre-payment blocking impossible. The new integration implements synchronous calls from Claims Gateway to Fraud Detection service during intake, with 120ms p99 latency target and circuit breaker protection. Includes fallback logic (score 0.0 and continue) when fraud service is unavailable, and extends Datadog dashboard with pre-payment scoring metrics. Implementation scheduled for sprint 42 with parallel scoring validation planned.",
+      "status": "active",
+      "tags": [
+        "integration",
+        "real-time",
+        "pre-payment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway calls fraud detection synchronously during intake"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection provides real-time scoring via sync API"
+        },
+        {
+          "relationship_type": "replaces",
+          "target_entity_id": "fraud-detection-sidecar-model",
+          "target_entity_name": "Fraud Detection Sidecar Model",
+          "reasoning": "New sync integration replaces current async sidecar approach"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team owns the integration project"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business process with defined steps, timeline, and stakeholders described in meeting notes"
+    },
+    {
+      "entity_type": "process",
+      "id": "fraud-detection-sidecar-model",
+      "name": "Fraud Detection Sidecar Model",
+      "description": "Current asynchronous fraud scoring approach where Claims Gateway sends Kafka messages for scoring",
+      "overview": "The existing fraud detection architecture where Claims Gateway sends claims data via Kafka message for asynchronous fraud scoring. By the time fraud scores are returned, claims have already entered the Rules Engine, making pre-payment blocking impossible.",
+      "details": "Current implementation runs fraud scoring as a sidecar process that receives claim data through Kafka messaging from Claims Gateway. The async nature means fraud scores arrive after claims have already been routed to Rules Engine for adjudication, eliminating the ability to block fraudulent claims before payment processing. This model is being replaced by synchronous integration to enable pre-payment fraud detection.",
+      "status": "deprecated",
+      "tags": [
+        "async",
+        "legacy",
+        "being-replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway sends Kafka messages to trigger fraud scoring"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection processes async scoring requests"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "fraud-detection-pre-payment-integration",
+          "target_entity_name": "Fraud Detection Pre-Payment Integration",
+          "reasoning": "Being replaced by synchronous pre-payment integration"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described current state process being replaced by new integration"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "fraud-detection-circuit-breaker-logic",
+      "name": "Fraud Detection Circuit Breaker Logic",
+      "description": "Circuit breaker pattern for fraud service calls with 5-second timeout and failure thresholds",
+      "overview": "Circuit breaker implementation to handle fraud detection service failures during synchronous scoring calls. Designed to prevent Claims Gateway performance degradation when fraud service is unavailable.",
+      "details": "Circuit breaker configured with 5-second timeout for fraud detection calls and opens after 3 consecutive failures, remaining open for 30 seconds. When circuit is open or fraud service is unreachable, system falls back to score 0.0 (clear), logs warning, and continues claim processing. This ensures fraud service failures don't block the entire claims intake pipeline. Better to miss a fraud flag than hold up processing according to team decision.",
+      "status": "active",
+      "tags": [
+        "resilience",
+        "fault-tolerance",
+        "real-time"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway implements circuit breaker for fraud service calls"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Circuit breaker protects against fraud detection service failures"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific technical rule with defined thresholds and behavior described in meeting"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "new-fraud-scoring-thresholds",
+      "name": "New Fraud Scoring Thresholds",
+      "description": "Updated fraud model scoring thresholds with three-tier classification system",
+      "overview": "New fraud detection model uses three scoring tiers: >0.82 holds for SIU review, 0.65-0.82 proceeds with post-payment review flag, and <0.65 clears without restriction. Maintains same 0.82 SIU threshold as previous model.",
+      "details": "Updated XGBoost fraud model implements refined scoring thresholds: scores above 0.82 trigger immediate hold for SIU investigation (same threshold as before), scores between 0.65-0.82 allow processing but flag for post-payment review, and scores below 0.65 clear without additional scrutiny. Target false positive rate is 8% with current validation showing 6.3%. New model demonstrates improved detection of unbundling schemes, successfully identifying providers splitting procedures like knee surgeries into separate fraudulent claims.",
+      "status": "active",
+      "tags": [
+        "fraud-detection",
+        "thresholds",
+        "classification"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection system applies these scoring thresholds"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "fraud-scoring-thresholds",
+          "target_entity_name": "Fraud Scoring Thresholds",
+          "reasoning": "New thresholds replace existing fraud scoring rules"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific numerical thresholds and classification rules clearly defined by Tariq"
+    },
+    {
+      "entity_type": "process",
+      "id": "fraud-model-retraining-pipeline",
+      "name": "Fraud Model Retraining Pipeline",
+      "description": "Monthly automated retraining of fraud detection models using historical claims and investigation outcomes",
+      "overview": "Automated monthly process that retrains fraud detection XGBoost models on Vertex AI using the last 12 months of claims data combined with SIU investigation outcomes. Trained model binaries are deployed via GCS bucket for fraud service pickup.",
+      "details": "Monthly retraining pipeline runs on Vertex AI using training dataset comprising 12 months of historical claims data plus corresponding SIU investigation outcomes to create ground truth labels. Upon completion, model binary is pushed to a GCS bucket where the Fraud Detection service automatically picks up the new model on restart. This continuous learning approach ensures fraud detection stays current with evolving fraud patterns and investigation feedback.",
+      "status": "active",
+      "tags": [
+        "machine-learning",
+        "automation",
+        "continuous-learning"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "fraud-detection-team",
+          "target_entity_name": "Fraud Detection Team",
+          "reasoning": "Fraud Detection team owns the retraining pipeline"
+        },
+        {
+          "relationship_type": "deployed_on",
+          "target_entity_id": "vertex-ai",
+          "target_entity_name": "Vertex AI",
+          "reasoning": "Pipeline runs model training on Vertex AI platform"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "google-cloud-storage",
+          "target_entity_name": "Google Cloud Storage",
+          "reasoning": "Model binaries stored in GCS for deployment"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "xgboost-fraud-model",
+          "target_entity_name": "XGBoost Fraud Model",
+          "reasoning": "Pipeline produces updated fraud detection models"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined automated process with clear inputs, outputs, and deployment mechanism"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "xgboost-fraud-model",
+      "name": "XGBoost Fraud Model",
+      "description": "Machine learning model for real-time fraud scoring with 120ms p99 latency",
+      "overview": "Updated XGBoost-based fraud detection model optimized for real-time scoring during claims intake. Achieves 120ms p99 latency with improved unbundling detection compared to previous model.",
+      "details": "New XGBoost fraud detection model designed for synchronous scoring calls from Claims Gateway with 120ms p99 latency requirement. Model demonstrates superior performance in detecting unbundling fraud schemes, successfully identifying providers who split legitimate procedures (like knee surgeries) into separate fraudulent claims. Uses denormalized provider profile data from local database rather than real-time Provider Directory queries to maintain scoring performance. Model binary deployment handled through GCS bucket with automatic pickup by Fraud Detection service on restart.",
+      "status": "active",
+      "tags": [
+        "machine-learning",
+        "real-time",
+        "fraud-detection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection service uses model for real-time scoring"
+        },
+        {
+          "relationship_type": "produced_by",
+          "target_entity_id": "fraud-model-retraining-pipeline",
+          "target_entity_name": "Fraud Model Retraining Pipeline",
+          "reasoning": "Pipeline produces updated model versions"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "denormalized-provider-profiles",
+          "target_entity_name": "Denormalized Provider Profiles",
+          "reasoning": "Model requires provider profile data for scoring"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific ML model with defined performance characteristics and use cases"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "denormalized-provider-profiles",
+      "name": "Denormalized Provider Profiles",
+      "description": "Local fraud detection database containing provider history for fast scoring queries",
+      "overview": "Denormalized provider profile data maintained locally within Fraud Detection service for real-time scoring performance. Updated nightly from Provider Directory via Kafka consumer to avoid synchronous cross-service calls during scoring.",
+      "details": "Local database within Fraud Detection containing denormalized provider profile information required for fraud scoring. Eliminates need for synchronous calls to Provider Directory during the hot path scoring process, maintaining required 120ms p99 latency. Updated nightly through Kafka consumer that processes provider change events from Provider Directory. This approach trades data freshness for scoring performance, ensuring fraud detection doesn't introduce additional service dependencies during critical path processing.",
+      "status": "active",
+      "tags": [
+        "denormalized",
+        "performance",
+        "local-cache"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection maintains local provider profiles"
+        },
+        {
+          "relationship_type": "sourced_from",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory is source of truth for provider data"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "xgboost-fraud-model",
+          "target_entity_name": "XGBoost Fraud Model",
+          "reasoning": "Model queries local provider profiles for scoring"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Model queries local provider profiles for scoring - this relationship is implied but not explicitly confirmed"
+      ],
+      "reasoning": "Data model described for performance optimization, though some implementation details are inferred"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "provider-profile-sync-event",
+      "name": "Provider Profile Sync Event",
+      "description": "Nightly Kafka event flow updating fraud detection's denormalized provider profiles",
+      "overview": "Kafka-based event flow that synchronizes provider profile changes from Provider Directory to Fraud Detection's local denormalized database on a nightly basis.",
+      "details": "Nightly Kafka consumer process within Fraud Detection service that consumes provider change events from Provider Directory to maintain local denormalized provider profiles. This async synchronization approach ensures fraud scoring has access to current provider history without requiring real-time cross-service calls that would impact 120ms scoring latency requirements.",
+      "status": "active",
+      "tags": [
+        "kafka",
+        "nightly-sync",
+        "denormalized"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory publishes provider change events"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection consumes provider events for local sync"
+        },
+        {
+          "relationship_type": "updates",
+          "target_entity_id": "denormalized-provider-profiles",
+          "target_entity_name": "Denormalized Provider Profiles",
+          "reasoning": "Events update local provider profile data"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Provider Directory publishes provider change events - this is implied but not explicitly confirmed in the document"
+      ],
+      "reasoning": "Business event inferred from description of Kafka consumer updating provider profiles"
+    },
+    {
+      "entity_type": "process",
+      "id": "parallel-fraud-scoring-validation",
+      "name": "Parallel Fraud Scoring Validation",
+      "description": "One-week validation process running old and new fraud models simultaneously for comparison",
+      "overview": "Planned validation process to run both existing and new XGBoost fraud models in parallel for one week in staging environment to compare scoring performance before production deployment.",
+      "details": "Validation process scheduled for end of July 2025 to deploy new XGBoost model to staging environment and run parallel scoring with both old and new models for one week. This approach allows comparison of scoring differences, performance characteristics, and model accuracy before committing to production deployment. Results will be reviewed in August 5 meeting to make go/no-go decision for production rollout.",
+      "status": "planned",
+      "tags": [
+        "validation",
+        "parallel-testing",
+        "staging"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "fraud-detection-team",
+          "target_entity_name": "Fraud Detection Team",
+          "reasoning": "Tariq's fraud detection team owns validation process"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "xgboost-fraud-model",
+          "target_entity_name": "XGBoost Fraud Model",
+          "reasoning": "New model being validated through parallel testing"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific validation process with timeline and ownership clearly defined in meeting"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "fraud-investigation-status-display-rules",
+      "name": "Fraud Investigation Status Display Rules",
+      "description": "Business rule hiding fraud investigation details from members in portal, showing only 'processing' status",
+      "overview": "Compliance-driven rule that prevents members from seeing fraud investigation status in Member Portal. Claims held for SIU review display as 'processing' to avoid alerting potential fraudsters.",
+      "details": "Business rule requiring that claims held for fraud investigation display only generic 'processing' status in Member Portal, never revealing that fraud review is occurring. This compliance requirement prevents potential fraudsters from learning their claims are under investigation, which could lead to altered behavior or destruction of evidence. Rule applies to all fraud-flagged claims regardless of investigation outcome.",
+      "status": "active",
+      "tags": [
+        "compliance",
+        "member-portal",
+        "fraud-investigation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal enforces status display restrictions"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "siu-review-process",
+          "target_entity_name": "SIU Review Process",
+          "reasoning": "Rule applies to claims under SIU investigation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business rule with compliance justification explicitly stated in meeting"
+    }
+  ],
+  "questions": [
+    "Does the Fraud Detection wiki page mentioned by Tariq actually exist, and if not, where should fraud model documentation be maintained?",
+    "What are the specific features used by the XGBoost fraud model for scoring (e.g., provider history, claim patterns, amounts)?",
+    "How does the fraud model handle claims from new providers with no historical data in the denormalized provider profiles?",
+    "What is the exact mechanism for Fraud Detection service to 'pick up' new model binaries from GCS - is it automatic on restart or triggered by some other event?",
+    "Should pre-authorization requests also be scored for fraud when submitted by providers with existing fraud flags, as mentioned in the side discussion?",
+    "What happens to claims that score between 0.65-0.82 - is the 'post-payment review' flag just metadata or does it trigger an actual review process?",
+    "How long do held claims remain in SIU review status before timeout or escalation?",
+    "What are the current performance benchmarks for the 30-second professional claims SLA mentioned, and how much headroom actually exists for the additional 120ms?",
+    "How is the 8% false positive rate target measured - against SIU investigation outcomes or member complaints?"
+  ],
+  "new_jargon": [
+    "unbundling",
+    "hot path",
+    "sidecar model",
+    "p99 latency"
+  ],
+  "decision_log": [
+    {
+      "subject": "Fraud Detection Pre-Payment Integration",
+      "decision": "classified as process",
+      "reasoning": "This is a business process with defined steps, timeline, stakeholders, and deliverables - not just a technical system or component"
+    },
+    {
+      "subject": "Fraud Detection Sidecar Model",
+      "decision": "classified as process with deprecated status",
+      "reasoning": "Current operational approach being replaced - represents a way of working rather than a technical component"
+    },
+    {
+      "subject": "Circuit breaker logic",
+      "decision": "classified as domain-logic rather than software-component",
+      "reasoning": "These are business rules about how to handle fraud service failures, not just a technical library"
+    },
+    {
+      "subject": "New fraud scoring thresholds",
+      "decision": "created new entity rather than updating existing fraud-scoring-thresholds",
+      "reasoning": "Document describes updated thresholds that supersede existing ones - important to track the change explicitly"
+    },
+    {
+      "subject": "XGBoost fraud model",
+      "decision": "classified as data-model rather than software-component",
+      "reasoning": "This is the structure and behavior of the ML model itself, not the software that runs it"
+    },
+    {
+      "subject": "Provider profile sync",
+      "decision": "inferred business-event from description of Kafka consumer",
+      "reasoning": "Document clearly describes nightly sync via Kafka consumer, implying corresponding provider change events"
+    },
+    {
+      "subject": "Member portal status display",
+      "decision": "classified as domain-logic rather than just updating existing member-portal entity",
+      "reasoning": "This is a specific business rule about fraud investigation status display with compliance implications"
+    }
+  ]
+}

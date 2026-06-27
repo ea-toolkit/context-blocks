@@ -1,0 +1,64 @@
+---
+/**
+ * LayerSummary — one card per knowledge layer showing:
+ * - Layer name + color + question
+ * - 1-2 sentence description (from config)
+ * - Up to 5 representative entity pills
+ * - Total count with "+more" link
+ *
+ * Vocabulary-agnostic: all values from config/data, nothing hardcoded.
+ */
+import EntityPill from '../shared/EntityPill.astro';
+import type { CBEntity } from '../../lib/types';
+
+interface Props {
+  layerKey: string;
+  label: string;
+  question: string;
+  color: string;
+  description: string;
+  entities: CBEntity[];
+}
+
+const { layerKey, label, question, color, description, entities } = Astro.props;
+
+// Pick top 5 by confidence
+const topEntities = [...entities]
+  .sort((a, b) => b.confidence - a.confidence)
+  .slice(0, 5);
+
+const remaining = entities.length - topEntities.length;
+---
+<div class="layer-card" style={`--layer-color: ${color}`}>
+  <div class="layer-card__header">
+    <span class="layer-card__dot" style={`background: ${color}`}></span>
+    <span class="layer-card__title">{label}</span>
+    <span style="margin-left: auto; font-size: var(--cb-font-size-sm); color: var(--cb-text-faint);">
+      {entities.length} entities
+    </span>
+  </div>
+  <div class="layer-card__question" style={`--layer-color: ${color}`}>{question}</div>
+
+  {description && (
+    <p class="layer-card__description">{description}</p>
+  )}
+
+  {topEntities.length > 0 && (
+    <div class="layer-card__pills">
+      {topEntities.map(e => (
+        <EntityPill
+          id={e.id}
+          name={e.name}
+          layerColor={color}
+          href={`/explorer?type=${e.type}&entity=${e.id}`}
+        />
+      ))}
+    </div>
+  )}
+
+  {remaining > 0 && (
+    <div class="layer-card__more">
+      <a href={`/explorer?layer=${layerKey}`}>+{remaining} more →</a>
+    </div>
+  )}
+</div>

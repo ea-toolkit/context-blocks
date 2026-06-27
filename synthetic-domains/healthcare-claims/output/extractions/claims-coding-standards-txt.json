@@ -1,0 +1,726 @@
+{
+  "source_document": "claims-coding-standards.txt",
+  "document_summary": "Technical coding standards and conventions for the Clearview Health Plans claims platform, covering language choices, API design, naming conventions, code review processes, configuration management, logging standards, HIPAA compliance requirements, and dependency management practices.",
+  "entities": [
+    {
+      "entity_type": "jargon-tech",
+      "id": "spring-boot",
+      "name": "Spring Boot",
+      "description": "Java application framework used for Claims Gateway, Payment Engine, and Provider Directory",
+      "overview": "Enterprise Java framework providing production-ready features out of the box. Version 3.x is standardized across most Java services in the claims platform. Chosen for its comprehensive ecosystem and enterprise support.",
+      "details": "Spring Boot 3.x serves as the primary application framework for Claims Gateway, Payment Engine, and Provider Directory services. Provides dependency injection, auto-configuration, actuator endpoints for monitoring, and extensive integration capabilities. The framework choice aligns with enterprise Java standards and provides robust production features including metrics, health checks, and configuration management.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "java-framework"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Document explicitly states Claims Gateway uses Spring Boot 3.x"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Document explicitly states Payment Engine uses Spring Boot 3.x"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Document explicitly states Provider Directory uses Spring Boot 3.x"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined technical framework with specific version requirements and usage patterns across multiple systems"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "quarkus",
+      "name": "Quarkus",
+      "description": "Java framework used specifically for Eligibility Service due to superior cold start performance",
+      "overview": "Cloud-native Java framework optimized for containers and Kubernetes deployments. Selected specifically for Eligibility Service because of its faster startup times, which handle cold starts better on GKE compared to Spring Boot.",
+      "details": "Quarkus was chosen specifically for the Eligibility Service due to its superior cold start performance characteristics on Google Kubernetes Engine. Unlike Spring Boot which is used for other Java services, Quarkus provides faster application startup times and lower memory footprint, making it ideal for services that need to handle dynamic scaling and pod restarts efficiently. This architectural decision reflects performance optimization for the critical eligibility verification workflows.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "java-framework",
+        "performance-optimized"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document states Eligibility Service uses Quarkus specifically for faster startup time on GKE"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned with clear rationale for its selection over Spring Boot for specific performance requirements"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "fastapi",
+      "name": "FastAPI",
+      "description": "Python web framework used for serving Fraud Detection service APIs",
+      "overview": "Modern Python web framework used specifically for the Fraud Detection service. Provides high-performance async API capabilities suitable for machine learning model serving and real-time fraud scoring operations.",
+      "details": "FastAPI serves as the web framework for the Fraud Detection service, providing async/await support and automatic API documentation generation. The framework choice aligns with the Python-based machine learning stack including scikit-learn and XGBoost models. FastAPI's performance characteristics and built-in validation make it well-suited for real-time fraud scoring APIs that need to respond quickly during claims adjudication.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "python-framework",
+        "ml-serving"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Document states Python services including Fraud Detection use FastAPI for serving"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the serving framework for Python-based Fraud Detection service"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "gradle-kotlin-dsl",
+      "name": "Gradle (Kotlin DSL)",
+      "description": "Build tool standardized across Java services using Kotlin DSL syntax",
+      "overview": "Build automation tool using Kotlin DSL configuration syntax. Standardized across all Java services in the claims platform for dependency management, compilation, testing, and packaging tasks.",
+      "details": "Gradle with Kotlin DSL serves as the standard build tool for all Java services including Claims Gateway, Eligibility Service, Payment Engine, Pre-Auth Service, and Provider Directory. The Kotlin DSL provides type-safe build script configuration compared to Groovy DSL, enabling better IDE support and compile-time validation of build configurations. Handles dependency resolution, test execution, JAR packaging, and integration with CI/CD pipelines.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "build-tool",
+        "java-ecosystem"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Java service using standardized Gradle build tool"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Java service using standardized Gradle build tool"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Java service using standardized Gradle build tool"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Java service using standardized Gradle build tool"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Java service using standardized Gradle build tool"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly specified as the standard build tool for all Java services with specific DSL variant mentioned"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "poetry",
+      "name": "Poetry",
+      "description": "Python dependency management tool used for Fraud Detection service",
+      "overview": "Modern Python dependency management and packaging tool. Used specifically for the Fraud Detection service to handle Python package dependencies, virtual environments, and build processes.",
+      "details": "Poetry manages Python dependencies for the Fraud Detection service, providing deterministic builds through lock files and virtual environment management. Handles the complex dependency graph of machine learning libraries including scikit-learn and XGBoost, ensuring reproducible builds across development and production environments. Poetry's dependency resolver helps avoid conflicts common in ML environments with competing package requirements.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "dependency-management",
+        "python-ecosystem"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Document states Python services use Poetry for dependency management"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the dependency management tool for Python services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "vite",
+      "name": "Vite",
+      "description": "Frontend build tooling used for Member Portal development",
+      "overview": "Modern frontend build tool used for the Member Portal React application. Provides fast development server and optimized production builds with hot module replacement during development.",
+      "details": "Vite serves as the build tooling for the Member Portal frontend, handling React 18 with TypeScript compilation, development server, and production bundling. Chosen for its superior development experience with instant hot module replacement and fast builds compared to traditional webpack-based tooling. Integrates with the React 18 and TypeScript stack to provide optimized bundles for the member-facing application.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "build-tool",
+        "frontend"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Document states Member Portal uses Vite for build tooling"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the build tooling for the frontend Member Portal application"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "nodejs-bff",
+      "name": "Node.js BFF",
+      "description": "Backend For Frontend layer serving the Member Portal application",
+      "overview": "Node.js-based Backend For Frontend (BFF) layer that sits between the Member Portal React application and backend microservices. Handles API aggregation, authentication, and member-specific data orchestration.",
+      "details": "The Node.js BFF layer provides a dedicated backend service optimized for the Member Portal frontend needs. It handles API composition from multiple backend services, implements member-scoped security policies, and provides a simplified API surface for the React application. The BFF pattern allows the frontend team to evolve the member experience independently while maintaining proper separation from the core claims processing services.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "api-gateway",
+        "member-facing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "BFF is part of the Member Portal architecture"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "BFF pattern is mentioned as part of Member Portal architecture, though specific implementation details are limited"
+    },
+    {
+      "entity_type": "api",
+      "id": "claims-submission-api-v2",
+      "name": "Claims Submission API v2",
+      "description": "Current version of Claims Submission API with improved design over deprecated v1",
+      "overview": "The current version of the Claims Submission API, representing an evolution from the deprecated v1 implementation. Follows the platform's REST API standards including proper HTTP methods, status codes, and JSON response formats.",
+      "details": "Claims Submission API v2 serves as the current interface for claim submission operations, replacing the deprecated v1 version. Implements the platform's standardized REST conventions including plural resource naming (/claims), proper HTTP status codes (200, 201, 400, 409, etc.), and structured error responses with correlation IDs. Supports both EDI X12 format for traditional clearinghouse submissions and JSON for modern portal-based submissions. The v1 version remains supported for 6 months minimum after deprecation notice per platform policy.",
+      "status": "active",
+      "tags": [
+        "api",
+        "claims-processing",
+        "current-version"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "v2 is the current version replacing the deprecated v1 (existing entity)"
+        },
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway likely exposes the claims submission endpoints"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Claims Gateway likely exposes the claims submission endpoints"
+      ],
+      "reasoning": "Document mentions API versioning with v1 deprecated and v2 current, extending existing Claims Submission API entity knowledge"
+    },
+    {
+      "entity_type": "api",
+      "id": "eligibility-api-v2",
+      "name": "Eligibility API v2",
+      "description": "Current version of Eligibility API following platform REST standards",
+      "overview": "The current version of the Eligibility API, implementing the platform's standardized REST conventions for member eligibility verification and benefit checking operations.",
+      "details": "Eligibility API v2 provides member eligibility verification, benefit balance queries, and accumulator tracking through standardized REST endpoints. Follows platform conventions including /eligibility resource naming, proper HTTP status codes, and structured JSON responses with correlation IDs. Likely handles the EDI 270/271 eligibility inquiry and response transactions in addition to JSON-based queries from internal systems and member portal.",
+      "status": "active",
+      "tags": [
+        "api",
+        "eligibility-processing",
+        "current-version"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "eligibility-check-api",
+          "target_entity_name": "Eligibility Check API",
+          "reasoning": "v2 represents evolution of existing eligibility API functionality"
+        },
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service exposes eligibility verification APIs"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Likely handles the EDI 270/271 eligibility inquiry and response transactions"
+      ],
+      "reasoning": "Document mentions v2 eligibility API as current, building on existing eligibility API knowledge"
+    },
+    {
+      "entity_type": "process",
+      "id": "api-versioning-lifecycle",
+      "name": "API Versioning Lifecycle",
+      "description": "Platform process for managing API version transitions and deprecation timelines",
+      "overview": "Standardized process governing how APIs evolve through major versions, including deprecation notices, support timelines, and breaking change management. Ensures backward compatibility during transitions while enabling API evolution.",
+      "details": "The API versioning lifecycle mandates that major version bumps only occur for breaking changes, with URL path versioning (e.g., /v1/claims, /v2/eligibility) used to distinguish versions. Old versions must be supported for a minimum of 6 months after deprecation notice is issued, providing consumers adequate time to migrate. Current examples include Claims Submission API v1 (deprecated) transitioning to v2 (current), and Eligibility API maintaining v2 as the current version. The process balances innovation with stability for downstream consumers.",
+      "status": "active",
+      "tags": [
+        "api-management",
+        "versioning",
+        "deprecation-policy"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-submission-api-v2",
+          "target_entity_name": "Claims Submission API v2",
+          "reasoning": "API versioning process governs Claims Submission API evolution"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "API versioning process governs Eligibility API evolution"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear process described in document for managing API versions and deprecation timelines"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "api-error-response-format",
+      "name": "API Error Response Format",
+      "description": "Standardized error response structure across all platform APIs",
+      "overview": "Consistent error response format implemented across all claims platform APIs, providing structured error information including machine-readable codes, human descriptions, and correlation tracking for debugging.",
+      "details": "All APIs must return errors in a standardized JSON format containing: error (machine-readable code), message (human-readable description), details (additional context object), and correlation_id (claim-id or request-id for tracing). This format enables consistent error handling across frontend applications and downstream consumers while supporting operational debugging through correlation ID tracking. The structured approach separates user-facing messages from technical details and provides extensible detail objects for context-specific error information.",
+      "status": "active",
+      "tags": [
+        "api-standards",
+        "error-handling",
+        "observability"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "All systems must implement standardized error format"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "All systems must implement standardized error format"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "All systems must implement standardized error format"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly defined standard format that applies across all platform APIs"
+    },
+    {
+      "entity_type": "process",
+      "id": "code-review-process",
+      "name": "Code Review Process",
+      "description": "Mandatory peer review process with coverage, security, and compatibility requirements",
+      "overview": "Comprehensive code review process requiring team approval, automated checks, and documentation updates. Ensures code quality, security compliance, and system compatibility before changes reach production.",
+      "details": "Every pull request requires at least one approving review from a team member plus passing all CI checks (build, test, lint, security scan). Code coverage cannot decrease below the 80% line coverage minimum. API changes must include updated OpenAPI specifications, database schema changes require Flyway migration scripts for Java services, and Kafka schema changes must pass Schema Registry compatibility checks. PR descriptions must include change rationale, JIRA ticket reference, testing instructions, and any deployment dependencies such as service deployment order.",
+      "status": "active",
+      "tags": [
+        "development-process",
+        "quality-assurance",
+        "compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Code review process applies to all platform services"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Code review process applies to all platform services"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "confluent-schema-registry",
+          "target_entity_name": "Confluent Schema Registry",
+          "reasoning": "Kafka schema changes must pass compatibility check in Schema Registry"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Detailed code review requirements explicitly defined in the standards document"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "flyway",
+      "name": "Flyway",
+      "description": "Database migration tool used for Java services schema evolution",
+      "overview": "Database migration tool integrated into Java services for managing schema changes and version control. Ensures consistent database evolution across environments with rollback capabilities.",
+      "details": "Flyway handles database schema migrations for Java services including Claims Gateway, Eligibility Service, Payment Engine, Pre-Auth Service, and Provider Directory. All database schema changes must include a corresponding Flyway migration script as part of the code review requirements. This ensures database schema evolution is version-controlled, repeatable, and can be applied consistently across development, staging, and production environments.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "database-migration",
+        "java-ecosystem"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Java service requiring database migration scripts"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Java service requiring database migration scripts"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Java service requiring database migration scripts"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "Flyway manages migrations for PostgreSQL databases"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as requirement for database schema changes in Java services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "launchdarkly",
+      "name": "LaunchDarkly",
+      "description": "Feature flag management service currently under consideration for removal",
+      "overview": "Feature flag management platform currently used for configuration management but under review for cost optimization. The team is considering removing it due to limited usage and high cost.",
+      "details": "LaunchDarkly provides feature flag capabilities for the claims platform, allowing runtime configuration changes and gradual feature rollouts. However, the document indicates the team is considering removing it because it's expensive and barely used, suggesting that the feature flagging needs may be simpler than what LaunchDarkly provides or that the cost-benefit analysis doesn't justify continued usage.",
+      "status": "deprecated",
+      "tags": [
+        "infrastructure",
+        "feature-flags",
+        "cost-optimization"
+      ],
+      "relationships": [],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "The team is considering removing it"
+      ],
+      "reasoning": "Mentioned as current feature flag solution but with clear indication of planned removal due to cost and usage concerns"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "configuration-precedence-rules",
+      "name": "Configuration Precedence Rules",
+      "description": "Hierarchical configuration override rules from environment variables to application defaults",
+      "overview": "Standardized configuration precedence hierarchy ensuring consistent behavior across all services. Higher precedence sources override lower ones, with environment variables taking priority over secrets, ConfigMaps, and application defaults.",
+      "details": "Configuration precedence follows this hierarchy from highest to lowest: 1) Environment variables, 2) Vault secrets, 3) ConfigMap values, 4) Application config defaults. This ensures environment-specific overrides work consistently while maintaining secure secret management and reasonable defaults. The rule prohibits putting environment-specific values directly in application config files, requiring use of ConfigMaps for environment-specific values and Vault for secrets.",
+      "status": "active",
+      "tags": [
+        "configuration-management",
+        "security",
+        "environment-specific"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "hashicorp-vault",
+          "target_entity_name": "HashiCorp Vault",
+          "reasoning": "Vault secrets are second in configuration precedence hierarchy"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined configuration precedence hierarchy with specific ordering rules"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "structured-logging-format",
+      "name": "Structured Logging Format",
+      "description": "Mandatory JSON logging format with correlation ID and metadata requirements",
+      "overview": "Standardized structured JSON logging format required across all services. Includes timestamp, level, service identifier, correlation ID, message, and metadata fields to enable consistent log analysis and debugging.",
+      "details": "All services must log in structured JSON format containing: timestamp (ISO 8601), level (DEBUG/INFO/WARN/ERROR), service name, correlation_id (claim_id for claim operations, auth_id for auth operations), message, and metadata object. Correlation IDs are mandatory for tracing operations across service boundaries. The format enables consistent parsing by Splunk and supports operational debugging through request correlation. Log levels should be used appropriately: DEBUG for detailed processing, INFO for operations, WARN for recoverable issues, ERROR for failures.",
+      "status": "active",
+      "tags": [
+        "observability",
+        "logging-standards",
+        "debugging"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "splunk",
+          "target_entity_name": "Splunk",
+          "reasoning": "Structured logs are ingested and parsed by Splunk"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicit JSON logging format specification with detailed field requirements"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "pii-logging-restrictions",
+      "name": "PII Logging Restrictions",
+      "description": "HIPAA compliance rules prohibiting Protected Health Information in logs",
+      "overview": "Strict HIPAA compliance rules prohibiting any Protected Health Information (PHI) from appearing in application logs. Only member IDs and other non-PHI identifiers are permitted, with violations flagged by CI security scans.",
+      "details": "HIPAA compliance requires that PII fields including member name, SSN, and date of birth must NEVER appear in logs. Only member IDs and other non-identifying reference numbers are permitted for correlation and debugging. This rule is enforced by security scans in the CI pipeline that flag potential violations. Violations cannot be bypassed, ensuring consistent HIPAA compliance across all services and preventing accidental PHI exposure in log aggregation systems.",
+      "status": "active",
+      "tags": [
+        "security",
+        "hipaa-compliance",
+        "pii-protection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "PII restrictions specifically protect member data"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicit HIPAA compliance requirement with clear enforcement mechanism through CI security scans"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "splunk-indexes",
+      "name": "Splunk Indexes",
+      "description": "Service-specific Splunk log indexes with HIPAA-compliant partitioning",
+      "overview": "Dedicated Splunk indexes organized by service for log segregation and access control. Includes special HIPAA-compliant index partition for PHI-containing logs from clinical review processes.",
+      "details": "Splunk indexes are organized by service: claims-gateway, rules-engine, payment-engine, eligibility-service, fraud-detection, claims-batch-processing, and preauth-service. The Pre-Auth Service index includes a HIPAA index partition for clinical review logs containing Protected Health Information, which requires special access controls and retention policies. This segregation enables service-specific log analysis while maintaining HIPAA compliance for PHI-containing logs.",
+      "status": "active",
+      "tags": [
+        "observability",
+        "hipaa-compliance",
+        "log-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "splunk",
+          "target_entity_name": "Splunk",
+          "reasoning": "Indexes are organizational structures within Splunk"
+        },
+        {
+          "relationship_type": "contains_logs_from",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service has dedicated index including HIPAA partition"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly listed Splunk indexes with clear service mapping and HIPAA considerations"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "hipaa-compliance-requirements",
+      "name": "HIPAA Compliance Requirements",
+      "description": "Comprehensive healthcare data protection requirements covering encryption, access control, and retention",
+      "overview": "Comprehensive HIPAA compliance framework covering data encryption, access controls, audit logging, and retention policies. Mandatory for all healthcare data handling with specific technical requirements for PHI protection.",
+      "details": "HIPAA compliance encompasses: no PHI in plaintext logs, all data at rest encrypted (Cloud SQL, GCS), all data in transit encrypted (TLS 1.3 minimum), member SSN stored as SHA-256 hash only, OAuth 2.0 authentication for all endpoints, member-scoped access enforcement for member-facing APIs, audit logging for all member record access, and 7-year data retention per state regulations (using longest requirement across states). These requirements are non-negotiable and violations are detected by CI security scans.",
+      "status": "active",
+      "tags": [
+        "security",
+        "hipaa-compliance",
+        "data-protection",
+        "regulatory"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "Cloud SQL provides encryption at rest for HIPAA compliance"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal must enforce member-scoped access per HIPAA requirements"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Comprehensive HIPAA requirements explicitly detailed with specific technical implementation requirements"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "dependabot",
+      "name": "Dependabot",
+      "description": "Automated dependency update tool for security patch management",
+      "overview": "GitHub's automated dependency management tool enabled across all platform repositories. Provides automated security patch detection and pull request generation for vulnerable dependencies.",
+      "details": "Dependabot is enabled on all claims platform repositories to automatically detect and propose updates for dependencies with security vulnerabilities. It generates pull requests with security patches, helping maintain up-to-date dependencies across the Java, Python, and Node.js services. This automation reduces the manual overhead of security patch management while ensuring timely updates to address known vulnerabilities in the supply chain.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "security",
+        "dependency-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Dependabot enabled on all platform repositories"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Dependabot enabled on all platform repositories"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Dependabot enabled on all platform repositories"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as enabled across all repositories for security patch management"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "clearview-hardened-base-images",
+      "name": "Clearview Hardened Base Images",
+      "description": "Security-hardened container base images stored in Google Artifact Registry",
+      "overview": "Custom security-hardened container base images maintained by Clearview and stored in Google Artifact Registry. Provides standardized, secure foundation for all containerized services with consistent security configurations.",
+      "details": "Clearview maintains its own hardened container base images stored in gcr.io/clearview-prod/base-java:17 and other variants in Google Artifact Registry. These images provide security-hardened foundations for containerized services, ensuring consistent security configurations, minimal attack surface, and controlled software supply chain. All services must use these standardized base images rather than public images to maintain security standards and compliance requirements.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "security",
+        "container-images"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "All services must use Clearview hardened base images"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "All services must use Clearview hardened base images"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned requirement to use Clearview's hardened base images from Artifact Registry"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "healthlogic-sdk",
+      "name": "HealthLogic SDK",
+      "description": "Vendor software development kit for integrating with HealthLogic Rules Engine",
+      "overview": "Software development kit provided by the HealthLogic vendor for integrating with their rules engine. Pinned to exact versions rather than version ranges to ensure consistent behavior and avoid unexpected changes.",
+      "details": "The HealthLogic SDK enables integration between Clearview's services and the HealthLogic Rules Engine used for claims adjudication. The SDK is pinned to exact versions (not ranges) as part of the dependency management standards to ensure predictable behavior and avoid issues from automatic updates. This reflects the critical nature of the rules engine integration and the need for controlled updates to prevent adjudication logic changes without explicit review.",
+      "status": "active",
+      "tags": [
+        "vendor-integration",
+        "rules-engine",
+        "dependency-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "SDK provides integration capability with HealthLogic Rules Engine"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Mentioned as vendor library requiring exact version pinning due to its critical integration role"
+    }
+  ],
+  "questions": [
+    "What specific OpenAPI specification format and tooling is used for API documentation, and how is it integrated with the development workflow?",
+    "What are the specific technical limitations of the HealthLogic Rules Engine that make it problematic (beyond the SOAP web service limitations mentioned in previous documents)?",
+    "How does the Node.js BFF layer handle authentication and session management for member-scoped access, and what specific APIs does it aggregate?",
+    "What specific CI/CD tools and security scanning tools are used to enforce the code coverage, security, and HIPAA compliance requirements?",
+    "What is the complete list of hardened base images maintained by Clearview (beyond base-java:17) and what security hardening is applied?",
+    "How does the 7-year data retention requirement vary by state, and what specific mechanisms implement automated data lifecycle management?",
+    "What specific ML libraries beyond scikit-learn and XGBoost are used in the Fraud Detection service, and how does Poetry handle their complex dependency requirements?"
+  ],
+  "new_jargon": [
+    "BFF (Backend For Frontend)",
+    "PHI (Protected Health Information)"
+  ],
+  "decision_log": [
+    {
+      "subject": "Spring Boot vs Quarkus framework choice",
+      "decision": "classified as separate jargon-tech entities",
+      "reasoning": "Both are distinct technical frameworks with different use cases - Spring Boot for most Java services, Quarkus specifically for Eligibility Service due to cold start performance requirements"
+    },
+    {
+      "subject": "API versioning information",
+      "decision": "created new API entities for v2 versions and versioning process",
+      "reasoning": "Document reveals v2 versions of existing APIs and describes the versioning lifecycle process, which adds significant new information to the domain understanding"
+    },
+    {
+      "subject": "Configuration management tools",
+      "decision": "classified LaunchDarkly as deprecated software-component",
+      "reasoning": "Document indicates it's currently used but under consideration for removal due to cost and limited usage, warranting deprecated status"
+    },
+    {
+      "subject": "HIPAA compliance requirements",
+      "decision": "created comprehensive domain-logic entity",
+      "reasoning": "Document provides extensive HIPAA requirements that constitute business rules enforced across the platform, not just a compliance mention"
+    },
+    {
+      "subject": "Logging format and restrictions",
+      "decision": "created separate domain-logic entities for format and PII restrictions",
+      "reasoning": "These are distinct rule sets - one governing log structure, another governing content restrictions for HIPAA compliance"
+    },
+    {
+      "subject": "Development tools (Gradle, Poetry, Vite)",
+      "decision": "classified as software-components",
+      "reasoning": "These are infrastructure tools that support development but don't implement business logic - they're components of the development ecosystem"
+    }
+  ]
+}

@@ -1,0 +1,482 @@
+[
+  {
+    "question": "What happens to a claim between the moment a provider submits it and when a payment is issued to them?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "claims pipeline flow"
+  },
+  {
+    "question": "Which team is responsible for maintaining the source of truth for member enrollment and deductible tracking?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "organizational",
+    "topic": "team ownership"
+  },
+  {
+    "question": "What does it mean when a claim is 'pended,' and what triggers that outcome?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "language",
+    "topic": "adjudication terminology"
+  },
+  {
+    "question": "How does the Rules Engine use the Eligibility Service during adjudication, and what information does it look up?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "",
+    "topic": "cross-system adjudication"
+  },
+  {
+    "question": "What are the three possible dispositions a claim can receive from the Rules Engine, and what happens next in each case?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "adjudication outcomes"
+  },
+  {
+    "question": "What formats does Claims Gateway accept for incoming claims, and what does it do before routing them downstream?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "structural",
+    "topic": "gateway intake"
+  },
+  {
+    "question": "At what fraud score threshold does a claim get held for SIU review, and when during the claims lifecycle does fraud scoring occur?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "fraud detection rules"
+  },
+  {
+    "question": "What is the difference between an EOB and an ERA 835, and which systems or teams produce each one?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "language",
+    "topic": "document terminology"
+  },
+  {
+    "question": "How does prior authorization relate to the main claims processing pipeline, and what percentage of auth requests are auto-approved?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "pre-auth integration"
+  },
+  {
+    "question": "If a member has coverage from two different insurers, which concept governs how Clearview determines what to pay, and which systems would be involved in resolving it?",
+    "source": "seed",
+    "source_file": "seed-context",
+    "persona": "",
+    "layer_hint": "",
+    "topic": "coordination of benefits"
+  },
+  {
+    "question": "Why was Option C (transactional reservations with SELECT FOR UPDATE) chosen over Option A (event-sourced accumulators) and Option B (distributed locks) for the accumulator rework?",
+    "source": "doc",
+    "source_file": "design-session-accumulator-rework.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "architecture decision"
+  },
+  {
+    "question": "What caused the November 2024 plan year boundary incident with accumulators, and what change was decided to prevent it from recurring?",
+    "source": "doc",
+    "source_file": "design-session-accumulator-rework.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "accumulator bugs"
+  },
+  {
+    "question": "Where are pharmacy claims currently processed, and what is the planned timeline for migrating them to the Clearview platform?",
+    "source": "doc",
+    "source_file": "pharmacy-claims.txt",
+    "persona": "",
+    "layer_hint": "organizational",
+    "topic": "pharmacy claims migration"
+  },
+  {
+    "question": "Who should be contacted for knowledge about the PharmaCore system, and who is the engineering contact for the future pharmacy claims migration?",
+    "source": "doc",
+    "source_file": "pharmacy-claims.txt",
+    "persona": "",
+    "layer_hint": "organizational",
+    "topic": "pharmacy contacts"
+  },
+  {
+    "question": "Why was HealthLogic Adjudicator chosen as the rules engine during the 2021 claims platform migration, and what were the alternatives considered?",
+    "source": "doc",
+    "source_file": "original-architecture-2021.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "rules engine selection"
+  },
+  {
+    "question": "What messaging system was used in the original 2021 claims platform architecture, what problem did it cause, and what replaced it?",
+    "source": "doc",
+    "source_file": "original-architecture-2021.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "async messaging infrastructure"
+  },
+  {
+    "question": "What partitioning strategy is used for the clearview.claims.claim.submitted Kafka topic, and why is that partitioning key significant?",
+    "source": "doc",
+    "source_file": "integration-patterns-guide.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "Kafka partitioning"
+  },
+  {
+    "question": "Why was the fraud detection integration changed from asynchronous (Kafka) to synchronous (HTTP/REST), and what technical factor made this feasible?",
+    "source": "doc",
+    "source_file": "integration-patterns-guide.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "integration pattern decision"
+  },
+  {
+    "question": "Why does the member portal show the same 'Under Review' status and visual treatment for both manually pended claims and claims held for SIU fraud investigation, and what message is displayed to members for these claims?",
+    "source": "doc",
+    "source_file": "meeting-notes-member-portal-redesign.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "Claims Status Display"
+  },
+  {
+    "question": "What API change is required to support the claims timeline view in the portal redesign, where does the underlying data come from, and which team is responsible for implementing it?",
+    "source": "doc",
+    "source_file": "meeting-notes-member-portal-redesign.txt",
+    "persona": "",
+    "layer_hint": "structural",
+    "topic": "Claims API Integration"
+  },
+  {
+    "question": "What decision was made regarding when to generate the ERA 835, and what dependency does this create?",
+    "source": "doc",
+    "source_file": "design-session-payment-reconciliation.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "ERA 835 timing"
+  },
+  {
+    "question": "What database fields were proposed to fix void/reissue tracking in the payments table, and was a backfill of historical void records included in the plan?",
+    "source": "doc",
+    "source_file": "design-session-payment-reconciliation.txt",
+    "persona": "",
+    "layer_hint": "structural",
+    "topic": "void linkage schema"
+  },
+  {
+    "question": "What fraud score threshold causes a claim to be automatically held and routed to the SIU for review in the Claims Gateway?",
+    "source": "doc",
+    "source_file": "architecture-overview.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "fraud detection routing"
+  },
+  {
+    "question": "Why is member cost-sharing calculated against the allowed amount rather than the billed amount, and where does the allowed amount come from?",
+    "source": "doc",
+    "source_file": "architecture-overview.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "claims adjudication"
+  },
+  {
+    "question": "Why has the auto-adjudication rate been stuck around 81% and when is it expected to reach the 85% target?",
+    "source": "doc",
+    "source_file": "meeting-notes-quarterly-ops-review-2025q3.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "adjudication performance"
+  },
+  {
+    "question": "What is capitation and what decision was made regarding its potential implementation in the payment system?",
+    "source": "doc",
+    "source_file": "meeting-notes-quarterly-ops-review-2025q3.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "capitation payment model"
+  },
+  {
+    "question": "What are the required steps an on-call engineer must follow when a SEV-1 incident occurs, and what are the response time expectations?",
+    "source": "doc",
+    "source_file": "claims-ops-contacts-and-escalation.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "incident escalation"
+  },
+  {
+    "question": "Who is the primary contact for the Rules Engine migration, and what is the status of the contractor supporting that work?",
+    "source": "doc",
+    "source_file": "claims-ops-contacts-and-escalation.txt",
+    "persona": "",
+    "layer_hint": "organizational",
+    "topic": "team contacts"
+  },
+  {
+    "question": "What were the key technical deficiencies in the Claims Submission API v1 that motivated the development of v2?",
+    "source": "doc",
+    "source_file": "claims-gateway-api-v1-deprecated.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "API deprecation rationale"
+  },
+  {
+    "question": "When migrating from v1 to v2, how should the v1 claim status 'COMPLETED' be mapped to v2 statuses, and what field should be checked to determine the correct mapping?",
+    "source": "doc",
+    "source_file": "claims-gateway-api-v1-deprecated.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "status migration mapping"
+  },
+  {
+    "question": "What confidence score thresholds determine how an OCR-processed paper claim is routed \u2014 auto-submitted versus sent to manual data entry with pre-filled results versus sent with a blank form?",
+    "source": "doc",
+    "source_file": "ocr-pipeline-extracted-spec.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "OCR routing logic"
+  },
+  {
+    "question": "What is the known discrepancy between the regulatory requirement and the actual configured policy for scanned claims archive retention, and what is the ticket tracking it?",
+    "source": "doc",
+    "source_file": "ocr-pipeline-extracted-spec.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "archive retention issue"
+  },
+  {
+    "question": "What are the common causes of an auth request processing backlog in the Pre-Auth Service, and what steps should be taken to diagnose database connection pool exhaustion?",
+    "source": "doc",
+    "source_file": "pre-auth-runbook.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "backlog troubleshooting"
+  },
+  {
+    "question": "What is required before manually approving an authorization in the Pre-Auth Service, and how should the approval be recorded?",
+    "source": "doc",
+    "source_file": "pre-auth-runbook.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "manual approval process"
+  },
+  {
+    "question": "How is a provider's network status determined for a specific claim, and can a provider be in-network for one plan but out-of-network for another?",
+    "source": "doc",
+    "source_file": "claims-data-model-reference.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "Provider Network Status"
+  },
+  {
+    "question": "What are the possible values for a claim's status field, and what disposition values can be set after adjudication?",
+    "source": "doc",
+    "source_file": "claims-data-model-reference.txt",
+    "persona": "",
+    "layer_hint": "structural",
+    "topic": "Claim Status Lifecycle"
+  },
+  {
+    "question": "Which endpoint does the Rules Engine call to evaluate a member's eligibility during claim adjudication, and why does it use that specific endpoint instead of the current eligibility endpoint?",
+    "source": "doc",
+    "source_file": "eligibility-api-reference.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "Rules Engine integration"
+  },
+  {
+    "question": "What happens to accumulator soft reservations if a claim is denied or if the Rules Engine crashes mid-adjudication?",
+    "source": "doc",
+    "source_file": "eligibility-api-reference.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "accumulator reservations"
+  },
+  {
+    "question": "What steps should be taken to prepare the Eligibility Service for the open enrollment period, and in what order?",
+    "source": "doc",
+    "source_file": "eligibility-monitoring-guide.txt",
+    "persona": "",
+    "layer_hint": "behavioral",
+    "topic": "open enrollment preparation"
+  },
+  {
+    "question": "What are the known issues with Coordination of Benefits (COB) data, and what is the typical consequence when COB data is incorrect?",
+    "source": "doc",
+    "source_file": "eligibility-monitoring-guide.txt",
+    "persona": "",
+    "layer_hint": "decision",
+    "topic": "COB issues"
+  },
+  {
+    "question": "Where are the source code repositories located for each of the core systems \u2014 Claims Gateway, Rules Engine, Eligibility Service, Payment Engine, Pre-Auth Service, Fraud Detection, Member Portal, and Provider Directory \u2014 and what branching strategy is used?",
+    "source": "persona",
+    "source_file": "developer",
+    "persona": "developer",
+    "layer_hint": "structural",
+    "topic": "Repository Locations"
+  },
+  {
+    "question": "What are the steps to set up a local development environment for Claims Gateway, including required dependencies, environment variables, service mocks or stubs needed for downstream systems, and how to submit a test claim end-to-end locally?",
+    "source": "persona",
+    "source_file": "developer",
+    "persona": "developer",
+    "layer_hint": "structural",
+    "topic": "Local Dev Setup"
+  },
+  {
+    "question": "Where can a new developer find logs for the Claims Gateway and Rules Engine in production, what logging aggregation tool is used, and what dashboards or alerts exist for monitoring claim processing throughput and error rates?",
+    "source": "persona",
+    "source_file": "developer",
+    "persona": "developer",
+    "layer_hint": "behavioral",
+    "topic": "Logging and Monitoring"
+  },
+  {
+    "question": "What is the deployment and release process for Claims Operations-owned services \u2014 specifically Claims Gateway and Payment Engine \u2014 including how code moves from a feature branch to production, who approves releases, and how often deployments occur?",
+    "source": "persona",
+    "source_file": "developer",
+    "persona": "developer",
+    "layer_hint": "organizational",
+    "topic": "Deployment Process"
+  },
+  {
+    "question": "What is the testing strategy for the claims processing pipeline \u2014 what types of tests exist (unit, integration, end-to-end), how does a developer run the test suite locally, and are there shared test fixtures or sample EDI 837 files for simulating claim submissions?",
+    "source": "persona",
+    "source_file": "developer",
+    "persona": "developer",
+    "layer_hint": "behavioral",
+    "topic": "Testing Strategy"
+  },
+  {
+    "question": "What are the SLA targets for claims processing throughput and end-to-end latency \u2014 specifically, what is the expected time from Claims Gateway ingestion to adjudication completion under normal load, and what volume of claims per day or hour does the system need to handle?",
+    "source": "persona",
+    "source_file": "architect",
+    "persona": "architect",
+    "layer_hint": "structural",
+    "topic": "Non-functional requirements"
+  },
+  {
+    "question": "What is the security and authorization model across the claims pipeline \u2014 how are inter-service calls authenticated (e.g., mTLS, service accounts, API keys), how is PHI access controlled within the Rules Engine and Eligibility Service, and what data encryption standards apply at rest and in transit?",
+    "source": "persona",
+    "source_file": "architect",
+    "persona": "architect",
+    "layer_hint": "structural",
+    "topic": "Security model"
+  },
+  {
+    "question": "How does the system scale to handle peak load periods such as open enrollment or end-of-year claims surges \u2014 are Claims Gateway, the Rules Engine, and the Payment Engine horizontally scalable, and what infrastructure or orchestration layer manages that scaling?",
+    "source": "persona",
+    "source_file": "architect",
+    "persona": "architect",
+    "layer_hint": "structural",
+    "topic": "Scalability approach"
+  },
+  {
+    "question": "What is the disaster recovery plan for the claims processing pipeline \u2014 what are the RPO and RTO targets for critical systems like the Rules Engine and Eligibility Service, where are backups stored, and has a DR failover been tested end-to-end?",
+    "source": "persona",
+    "source_file": "architect",
+    "persona": "architect",
+    "layer_hint": "structural",
+    "topic": "Disaster recovery"
+  },
+  {
+    "question": "Beyond the Rules Engine vendor migration, what are the documented technical debt items and known architectural risks in the claims pipeline \u2014 for example, are there known scalability bottlenecks in Claims Gateway, data consistency risks between Eligibility Service and the Rules Engine's accumulator checks, or integration fragility points with the Provider Directory?",
+    "source": "persona",
+    "source_file": "architect",
+    "persona": "architect",
+    "layer_hint": "cross-cutting",
+    "topic": "Technical debt"
+  },
+  {
+    "question": "What are the key business capabilities delivered by each major system in the claims pipeline \u2014 specifically, what measurable value does the Pre-Auth Service, Fraud Detection, and Member Portal each deliver to their respective users (providers, members, and internal staff)?",
+    "source": "persona",
+    "source_file": "product-owner",
+    "persona": "product-owner",
+    "layer_hint": "structural",
+    "topic": "Business Capabilities"
+  },
+  {
+    "question": "What are the primary user personas interacting with the claims domain \u2014 including providers submitting claims, members checking status, and internal roles like clinical reviewers and SIU investigators \u2014 and what are the core workflows each persona performs on a typical day?",
+    "source": "persona",
+    "source_file": "product-owner",
+    "persona": "product-owner",
+    "layer_hint": "behavioral",
+    "topic": "User Personas"
+  },
+  {
+    "question": "What regulatory and compliance requirements govern the claims processing pipeline \u2014 for example, are there federally mandated timelines for claim adjudication, ACA-specific rules affecting coverage decisions, or HIPAA obligations that constrain how claims data flows between Claims Gateway, the Rules Engine, and the Eligibility Service?",
+    "source": "persona",
+    "source_file": "product-owner",
+    "persona": "product-owner",
+    "layer_hint": "organizational",
+    "topic": "Compliance Requirements"
+  },
+  {
+    "question": "What are the key metrics used to measure the health and success of the claims processing pipeline \u2014 beyond the auto-adjudication rate target of 85%, what KPIs does the Product Owner track across Claims Operations, Member Services, and Provider Network, and how are they reported?",
+    "source": "persona",
+    "source_file": "product-owner",
+    "persona": "product-owner",
+    "layer_hint": "behavioral",
+    "topic": "Success Metrics"
+  },
+  {
+    "question": "What are the most frequently reported pain points or recurring issues raised by providers, members, or internal teams \u2014 for example, are there known patterns of incorrect denials, provider directory data mismatches causing claim failures, or member portal usability issues that regularly generate support tickets?",
+    "source": "persona",
+    "source_file": "product-owner",
+    "persona": "product-owner",
+    "layer_hint": "behavioral",
+    "topic": "Known Pain Points"
+  },
+  {
+    "question": "How do I get access to Confluence, the code repositories, and other internal tools on my first day \u2014 who provisions access and is there a checklist or ticket I should follow?",
+    "source": "persona",
+    "source_file": "new-joiner",
+    "persona": "new-joiner",
+    "layer_hint": "organizational",
+    "topic": "Access Provisioning"
+  },
+  {
+    "question": "Who should a new joiner in Claims Engineering go to when they are stuck on a technical problem \u2014 is there a buddy system, a team lead, a Slack channel, or an on-call rotation they can reach out to?",
+    "source": "persona",
+    "source_file": "new-joiner",
+    "persona": "new-joiner",
+    "layer_hint": "organizational",
+    "topic": "Help Escalation"
+  },
+  {
+    "question": "What does the Provider Directory contain, who on the Provider Network team is responsible for it day-to-day, and who specifically should be contacted about credentialing workflows (the doc mentions asking James \u2014 who is James and what is his role)?",
+    "source": "persona",
+    "source_file": "new-joiner",
+    "persona": "new-joiner",
+    "layer_hint": "organizational",
+    "topic": "Provider Directory Ownership"
+  },
+  {
+    "question": "What is the 'allowed amount' for a service, where does it come from in the claims pipeline, and how does it differ from the billed amount a provider submits?",
+    "source": "persona",
+    "source_file": "new-joiner",
+    "persona": "new-joiner",
+    "layer_hint": "language",
+    "topic": "Allowed Amount Definition"
+  },
+  {
+    "question": "What is the Rules Engine migration that is currently underway \u2014 what vendor product is being replaced, what is it being replaced with, and what is the current status or timeline for the migration?",
+    "source": "persona",
+    "source_file": "new-joiner",
+    "persona": "new-joiner",
+    "layer_hint": "structural",
+    "topic": "Rules Engine Migration"
+  }
+]

@@ -1,0 +1,101 @@
+Claims Ops — Quarterly Review Q3 2025
+2025-10-08, 2:00 PM ET
+Attendees: Marcus Reeves, Priya Anand, Dana Okafor, James Whitfield, Tariq Hassan, Leo Chen, Nadia Volkov
+
+Standard quarterly ops review. Marcus ran through the metrics, then we went around the room for team updates.
+
+---
+
+METRICS (Q3 2025)
+
+Claims volume: 2.4M claims processed (up 8% from Q2)
+  - Professional: 2.0M
+  - Institutional: 350K
+  - Pharmacy: 50K (still routed to the legacy pharmacy system — not in our pipeline yet)
+
+Auto-adjudication rate: 81.3% (target: 85%)
+  - Marcus: we've been stuck around 81% for two quarters. The gap is mostly from rules that haven't been ported from HealthLogic yet. Priya, where are we on the migration?
+  - Priya: we've ported 2,800 of ~4,200 rules. The remaining 1,400 are the complex ones — COB logic, multi-claim bundling, DRG grouper edge cases. Rachel has been helpful but she's only here until October.
+  - Marcus: so we're not hitting 85% until the migration is done. Probably Q1 2026 at earliest.
+
+Average processing time: 4.2 seconds (intake to disposition)
+  - Down from 5.1 seconds in Q2 thanks to the sync fraud scoring integration (eliminated the async delay)
+
+Denial rate: 12.4%
+  - Top denial reasons:
+    1. Member not eligible on date of service (3.2%)
+    2. Authorization required but not found (2.8%)
+    3. Duplicate claim (2.1%)
+    4. Non-covered service (1.9%)
+    5. Timely filing limit exceeded (1.4%)
+  - Dana: the "member not eligible" denials are concerning. Some of these might be retroactive terminations that we're processing too slowly. I'll look into it.
+
+Payment accuracy: 99.7%
+  - Leo: the void/reissue tracking improvement from the June design session is working. We've reduced the orphaned void records to near zero for new payments.
+
+Fraud holds: 1,247 claims held (0.05% of volume)
+  - SIU investigated 89% within 10 business days (target: 95%)
+  - Tariq: the SIU team is short-staffed. Two investigators left in August and haven't been replaced.
+  - Marcus: I'll flag it to the VP. We can't let the investigation backlog grow.
+
+
+TEAM UPDATES
+
+Claims Ops (Marcus/Priya):
+  - Rules engine migration in progress (see above)
+  - Payment reconciliation improvements deployed — ERA 835 now delayed until settlement confirmation
+  - Hired a new senior engineer starting Nov 1 — Kenji Watanabe, coming from another health plan. He'll focus on the rules engine migration.
+  - Rachel Dominguez (contractor) rolls off end of October. Need to capture remaining knowledge ASAP.
+
+Member Services (Dana):
+  - Open enrollment prep underway (starts Nov 1)
+  - Member Portal redesign launching in November — new claims status page, improved benefit balance display
+  - Eligibility Service scaling plan ready for enrollment spike
+  - COB auto-detection project still in design phase, pushed to Q1 2026
+  - Capitation payments — we've been talking about supporting capitation for HMO plans. Currently our payment model is fee-for-service only. Capitation is a flat per-member-per-month (PMPM) payment to providers regardless of services rendered. This would be a significant change to the Payment Engine.
+    - Marcus: is there appetite for this?
+    - Dana: Provider Network team has been asking. Some of our larger provider groups want capitated contracts.
+    - James: yes, it keeps coming up in contract negotiations. The big multi-specialty groups want it.
+    - Marcus: let's put a design proposal together for Q1. Not committing to build yet, just scoping it.
+
+Provider Network (James):
+  - Credentialing backlog cleared — all overdue re-credentialings are done
+  - Provider Directory now has 14,200 active providers (up from 13,100 in Q2)
+  - Working on a provider portal for self-service credential updates. Early design phase.
+  - Fee schedule updates for 2026 contracts are in progress. Actuarial team is running the analysis.
+  - Formulary management keeps coming up — pharmacy claims are still on the legacy system and formulary (the list of covered drugs per plan) isn't integrated with our platform at all. This is going to be a problem when we bring pharmacy onto our pipeline.
+
+Fraud Detection (Tariq):
+  - New XGBoost model deployed in production. False positive rate down to 5.8% (was 6.3%)
+  - Pre-payment scoring is now fully synchronous (completed in Q2)
+  - Post-payment analysis identified two providers with aberrant billing patterns. SIU investigations opened.
+  - Working on a new model feature: provider referral network analysis. The idea is to detect fraud rings — coordinated billing between providers who refer to each other exclusively.
+
+Platform / Infrastructure (Leo):
+  - PgBouncer migration complete for all services
+  - Kafka cluster upgrade to 3.6 — no issues
+  - Started evaluating Istio service mesh for better observability and traffic management
+  - GKE cluster upgrade to 1.28 scheduled for November (off-hours)
+
+
+INCIDENTS (Q3)
+
+  1 x SEV-1: Rules Engine connectivity issue to HealthLogic (August 15, 45 minutes). Turned out to be a VPN tunnel flap to HealthLogic's data center. Not our fault but it affected us. Another reason to get off HealthLogic.
+
+  3 x SEV-2:
+    - Accumulator reservation cleanup job failed twice (both times: Cloud SQL maintenance window conflict)
+    - EDI 837I batch from MedConnect Exchange had encoding issues — they switched character sets without telling us
+
+  No data breaches. No HIPAA incidents. Clean quarter.
+
+
+PRIORITIES Q4 2025
+
+  1. Rules engine migration — continue porting complex rules
+  2. Open enrollment readiness
+  3. Member Portal redesign launch
+  4. Capitation design proposal (scoping only)
+  5. Provider portal design
+  6. Pharmacy claims integration scoping (early feasibility)
+
+Marcus: good quarter. Let's not lose momentum on the migration. Meeting adjourned.

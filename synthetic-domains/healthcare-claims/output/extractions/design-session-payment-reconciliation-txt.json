@@ -1,0 +1,270 @@
+{
+  "source_document": "design-session-payment-reconciliation.txt",
+  "document_summary": "Design session documenting three major problems with Payment Engine reconciliation: timing mismatches between ERA 835 and EFT settlement, void/reissue tracking issues, and recoupment spreading logic problems. Team reached decisions on first two problems but deferred complex recoupment logic for follow-up.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "payment-reconciliation-rework",
+      "name": "Payment Reconciliation Rework",
+      "description": "Design initiative to fix three critical problems in Payment Engine reconciliation workflow",
+      "overview": "Multi-phased project to address timing mismatches between ERA 835 generation and EFT settlement, improve void/reissue payment tracking, and redesign recoupment spreading logic. Session resulted in concrete decisions for first two problems but deferred complex recoupment logic requiring fraud team coordination.",
+      "details": "The rework addresses three specific problems: (1) ERA 835 remittance advice generated at payment batch time but EFT settlement occurs 2-3 days later, causing provider office reconciliation issues when deposits don't match posted amounts, (2) void/reissue payment chains from Rules Engine reprocessing lack proper linkage tracking, creating orphaned records, and (3) recoupment spreading logic fails to coordinate multiple simultaneous recoupments, potentially zeroing out provider payments for extended periods. Team decided to delay ERA 835 until settlement confirmation and add void linkage database fields, but recoupment spreading requires additional design work involving fraud holds and minimum payment thresholds.",
+      "status": "active",
+      "tags": [
+        "payment-processing",
+        "reconciliation",
+        "provider-experience"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Marcus Reeves (Claims Operations team lead) is driving the initiative"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Primary system being reworked"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Triggers void/reissue scenarios through claim reprocessing"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Retroactive enrollment changes trigger reprocessing"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined multi-phase initiative with specific problems, decisions, and action items"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "era-835-timing-mismatch",
+      "name": "ERA 835 Timing Mismatch Problem",
+      "description": "Reconciliation problem where ERA 835 remittance advice doesn't match actual EFT settlement amounts",
+      "overview": "Current Payment Engine generates ERA 835 remittance advice at payment batch time, but EFT settlement occurs 2-3 business days later. During this gap, payment amounts can change due to fraud holds or claim voids, causing provider office reconciliation failures when deposits don't match posted ERA amounts.",
+      "details": "The timing gap creates real operational problems for provider offices who receive the 835, post it to their accounts receivable, then discover the bank deposit doesn't match. Changes during the settlement window include fraud holds placed by SIU, claim voids from Rules Engine reprocessing, or other payment adjustments. Team decided to delay ERA 835 generation until EFT settlement confirmation is received from the banking partner, accepting 2-3 business day delay as preferable to reconciliation mismatches.",
+      "status": "active",
+      "tags": [
+        "payment-processing",
+        "provider-experience",
+        "reconciliation-issue"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "System that generates ERA 835 remittance advice"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "Data model affected by timing mismatch"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "banking-partner",
+          "target_entity_name": "Banking Partner",
+          "reasoning": "Provides EFT settlement confirmation needed for solution"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-documented operational problem with clear cause and proposed solution"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "void-reissue-tracking-problem",
+      "name": "Void/Reissue Tracking Problem",
+      "description": "Payment linkage issue where voided and reissued payments lack proper relationship tracking",
+      "overview": "When Rules Engine reprocesses claims due to retroactive enrollment changes, Payment Engine voids original payments and creates new ones, but the linkage between voided and reissued payments isn't tracked cleanly. This creates orphaned void records and makes payment chain analysis difficult.",
+      "details": "Current void records lack structured reasons and links to replacement payments, making it impossible to trace payment chains or generate accurate reports. Team decided to add void_reason, linked_payment_id, and void_type fields to payments table to establish proper bidirectional linkage. New void types will include REPROCESS, FRAUD, MANUAL, and RECOUP. No backfill planned for historical voids due to incomplete audit trails from 2024.",
+      "status": "active",
+      "tags": [
+        "payment-processing",
+        "data-integrity",
+        "audit-trail"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "System managing void/reissue payments"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Triggers reprocessing that leads to void/reissue"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "payment",
+          "target_entity_name": "Payment",
+          "reasoning": "Data model requiring linkage fields"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific data integrity problem with concrete database schema solution"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "recoupment-spreading-problem",
+      "name": "Recoupment Spreading Problem",
+      "description": "Flawed logic for distributing large recoupments across payment cycles that doesn't coordinate multiple simultaneous recoupments",
+      "overview": "Current recoupment spreading logic distributes large recoupments over multiple payment cycles when they exceed 50% of payment amount, but doesn't account for other recoupments in flight. This can result in providers receiving essentially no payments for extended periods when multiple recoupments hit simultaneously.",
+      "details": "The spreading algorithm also interacts poorly with the $5 minimum payment threshold - unclear whether payments below threshold due to recoupment spreading should be held or sent as $0 payments (current behavior). Team identified this as more complex than initially understood, requiring consideration of fraud holds, provider payment volumes, and overall provider experience. Example given: provider with $50K monthly payments shouldn't be zeroed out by two $30K recoupments hitting the same cycle. Deferred to follow-up session with fraud team involvement.",
+      "status": "proposed",
+      "tags": [
+        "payment-processing",
+        "business-logic",
+        "provider-experience",
+        "needs-review"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "System implementing recoupment spreading logic"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "payment-threshold-rules",
+          "target_entity_name": "Payment Threshold Rules",
+          "reasoning": "Minimum payment threshold interacts with spreading logic"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Is the current $0 payment behavior for sub-threshold amounts intentional or a bug?",
+        "How should fraud holds interact with recoupment spreading calculations?"
+      ],
+      "reasoning": "Documented business logic problem but solution deferred, making classification as domain-logic appropriate"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "payments-table-void-linkage",
+      "name": "Payments Table Void Linkage Schema",
+      "description": "Database schema changes to add void reason tracking and payment chain linkage to payments table",
+      "overview": "Proposed database migration to add three new fields to payments table: void_reason (VARCHAR 100), linked_payment_id (BIGINT foreign key), and void_type (ENUM with values REPROCESS, FRAUD, MANUAL, RECOUP). These fields establish bidirectional linkage between voided payments and their replacements.",
+      "details": "Schema changes enable proper audit trails for payment voids and reissues. Every void will point to its replacement payment via linked_payment_id, and void_reason provides human-readable context. The void_type enum categorizes voids by cause: REPROCESS (Rules Engine reprocessing), FRAUD (SIU holds), MANUAL (manual intervention), RECOUP (recoupment processing). No backfill planned for historical data due to incomplete audit trails from 2024 voids.",
+      "status": "planned",
+      "tags": [
+        "database-migration",
+        "audit-trail",
+        "payment-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "maps_to",
+          "target_entity_id": "payment",
+          "target_entity_name": "Payment",
+          "reasoning": "Enhancement to existing payment data model"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "System that will populate and use linkage fields"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific database schema with exact field definitions and data types"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "eft-settlement-confirmation",
+      "name": "EFT Settlement Confirmation",
+      "description": "Banking partner notification confirming actual Electronic Funds Transfer settlement completion",
+      "overview": "Settlement confirmation feed from banking partner that confirms EFT transactions have actually settled, including final amounts. This confirmation is needed to trigger ERA 835 generation in the revised Payment Engine workflow, replacing the current batch-time generation that causes reconciliation mismatches.",
+      "details": "Currently under investigation by Leo Chen to determine format, latency, and consumption method from banking partner. The confirmation will serve as the trigger for generating final ERA 835 remittance advice, ensuring amounts match actual bank deposits. This replaces the current approach of generating provisional 835s at batch time, which providers dislike receiving multiple times.",
+      "status": "planned",
+      "tags": [
+        "payment-processing",
+        "banking-integration",
+        "settlement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "banking-partner",
+          "target_entity_name": "Banking Partner",
+          "reasoning": "Banking partner provides settlement confirmation"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine will consume confirmation to trigger ERA generation"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "era-835-settlement-confirmation",
+          "target_entity_name": "ERA 835 Settlement Confirmation",
+          "reasoning": "Confirmation triggers ERA 835 generation logic"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "What format will the banking partner use for settlement confirmation?",
+        "What is the actual latency for settlement confirmation delivery?"
+      ],
+      "reasoning": "Referenced business event that needs investigation but serves clear purpose in solution"
+    }
+  ],
+  "questions": [
+    "What specific format and API does the banking partner provide for EFT settlement confirmation - is it real-time webhooks, batch files, or API polling?",
+    "For the void linkage fields, should linked_payment_id be nullable to handle voids that don't have replacements (e.g., pure cancellations)?",
+    "How does the recoupment spreading algorithm currently prioritize multiple simultaneous recoupments - first-in-first-out, by dollar amount, or some other logic?",
+    "What happens to ERA 835s that were already generated but the corresponding EFT settlement is later modified - do providers get corrected 835s?",
+    "For the $0 payment scenario in recoupment spreading, do providers prefer to receive $0 payments or have payments held until they exceed the minimum threshold?",
+    "Are there regulatory or compliance requirements around ERA 835 timing that could be affected by delaying generation until settlement confirmation?"
+  ],
+  "new_jargon": [
+    "Orphaned void records",
+    "Settlement confirmation feed",
+    "Recoupment spreading",
+    "Provisional ERA 835"
+  ],
+  "decision_log": [
+    {
+      "subject": "Payment reconciliation rework classification",
+      "decision": "Classified as process entity",
+      "reasoning": "This is a multi-phase design initiative with specific workflow steps, action items, and deliverables - fits process entity type better than decision or capability"
+    },
+    {
+      "subject": "ERA 835 timing mismatch",
+      "decision": "Classified as business-event entity",
+      "reasoning": "This represents a specific operational problem event that occurs in the payment flow - the mismatch between ERA generation and settlement is an event-driven issue"
+    },
+    {
+      "subject": "Void linkage schema changes",
+      "decision": "Created separate data-model entity instead of updating existing payment model",
+      "reasoning": "These are significant schema changes that deserve their own entity to track the migration and design decisions, rather than just updating the existing payment data model"
+    },
+    {
+      "subject": "Recoupment spreading problem",
+      "decision": "Classified as domain-logic entity despite being a problem",
+      "reasoning": "This is fundamentally about flawed business logic for payment calculations - the spreading algorithm is domain logic that needs to be redesigned"
+    },
+    {
+      "subject": "EFT settlement confirmation",
+      "decision": "Created as business-event entity despite being planned",
+      "reasoning": "This represents a specific event flow that will exist between banking partner and payment engine - the fact it's under investigation doesn't change its nature as an event"
+    }
+  ]
+}

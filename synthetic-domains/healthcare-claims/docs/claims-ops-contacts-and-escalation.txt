@@ -1,0 +1,81 @@
+Claims Operations — Contact Directory & Escalation Paths
+Last updated: 2025-08 (I think? — someone please update the date when you change this)
+
+== Team Roster ==
+
+Name Role Team Slack Email Phone On-Call Notes
+Marcus Reeves Claims Ops Lead Claims Ops @marcus.reeves marcus.reeves@clearviewhealth.com (555) 901-2345 Primary escalation for all claims issues
+Priya Anand Engineering Lead Claims Ops @priya.anand priya.anand@clearviewhealth.com (555) 901-2346 Primary escalation for engineering issues
+Leo Chen Senior Engineer Claims Ops @leo.chen leo.chen@clearviewhealth.com (555) 901-2347 Payment Engine, infrastructure, Kafka
+Nadia Volkov Senior Engineer Claims Ops @nadia.volkov nadia.volkov@clearviewhealth.com (555) 901-2348 Claims Gateway, EDI, testing
+Tariq Hassan ML Engineer Claims Ops @tariq.hassan tariq.hassan@clearviewhealth.com (555) 901-2349 Fraud Detection, ML models, Vertex AI
+Kenji Watanabe Senior Engineer Claims Ops @kenji.watanabe kenji.watanabe@clearviewhealth.com TBD - starting Nov 1 Rules Engine migration. Joining from Meridian Health Systems.
+Rachel Dominguez Contractor (Apex) Claims Ops @rachel.dominguez rachel.dominguez@apexconsulting.com N/A Contract ends Oct 2025. Rules engine migration SME. NOT on-call.
+Dana Okafor Member Services Lead Member Services @dana.okafor dana.okafor@clearviewhealth.com (555) 901-2401 Eligibility, enrollment, member portal
+James Whitfield Provider Network Lead Provider Network @james.whitfield james.whitfield@clearviewhealth.com (555) 901-2501 Provider directory, credentialing, contracts
+Dr. Sarah Lin Clinical Review Lead Clinical @dr.sarah.lin sarah.lin@clearviewhealth.com (555) 901-2601 Pre-auth clinical decisions, medical policy
+Mei-Lin Torres UX Lead Product @meitorres meitorres@clearviewhealth.com N/A Member Portal redesign, provider portal design
+
+(copied from the org chart spreadsheet — if the formatting is messed up, check the Google Sheet: "Claims Platform Team Roster 2025" — link is in the #claims-general Slack channel bookmarks)
+
+== People who left (for reference — you'll see their names in old docs) ==
+
+Samir Patel — was Principal Architect, led the 2020-2021 migration. Left Q2 2022. His work is all over the architecture docs.
+Tom Nguyen — was Senior Engineer on Eligibility Service. Left Q1 2023. Caused the 2022 eligibility outage (the index migration). Wrote the DB migration best practices doc.
+Nina Petrovich — was Senior Engineer, designed the Payment Engine void/reissue workflow. Left Q4 2022. Her code is still running in production.
+
+
+== Escalation Matrix ==
+
+Severity Who to page Response time
+SEV-1 (full outage/data loss) On-call engineer → Marcus → Priya 15 min ack, 30 min war room
+SEV-2 (degraded/partial) On-call engineer 30 min ack
+SEV-3 (minor/informational) Don't page, handle next business day N/A
+
+For SEV-1 incidents, the on-call engineer MUST:
+  1. Acknowledge in PagerDuty within 15 minutes
+  2. Open a Slack thread in #claims-incidents
+  3. If not resolved within 30 minutes, start a war room (Zoom link in #claims-incidents channel description)
+  4. Page Marcus and Priya if they haven't already joined
+
+== External Vendor Contacts ==
+
+HealthLogic (Rules Engine vendor):
+  Support email: support@healthlogicsystems.com
+  Support phone: (800) 555-HLGC — "enterprise support line"
+  Account manager: Derek Foss — derek.foss@healthlogicsystems.com
+  SLA: P1 = 4 hour response, P2 = 8 hour response
+  VPN tunnel support: infra-ops@healthlogicsystems.com
+  Note: they're slow. If you have a P1, call AND email. Also ping Derek directly.
+
+Banking partner (EFT processing):
+  Contact: shared inbox — payments-support@firstalliancebanking.com
+  For urgent payment reversals: call (800) 555-1FAB — ask for the "commercial payments desk"
+  SFTP support: sftp-support@firstalliancebanking.com
+
+Clearinghouses:
+  Northeast Clearinghouse — tech support: techsupport@northeastclearing.com
+  MedConnect Exchange — integration team: integration@medconnectex.com
+  DirectSubmit — they don't really have a support team, email: info@directsubmit.io
+
+Vertex AI / GCP support:
+  We have Premium Support — file tickets via console or call (855) 555-GCLOUD
+  Technical Account Manager (TAM): currently unassigned since the last TAM rotated
+
+== Slack Channels ==
+
+#claims-general — general discussion, announcements
+#claims-incidents — active incidents, war rooms
+#claims-deploys — deployment notifications (bot posts here)
+#claims-on-call — on-call handoff notes, shift swaps
+#preauth-ops — pre-auth specific operations
+#fraud-detection — Tariq's team, model updates, SIU coordination
+#member-portal — portal team discussions
+#provider-network — James's team
+
+== Misc ==
+
+PagerDuty schedule: https://pagerduty.clearviewhealth.internal/schedules/claims-ops
+On-call handoff: every Monday 9 AM ET in #claims-on-call. Outgoing engineer posts a summary of anything in progress.
+Incident response doc: I know there's an IR doc somewhere but I can't find the link. Ask Marcus.
+War room Zoom: https://zoom.us/j/clearview-claims-warroom (permanent link, always active during incidents)

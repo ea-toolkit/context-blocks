@@ -1,0 +1,264 @@
+{
+  "source_document": "enrollment-workflow.txt",
+  "document_summary": "A placeholder TODO document outlining the need for comprehensive documentation of member enrollment workflows, including new member enrollment, plan changes, qualifying life events, COBRA, retroactive changes, and EDI 834 processing. Created by Marcus Reeves and assigned to Dana Okafor for completion by Q4 2025.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "member-enrollment-workflow",
+      "name": "Member Enrollment Workflow",
+      "description": "End-to-end process for enrolling members in health plans and managing enrollment changes",
+      "overview": "The comprehensive business process covering how members join Clearview Health Plans, change their coverage, and handle life events that affect their enrollment. This includes both the business workflow steps and technical implementation through the Eligibility Service.",
+      "details": "This process encompasses multiple enrollment scenarios: new member enrollment when someone first joins a plan, open enrollment periods where existing members can change their coverage, qualifying life events (marriage, birth, job change) that allow mid-year changes, COBRA enrollment for members losing employer coverage, and retroactive enrollment changes that require claims reprocessing. The process involves both business workflow management and technical implementation through EDI 834 enrollment file processing in the Eligibility Service. Currently undocumented, causing confusion for new engineers who frequently ask about the enrollment flow.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "high-priority",
+        "member-facing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "dana-okafor",
+          "target_entity_name": "Dana Okafor",
+          "reasoning": "Document explicitly assigns this workflow documentation to Dana Okafor"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document indicates technical implementation occurs in the Eligibility Service"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "retroactive-enrollment-reprocessing",
+          "target_entity_name": "Retroactive Enrollment Reprocessing",
+          "reasoning": "Document mentions retroactive enrollment changes impact claims reprocessing"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a business process as it describes workflow steps and business scenarios for member enrollment, even though the documentation is incomplete"
+    },
+    {
+      "entity_type": "process",
+      "id": "new-member-enrollment",
+      "name": "New Member Enrollment",
+      "description": "Process for enrolling brand new members who are joining a health plan for the first time",
+      "overview": "The specific workflow within the broader enrollment process that handles members who are completely new to Clearview Health Plans. This involves initial plan selection, eligibility verification, and setup of member records and benefits.",
+      "details": "One of the key enrollment scenarios that needs documentation. This process likely involves collecting member demographic information, verifying eligibility requirements, setting up initial benefit plan assignments, and creating member records in the Eligibility Service. The process would need to handle data validation, duplicate checking, and initial accumulator setup for new members.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "member-onboarding"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-enrollment-workflow",
+          "target_entity_name": "Member Enrollment Workflow",
+          "reasoning": "Document lists this as one component of the broader enrollment workflow"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "This process likely involves collecting member demographic information",
+        "The process would need to handle data validation"
+      ],
+      "reasoning": "Listed as a distinct component of the enrollment workflow, representing a specific business process scenario"
+    },
+    {
+      "entity_type": "process",
+      "id": "open-enrollment-process",
+      "name": "Open Enrollment Process",
+      "description": "Annual enrollment period process where existing members can change their health plan coverage",
+      "overview": "The workflow that manages the annual open enrollment period when existing members can modify their health plan selections, change coverage levels, or switch between available plan options. This involves plan comparison, selection validation, and effective date management.",
+      "details": "A critical enrollment scenario that occurs annually, allowing existing members to review and change their health plan coverage. This process would involve presenting available plan options, validating member selections, managing effective dates for changes, and coordinating with benefit plan systems to ensure smooth transitions. The process likely has specific timing windows and business rules around what changes are permitted during open enrollment.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "annual-cycle",
+        "member-facing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-enrollment-workflow",
+          "target_entity_name": "Member Enrollment Workflow",
+          "reasoning": "Document lists this as one component of the broader enrollment workflow"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "This process would involve presenting available plan options",
+        "The process likely has specific timing windows"
+      ],
+      "reasoning": "Listed as a distinct enrollment scenario, representing a specific business process with annual timing"
+    },
+    {
+      "entity_type": "process",
+      "id": "qualifying-life-events-process",
+      "name": "Qualifying Life Events Process",
+      "description": "Process for handling mid-year enrollment changes triggered by qualifying life events",
+      "overview": "The workflow that manages enrollment changes outside of open enrollment periods when members experience qualifying life events such as marriage, birth of a child, or job changes. These events create special enrollment periods allowing plan modifications.",
+      "details": "This process handles specific life events that qualify members for special enrollment periods: marriage (which may add dependents or change coverage needs), birth of children (requiring dependent enrollment), and job changes (which may affect eligibility or plan options). The process must validate that the life event qualifies for enrollment changes, manage timing requirements for when changes can be made, and coordinate effective dates with the triggering event dates.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "exception-handling",
+        "life-events"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-enrollment-workflow",
+          "target_entity_name": "Member Enrollment Workflow",
+          "reasoning": "Document lists this as one component of the broader enrollment workflow"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Listed as a distinct enrollment scenario with specific business triggers (life events), representing a specialized business process"
+    },
+    {
+      "entity_type": "process",
+      "id": "cobra-enrollment-process",
+      "name": "COBRA Enrollment Process",
+      "description": "Process for enrolling members in COBRA continuation coverage after losing employer-sponsored coverage",
+      "overview": "The specialized enrollment workflow that handles members who have lost employer-sponsored health coverage and are eligible for COBRA continuation benefits. This involves different rules, timelines, and premium structures than standard enrollment.",
+      "details": "COBRA (Consolidated Omnibus Budget Reconciliation Act) enrollment is a federally mandated process that allows employees and their dependents to continue group health coverage after losing employer coverage due to job loss, reduction in hours, or other qualifying events. This process has specific legal requirements for notification timelines, coverage continuation periods, and premium payment structures. The workflow must handle the transition from employer-paid to member-paid premiums and manage the different benefit structures that may apply to COBRA coverage.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "compliance",
+        "federal-mandate"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-enrollment-workflow",
+          "target_entity_name": "Member Enrollment Workflow",
+          "reasoning": "Document lists this as one component of the broader enrollment workflow"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Listed as a distinct enrollment scenario with specific regulatory requirements, representing a specialized business process"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "edi-834",
+      "name": "EDI 834",
+      "description": "Standard electronic data interchange format for health insurance enrollment and maintenance transactions",
+      "overview": "The standardized EDI transaction format used to communicate member enrollment information between health plans, employers, and insurance brokers. EDI 834 files contain member demographic information, coverage details, and enrollment changes.",
+      "details": "EDI 834 is the Health Insurance Benefit Enrollment and Maintenance transaction standard that carries member enrollment data in a structured electronic format. These files contain member demographics (names, addresses, dates of birth), coverage effective dates, benefit plan selections, dependent information, and enrollment change indicators. The Eligibility Service processes these files as part of the technical implementation of enrollment workflows. The format includes specific segments and data elements that must be parsed and validated during processing.",
+      "status": "active",
+      "tags": [
+        "edi-standard",
+        "enrollment-data",
+        "structured-format"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document indicates EDI 834 processing occurs in the Eligibility Service"
+        },
+        {
+          "relationship_type": "carries",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "EDI 834 files contain member demographic and enrollment information"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a structured data format/schema used for enrollment transactions, fitting the data-model entity type"
+    },
+    {
+      "entity_type": "process",
+      "id": "edi-834-processing",
+      "name": "EDI 834 Processing",
+      "description": "Technical process for parsing and processing EDI 834 enrollment files in the Eligibility Service",
+      "overview": "The automated technical workflow that ingests EDI 834 enrollment files, validates their format and content, extracts member enrollment data, and updates member records and eligibility information in the system.",
+      "details": "This process handles the technical implementation of enrollment data processing through EDI 834 file ingestion. The workflow includes file receipt validation, EDI format parsing, business rule validation of enrollment data, member record creation or updates, and error handling for invalid or incomplete data. The process must handle batch processing of multiple enrollment records and coordinate with other systems when enrollment changes affect existing claims or benefit calculations.",
+      "status": "planned",
+      "tags": [
+        "undocumented",
+        "technical-implementation",
+        "batch-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-enrollment-workflow",
+          "target_entity_name": "Member Enrollment Workflow",
+          "reasoning": "Document identifies this as part of the technical implementation of enrollment workflows"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document indicates this processing occurs in the Eligibility Service"
+        },
+        {
+          "relationship_type": "handles",
+          "target_entity_id": "edi-834",
+          "target_entity_name": "EDI 834",
+          "reasoning": "This process specifically handles EDI 834 format files"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "The workflow includes file receipt validation",
+        "The process must handle batch processing"
+      ],
+      "reasoning": "This represents a technical process for handling EDI file processing, distinct from the business enrollment workflow"
+    }
+  ],
+  "questions": [
+    "What is the current state of enrollment workflow documentation - is there any existing partial documentation or is this completely undocumented?",
+    "What specific issues or confusion have new engineers encountered regarding enrollment flows that triggered the need for this documentation?",
+    "Are there existing technical implementations in the Eligibility Service for enrollment processing that just need documentation, or do both the process and implementation need to be designed?",
+    "What is the relationship between enrollment changes and the retroactive claims reprocessing mentioned - does every enrollment change trigger claims reprocessing?",
+    "Who are the key stakeholders beyond Dana Okafor who should be involved in documenting the enrollment workflow?",
+    "What is the priority and urgency of this documentation given the Q4 2025 target date?"
+  ],
+  "new_jargon": [
+    "EDI 834",
+    "COBRA",
+    "Qualifying life events"
+  ],
+  "decision_log": [
+    {
+      "subject": "Member Enrollment Workflow",
+      "decision": "classified as process",
+      "reasoning": "This represents a comprehensive business workflow with multiple steps and scenarios, clearly fitting the process entity type"
+    },
+    {
+      "subject": "Individual enrollment scenarios",
+      "decision": "created separate process entities for each scenario",
+      "reasoning": "The document lists distinct enrollment scenarios (new member, open enrollment, qualifying life events, COBRA) as separate components, each with different business rules and triggers"
+    },
+    {
+      "subject": "EDI 834",
+      "decision": "classified as data-model",
+      "reasoning": "This is a standardized data structure/format for enrollment transactions, fitting the data-model entity type rather than being a process or system"
+    },
+    {
+      "subject": "EDI 834 Processing",
+      "decision": "classified as separate process entity",
+      "reasoning": "The technical processing of EDI 834 files is a distinct technical process separate from the business enrollment workflow, warranting its own entity"
+    },
+    {
+      "subject": "Existing entities",
+      "decision": "reused dana-okafor, eligibility-service, and retroactive-enrollment-reprocessing IDs",
+      "reasoning": "These entities already exist in the domain model and the document provides additional context about their relationships to enrollment workflows"
+    },
+    {
+      "subject": "Marcus Reeves comment",
+      "decision": "did not create separate entity",
+      "reasoning": "The comment provides context about the documentation need but doesn't represent a distinct domain concept worth its own entity"
+    }
+  ]
+}

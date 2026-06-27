@@ -1,0 +1,23 @@
+---
+/**
+ * StatBar — row of key metrics.
+ */
+interface StatItem {
+  value: number | string;
+  label: string;
+}
+
+interface Props {
+  items: StatItem[];
+}
+
+const { items } = Astro.props;
+---
+<div class="stat-bar">
+  {items.map(item => (
+    <div class="stat-item">
+      <div class="stat-item__value">{item.value}</div>
+      <div class="stat-item__label">{item.label}</div>
+    </div>
+  ))}
+</div>

@@ -1,0 +1,117 @@
+Eligibility Service — Monitoring & Operations Guide
+Last updated: 2025-08-12 by Dana Okafor
+
+This covers the day-to-day monitoring and operational tasks for the Eligibility Service. Claims Ops has their own monitoring runbook for the broader pipeline — this is specifically for Member Services engineers.
+
+
+== Key Metrics ==
+
+Watch these daily (Datadog dashboard: Eligibility Service — Production):
+
+  Query rate: ~2,500 req/sec during peak hours (10 AM - 3 PM ET). If it drops below 1,000 during peak, something's wrong upstream (probably Claims Gateway).
+
+  Accumulator update rate: should track closely with adjudication volume. If accumulators stop updating but claims are being adjudicated, the Kafka consumer for clearview.claims.claim.adjudicated might be lagging.
+
+  Retroactive reprocessing triggers: normally 5-15 per day. If you see >50, check what happened — it might be a bulk enrollment correction from the enrollment team, which is fine. Or it might be a bug.
+
+  Point-in-time query cache hit rate: should be >85%. If it drops, the cache might need tuning or the query pattern changed.
+
+
+== Open Enrollment Period ==
+
+November through mid-December is open enrollment. This is the Eligibility Service's Super Bowl.
+
+What changes:
+  - Enrollment update volume spikes 10x
+  - Plan assignment changes are processed in large batches
+  - Accumulator resets happen for members changing plans (new plan year = accumulators reset to zero)
+  - The Member Portal sees 3-4x normal traffic as members check their benefits
+
+Preparation:
+  1. Scale up pods 2 weeks before (increase HPA min replicas from 3 to 6)
+  2. Increase database connection pool (current max: 100, increase to 200)
+  3. Pre-warm the benefit plan config cache
+  4. Coordinate with Claims Ops — they may need to throttle batch claims processing during peak enrollment updates
+  5. Alert thresholds should be relaxed for enrollment update volume (otherwise we'd be alerted constantly)
+
+Post-enrollment cleanup:
+  - Run the accumulator audit job to verify all plan-change resets were processed correctly
+  - Check for orphaned reservations from the transition period
+  - Restore normal scaling and alert thresholds
+
+
+== Accumulator Management ==
+
+Accumulators track deductible and out-of-pocket maximum progress per member per plan year.
+
+Four accumulator types:
+  IND_DEDUCTIBLE — individual deductible
+  FAM_DEDUCTIBLE — family deductible
+  IND_OOP_MAX — individual out-of-pocket maximum
+  FAM_OOP_MAX — family out-of-pocket maximum
+
+Common issues:
+
+  Accumulator drift:
+    The accumulator amounts can drift from the actual sum of claim payments due to concurrent processing. The soft reservation system prevents most of this, but edge cases exist (e.g., claim voided after accumulator was updated).
+    Fix: run the monthly accumulator reconciliation job. It recalculates from adjudicated claims and corrects any drift.
+    Job: accumulator-reconciliation (runs 1st of each month at 04:00 UTC)
+
+  Double-applied deductible:
+    If the soft reservation system fails (e.g., the 6-hour cleanup job ran during active adjudication), two claims might both apply toward the deductible independently.
+    Detection: member calls complaining they're being charged too much. Check their accumulator history vs. actual claim payments.
+    Fix: manual adjustment via the admin API (requires Member Services lead approval)
+
+  Accumulator reset at plan year boundary:
+    Accumulators reset to zero on January 1 (or the plan's effective date for off-cycle plans). The reset is handled by a batch job.
+    Risk: claims processed in late December might hit accumulators that reset on Jan 1. The adjudication uses date_of_service, not processing_date, so a December service processed in January correctly applies to the December accumulator. But the accumulator needs to exist for both years during the transition.
+
+
+== Enrollment Data Feeds ==
+
+Primary enrollment source: the benefits administration system (managed by HR/Benefits team, not engineering). We receive enrollment updates via:
+  - Real-time API for individual enrollment changes
+  - Nightly batch file (EDI 834) for group enrollment updates
+  - Open enrollment batch loads (November-December)
+
+The EDI 834 processing:
+  - File lands on SFTP at ~02:00 UTC nightly
+  - Batch job picks up, validates, and applies enrollment changes
+  - If a change is retroactive (effective date in the past), it triggers the automatic reprocessing of affected claims
+  - Processing typically completes by 04:00 UTC
+
+Watch for: 834 files that are significantly larger or smaller than normal. A file that's 10x normal size might indicate a bulk correction. An unexpectedly small file might mean the upstream system had an issue and didn't include all records.
+
+
+== Coordination of Benefits (COB) ==
+
+COB handling is one of the more complex parts of eligibility. When a member has coverage from multiple payers:
+
+  1. We determine payer order (primary vs. secondary) using standard birthday rule, active/retired rule, etc.
+  2. If Clearview is primary: adjudicate normally
+  3. If Clearview is secondary: we need the primary payer's EOB before we can adjudicate
+     - The primary payer's payment is entered into the COB record
+     - Our adjudication calculates what we owe as secondary (member's remaining balance up to our allowed amount)
+
+COB data is stored in the member record:
+  - other_coverage flag (boolean)
+  - other_payer_id, other_payer_name
+  - payer_order (PRIMARY, SECONDARY, TERTIARY)
+  - other_payer_effective_date, other_payer_termination_date
+
+Known issues:
+  - COB data is often stale. Members don't always report changes in other coverage promptly.
+  - The COB questionnaire on the Member Portal has a ~40% completion rate. Many members ignore it.
+  - When COB data is wrong, it usually results in overpayment (we pay as primary when we're actually secondary).
+  - Annual COB verification letters are sent to all members with other_coverage = true. Response rate: ~35%.
+
+TODO: add documentation for the new COB auto-detection system (still in design — see COB handling design session notes)
+
+
+== Contacts ==
+
+Eligibility Service engineering: Dana Okafor
+Enrollment data issues: contact the Benefits Administration team (separate from engineering)
+Accumulator questions during adjudication: Priya Anand (Claims Ops)
+COB policy questions: reach out to the Compliance team
+Member escalations: Member Services call center supervisor

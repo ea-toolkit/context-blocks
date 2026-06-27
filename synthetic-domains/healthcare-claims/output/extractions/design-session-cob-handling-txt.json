@@ -1,0 +1,434 @@
+{
+  "source_document": "design-session-cob-handling.txt",
+  "document_summary": "Design session for COB auto-detection system to identify members with unreported other coverage through claims data analysis and automated signals, reducing overpayment from incorrect payer order",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "cob-auto-detection-project",
+      "name": "COB Auto-Detection Project",
+      "description": "Project to automatically detect members with unreported other coverage through claims data analysis",
+      "overview": "Initiative to reduce $4-6M annual overpayment by automatically identifying members who have other insurance coverage they haven't reported. Uses signals like unusual claim patterns and Medicare eligibility to flag members for COB verification.",
+      "details": "Addresses the problem that COB data is stale for 30-40% of members with other coverage, with current verification methods (portal questionnaire at 40% completion, annual letters at 35% response) proving inadequate. The system will analyze five potential signals: (1) unusually low billed amounts suggesting other payer paid first, (2) service gaps in claim patterns, (3) pharmacy cross-reference data, (4) Medicare eligibility at age 65, and (5) spouse employment changes. Initial implementation focuses on signals #1 and #4 as most tractable. Scheduled for Q1 2026 implementation.",
+      "status": "planned",
+      "tags": [
+        "domain-logic",
+        "compliance",
+        "cost-reduction"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Dana Okafor from Member Services is leading the initiative"
+        },
+        {
+          "relationship_type": "addresses",
+          "target_entity_id": "cob",
+          "target_entity_name": "COB",
+          "reasoning": "Project specifically addresses COB detection and verification challenges"
+        },
+        {
+          "relationship_type": "requires",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Needs claims data for billed amount analysis"
+        },
+        {
+          "relationship_type": "requires",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Needs member data and will handle verification workflow"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as a planned project with specific goals, timeline, and implementation approach"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "cob-detection-signals",
+      "name": "COB Detection Signals",
+      "description": "Five identified signals in claims data that indicate potential unreported other coverage",
+      "overview": "Business rules for automatically identifying members who likely have other insurance coverage they haven't reported. Five signals range from billed amount analysis to Medicare eligibility checks.",
+      "details": "Signal #1: Unusually low billed amounts compared to 25th percentile for procedure code, suggesting another payer paid first. Signal #2: Service gaps where regular claim patterns suddenly stop. Signal #3: Pharmacy cross-reference showing different primary insurance. Signal #4: Medicare eligibility when member turns 65. Signal #5: Spouse employment changes from large employers. Initial implementation focuses on signals #1 and #4 as most tractable, with #2 being too noisy, #3 requiring pharmacy system integration, and #5 being impractical.",
+      "status": "planned",
+      "tags": [
+        "domain-logic",
+        "detection-algorithm"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "cob-auto-detection-project",
+          "target_entity_name": "COB Auto-Detection Project",
+          "reasoning": "These are the core detection rules for the COB auto-detection system"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Analyzes historical claims data for patterns"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Detailed business logic clearly defined with specific criteria and prioritization"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-verification-workflow",
+      "name": "COB Verification Workflow",
+      "description": "Five-step process for verifying and updating member COB information after auto-detection",
+      "overview": "Workflow triggered when COB auto-detection flags a member for review. Includes member outreach, response handling, and claim reprocessing for confirmed other coverage.",
+      "details": "Step 1: Member flagged for COB review by detection system. Step 2: Outreach via email and portal notification asking member to confirm other coverage. Step 3: If confirmed, update COB record and trigger reprocessing of recent claims where overpayment occurred. Step 4: If no response within 30 days, send physical letter. Step 5: If still no response, flag for manual review by Member Services rep. Step 3 reprocessing is expensive and must consider regulatory limits on recoupment (typically 12-18 months depending on state).",
+      "status": "planned",
+      "tags": [
+        "member-communication",
+        "compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "cob-detection-signals",
+          "target_entity_name": "COB Detection Signals",
+          "reasoning": "Workflow starts when detection signals flag a member"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document states Eligibility Service will handle the verification workflow"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services reps handle manual review step"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear five-step workflow with specific actions and timing defined"
+    },
+    {
+      "entity_type": "system",
+      "id": "hets",
+      "name": "HETS (Healthcare Eligibility Transaction System)",
+      "description": "CMS system for Medicare beneficiary identifier lookups and eligibility verification",
+      "overview": "CMS-operated system that allows payers to verify Medicare enrollment status. Clearview already has some access for 270/271 transactions through the eligibility team.",
+      "details": "Healthcare Eligibility Transaction System operated by CMS that provides Medicare Beneficiary Identifier (MBI) lookups. Clearview currently uses it for some eligibility transactions, but needs to verify access specifically for COB lookups. This system would support signal #4 of the COB auto-detection by allowing automated verification of Medicare enrollment when members turn 65.",
+      "status": "active",
+      "tags": [
+        "external-system",
+        "medicare",
+        "verification"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "operated_by",
+          "target_entity_id": "external-parties",
+          "target_entity_name": "CMS",
+          "reasoning": "HETS is operated by Centers for Medicare & Medicaid Services"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility team currently uses HETS for 270/271 transactions"
+        },
+        {
+          "relationship_type": "supports",
+          "target_entity_id": "cob-detection-signals",
+          "target_entity_name": "COB Detection Signals",
+          "reasoning": "Would support Medicare eligibility verification for signal #4"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Clearview already has some access for 270/271 transactions through the eligibility team"
+      ],
+      "reasoning": "External system clearly identified with specific functionality, though Clearview's exact access level needs verification"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "cob-overpayment-incident",
+      "name": "COB Overpayment Problem",
+      "description": "Ongoing issue causing $4-6M annual overpayment due to stale COB data",
+      "overview": "Systemic problem where 30-40% of members with other coverage have stale COB information, resulting in Clearview paying as primary when they should be secondary.",
+      "details": "Compliance team estimates $4-6M annual overpayment due to incorrect payer order when COB data is outdated. Current verification methods are inadequate: portal COB questionnaire achieves only 40% completion rate, annual verification letters get 35% response rate. This creates ongoing financial exposure and regulatory compliance risk, driving the need for automated COB detection capabilities.",
+      "status": "active",
+      "tags": [
+        "compliance-issue",
+        "financial-impact"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "identified_by",
+          "target_entity_id": "compliance-team",
+          "target_entity_name": "Compliance Team",
+          "reasoning": "Compliance team provided the $4-6M overpayment estimate"
+        },
+        {
+          "relationship_type": "drives",
+          "target_entity_id": "cob-auto-detection-project",
+          "target_entity_name": "COB Auto-Detection Project",
+          "reasoning": "This problem is the business driver for the auto-detection initiative"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "cob",
+          "target_entity_name": "COB",
+          "reasoning": "Fundamental COB coordination issue"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business problem with quantified impact and defined scope"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-questionnaire",
+      "name": "COB Questionnaire",
+      "description": "Portal-based questionnaire for members to self-report other insurance coverage",
+      "overview": "Current method for collecting COB information from members through the member portal. Achieves only 40% completion rate, contributing to stale COB data problem.",
+      "details": "Self-service questionnaire available on the member portal where members can report other insurance coverage. Despite being the primary method for COB data collection, it has proven inadequate with only 40% of members completing it. This low completion rate is a key factor in the 30-40% of members having stale COB information, leading to incorrect payer order determination and overpayments.",
+      "status": "active",
+      "tags": [
+        "member-self-service",
+        "low-effectiveness"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Questionnaire is delivered through the member portal"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team likely owns member portal functionality"
+        },
+        {
+          "relationship_type": "contributes_to",
+          "target_entity_id": "cob-overpayment-incident",
+          "target_entity_name": "COB Overpayment Problem",
+          "reasoning": "Low completion rate contributes to stale COB data problem"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Existing process clearly described with specific performance metrics"
+    },
+    {
+      "entity_type": "process",
+      "id": "annual-cob-verification-letters",
+      "name": "Annual COB Verification Letters",
+      "description": "Annual physical mail campaign asking members to verify their other insurance coverage",
+      "overview": "Traditional mail-based approach to COB data verification sent annually to members. Achieves 35% response rate, slightly lower than the portal questionnaire.",
+      "details": "Annual outreach campaign using physical mail to request members verify and update their COB information. With only a 35% response rate, this method is even less effective than the portal questionnaire. Combined with the questionnaire's 40% completion rate, these traditional verification methods leave a significant gap in COB data accuracy, necessitating the development of automated detection capabilities.",
+      "status": "active",
+      "tags": [
+        "traditional-outreach",
+        "low-effectiveness"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services likely manages member communications"
+        },
+        {
+          "relationship_type": "contributes_to",
+          "target_entity_id": "cob-overpayment-incident",
+          "target_entity_name": "COB Overpayment Problem",
+          "reasoning": "Low response rate contributes to stale COB data problem"
+        },
+        {
+          "relationship_type": "complements",
+          "target_entity_id": "cob-questionnaire",
+          "target_entity_name": "COB Questionnaire",
+          "reasoning": "Both are current methods for COB verification"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Existing process with clear performance metrics mentioned"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "medicare-beneficiary-identifier",
+      "name": "Medicare Beneficiary Identifier (MBI)",
+      "description": "Unique identifier used by CMS for Medicare beneficiaries",
+      "overview": "CMS-assigned identifier for Medicare beneficiaries that can be looked up through HETS system. Would be used in COB auto-detection to verify Medicare enrollment when members turn 65.",
+      "details": "Medicare Beneficiary Identifier is the unique ID assigned by CMS to Medicare enrollees. This identifier can be queried through the HETS system to verify whether a member has enrolled in Medicare, which is crucial for signal #4 of the COB auto-detection system since Medicare enrollment at age 65 is a strong indicator of other coverage that should be reported.",
+      "status": "active",
+      "tags": [
+        "medicare",
+        "identifier"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "managed_by",
+          "target_entity_id": "external-parties",
+          "target_entity_name": "CMS",
+          "reasoning": "MBI is assigned and managed by Centers for Medicare & Medicaid Services"
+        },
+        {
+          "relationship_type": "accessible_via",
+          "target_entity_id": "hets",
+          "target_entity_name": "HETS (Healthcare Eligibility Transaction System)",
+          "reasoning": "MBI can be looked up through the HETS system"
+        },
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "cob-detection-signals",
+          "target_entity_name": "COB Detection Signals",
+          "reasoning": "Would be used in Medicare eligibility verification for signal #4"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Technical term with specific meaning in Medicare context, clearly defined usage"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "recoupment-time-limits",
+      "name": "Recoupment Time Limits",
+      "description": "Regulatory constraints on how far back payers can recover overpayments from providers",
+      "overview": "State-specific regulations that limit recoupment periods to typically 12-18 months. Critical constraint for COB reprocessing when other coverage is discovered.",
+      "details": "Regulatory limits that vary by state but typically allow recoupment of overpaid claims for 12-18 months from the original payment date. These limits are crucial for the COB verification workflow because when other coverage is discovered and Clearview determines they should have been secondary instead of primary, they can only recover overpayments within the regulatory window. This timing constraint affects the financial benefit calculation for COB auto-detection and requires careful handling in the reprocessing workflow.",
+      "status": "active",
+      "tags": [
+        "regulatory",
+        "compliance",
+        "financial-constraint"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "constrains",
+          "target_entity_id": "cob-verification-workflow",
+          "target_entity_name": "COB Verification Workflow",
+          "reasoning": "These limits constrain how far back claims can be reprocessed in step 3"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "recoupment-distribution-rules",
+          "target_entity_name": "Recoupment Distribution Rules",
+          "reasoning": "Related to existing recoupment rules in the system"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Usually 12-18 months depending on the state"
+      ],
+      "reasoning": "Clear regulatory constraint with specific business impact on COB processing"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-batch-analysis",
+      "name": "COB Batch Analysis",
+      "description": "Weekly batch job analyzing claims data for COB detection signals",
+      "overview": "Planned weekly batch processing job that will analyze historical claims data to identify members who may have unreported other coverage.",
+      "details": "Weekly batch analysis process that pulls claims data (billed amounts, procedure codes) from the reporting database and member data from Eligibility Service to identify COB detection signals. For signal #1, compares billed amounts against the 25th percentile for each procedure code to flag unusually low amounts. Outputs a list of member IDs flagged for COB review that feeds into the verification workflow. Designed as a reporting pipeline job rather than a real-time service feature.",
+      "status": "planned",
+      "tags": [
+        "batch-processing",
+        "analytics"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "cob-auto-detection-project",
+          "target_entity_name": "COB Auto-Detection Project",
+          "reasoning": "Core component of the auto-detection system"
+        },
+        {
+          "relationship_type": "consumes",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Needs claims data for billed amount analysis"
+        },
+        {
+          "relationship_type": "consumes",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Needs member data for analysis"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "cob-verification-workflow",
+          "target_entity_name": "COB Verification Workflow",
+          "reasoning": "Outputs member flags that trigger the verification process"
+        },
+        {
+          "relationship_type": "implements",
+          "target_entity_id": "cob-detection-signals",
+          "target_entity_name": "COB Detection Signals",
+          "reasoning": "Executes the detection logic defined in the signals"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described technical implementation approach with specific data sources and output"
+    }
+  ],
+  "questions": [
+    "What exactly is Clearview's current access level to HETS - can they do COB-specific lookups or only the existing 270/271 transactions?",
+    "How will the batch analysis handle the computational complexity of analyzing billed amounts across all procedure codes for the entire member base?",
+    "What is the current process for handling recoupment when overpayments are discovered, and how does it integrate with provider payment systems?",
+    "Does Clearview have any existing data sharing agreements with large employers that could support signal #5 (spouse employment changes)?",
+    "How will the system handle members who legitimately have low billed amounts due to high deductibles or other plan features versus COB situations?",
+    "What is the estimated volume of members that would be flagged weekly by this system, and does Member Services have capacity for the resulting manual reviews?",
+    "Are there any current pharmacy system integration capabilities that could support signal #3, or would this require the 2026 PharmaCore migration?",
+    "How does the regulatory recoupment time limit interact with claim reprocessing workflows - is there existing infrastructure for bulk claim reprocessing?"
+  ],
+  "new_jargon": [
+    "MBI (Medicare Beneficiary Identifier)",
+    "HETS (Healthcare Eligibility Transaction System)",
+    "25th percentile threshold",
+    "COB auto-detection",
+    "Service gaps pattern",
+    "Pharmacy cross-reference"
+  ],
+  "decision_log": [
+    {
+      "subject": "COB Auto-Detection Project",
+      "decision": "classified as process",
+      "reasoning": "This is a planned business initiative with defined phases, timeline, and workflow rather than a technical system or component"
+    },
+    {
+      "subject": "COB Detection Signals",
+      "decision": "classified as domain-logic",
+      "reasoning": "These are business rules that will be executed by systems to make operational decisions about member COB status"
+    },
+    {
+      "subject": "HETS",
+      "decision": "classified as system",
+      "reasoning": "External system operated by CMS with specific functionality for Medicare eligibility verification, fits system classification better than external-party"
+    },
+    {
+      "subject": "COB Overpayment Problem",
+      "decision": "classified as business-event",
+      "reasoning": "Ongoing systemic issue with quantified business impact, represents a significant operational event driving business decisions"
+    },
+    {
+      "subject": "MBI",
+      "decision": "classified as jargon-business",
+      "reasoning": "Domain-specific identifier terminology that new joiners would need to understand in the context of Medicare integration"
+    },
+    {
+      "subject": "Existing COB questionnaire and verification letters",
+      "decision": "created separate entities",
+      "reasoning": "Though both are COB verification methods, they are distinct processes with different channels (portal vs mail) and performance metrics"
+    },
+    {
+      "subject": "CMS as external party",
+      "decision": "referenced but not created",
+      "reasoning": "CMS wasn't mentioned in the existing entities list and the document doesn't provide enough detail about Clearview's relationship with CMS to create a comprehensive entity"
+    }
+  ]
+}

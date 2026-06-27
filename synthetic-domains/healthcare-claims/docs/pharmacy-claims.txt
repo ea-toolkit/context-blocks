@@ -1,0 +1,14 @@
+Pharmacy Claims Processing
+
+This page is a placeholder. Pharmacy claims are currently processed by the legacy PharmaCore system and are NOT part of the Clearview claims platform.
+
+The plan is to bring pharmacy claims onto our pipeline as part of the 2026 roadmap. When that happens, this page should document:
+  - NCPDP transaction standards (the pharmacy equivalent of EDI 837)
+  - Formulary integration (covered drug lists per benefit plan)
+  - PBM (Pharmacy Benefit Manager) integration — do we continue using a PBM or bring it in-house?
+  - Pharmacy network and pricing (MAC, AWP, WAC — the drug pricing acronyms)
+  - Clinical drug review / DUR (Drug Utilization Review) integration
+
+For now, pharmacy claims volume shows up in quarterly metrics (~50K/quarter) but they're processed entirely outside our platform.
+
+Contact: Dana Okafor knows the most about the PharmaCore system. Priya is the engineering contact for when we start the migration planning.

@@ -1,0 +1,58 @@
+Fraud Detection Integration — Meeting Notes
+2025-07-22, 2:00 PM ET
+Attendees: Marcus Reeves, Priya Anand, Tariq Hassan, Nadia Volkov, Dana Okafor (partial)
+
+Context: Planning the integration between Fraud Detection pre-payment scoring and the new Claims Gateway routing logic. Tariq's team has the new XGBoost model ready and we need to wire it into the intake flow.
+
+---
+
+Marcus kicked off with recap of current state. Right now the fraud model runs as a sidecar — Claims Gateway sends a Kafka message, fraud scoring happens async, and by the time the score comes back the claim is already in the Rules Engine. Basically useless for pre-payment blocking.
+
+Tariq: the new model's p99 latency is 120ms. If we call it synchronously from the gateway we can block before routing. That's the whole point.
+
+Priya: concern about adding 120ms to the intake SLA. Professional claims have a 30-second SLA but that includes the eligibility check. We're already at ~8 seconds for the full intake path.
+
+Marcus: 120ms is fine. We have headroom. The real question is what happens when the fraud service is down.
+
+Discussion on failure mode:
+  - If Fraud Detection is unreachable, do we block all claims or let them through?
+  - Tariq: we should let them through. Better to miss a fraud flag than hold up the entire pipeline.
+  - Marcus agreed. Fallback = score 0.0 (clear), log a warning, continue processing.
+  - Priya will implement circuit breaker with 5-second timeout, 3 consecutive failures = circuit open for 30 seconds.
+
+Scoring thresholds — Tariq walked through the new model's performance:
+  - >0.82 = hold for SIU. This is the same threshold as before.
+  - 0.65–0.82 = proceed but tag for post-payment review.
+  - <0.65 = clear.
+  - False positive rate target is 8%. Current model is at 6.3% on the validation set.
+  - Tariq: "the model is actually better at catching unbundling than the old one. It picked up that one provider in the northeast region who was splitting knee procedures into separate claims."
+
+Nadia asked about the retraining pipeline. Tariq: models retrained monthly on Vertex AI. Training data = last 12 months of claims + SIU investigation outcomes. The model binary gets pushed to a GCS bucket, the Fraud Detection service picks it up on restart.
+
+Priya: what about the integration with the Provider Directory? The fraud model uses provider history — does it query Provider Directory at scoring time?
+
+Tariq: no, we have a denormalized provider profile in our own database. Updated nightly from Provider Directory via a Kafka consumer. Scoring needs to be fast — can't afford a sync call to another service during the hot path.
+
+Marcus: makes sense. What about the dashboard?
+
+Tariq: Datadog dashboard already exists for post-payment scoring. We'll extend it with pre-payment metrics — volume scored, distribution of scores, hold rate, avg latency.
+
+Dana joined ~2:30. She wanted to know if held claims show up differently in the Member Portal. Currently if a claim is held for SIU, the member just sees "processing" — they don't know it's being investigated. That's intentional.
+
+Marcus: yes, keep it that way. Members should not see fraud investigation status. That's a compliance thing.
+
+Action items:
+  - Priya: implement sync call from Claims Gateway to Fraud Detection with circuit breaker. Target: sprint 42.
+  - Tariq: deploy new XGBoost model to staging. Run parallel scoring (old + new) for one week to compare. Target: end of next week.
+  - Nadia: update the Claims Gateway routing tests to cover fraud hold, flag, and clear paths.
+  - Marcus: get sign-off from compliance on the "processing" status display for held claims.
+  - Tariq: document the model's feature set and scoring thresholds on the Fraud Detection wiki page. (does this page even exist? check with Priya)
+  - Dana: no action, she was just listening in.
+
+Next meeting: Aug 5 to review parallel scoring results.
+
+---
+
+Side discussion after the meeting (Marcus + Priya):
+  - Marcus mentioned we should also think about the pre-auth flow. If a provider submits an auth request and the member has a fraud flag, should we flag the auth too? Not urgent but worth thinking about.
+  - Priya: let's not boil the ocean. Get the claims intake integration working first, then we can extend to pre-auth.

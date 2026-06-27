@@ -1,0 +1,134 @@
+domain: healthcare-claims
+company: Clearview Health Plans
+industry: health insurance / managed care
+maturity: M
+seed_quality: medium
+
+description: |
+  Clearview Health Plans is a mid-sized regional health insurer processing
+  medical, institutional, and pharmacy claims for ~800K members across
+  three states. The claims platform is a mix of internal microservices
+  and a vendor adjudication engine currently being replaced.
+
+key_systems:
+  - claims-gateway
+  - rules-engine
+  - eligibility-service
+  - payment-engine
+  - pre-auth-service
+  - fraud-detection
+  - member-portal
+  - provider-directory
+
+key_processes:
+  - claim-submission-and-intake
+  - adjudication
+  - payment-processing
+  - prior-authorization
+  - fraud-detection
+  - member-enrollment
+  - provider-credentialing
+
+teams:
+  - claims-operations
+  - member-services
+  - provider-network
+
+document_plan:
+  - file: architecture-overview.txt
+    type: architecture
+    maturity: gold
+  - file: claims-processing-workflow.txt
+    type: process
+    maturity: gold
+  - file: pre-auth-runbook.txt
+    type: runbook
+    maturity: silver
+  - file: eligibility-api-reference.txt
+    type: api-technical
+    maturity: silver
+  - file: meeting-notes-fraud-detection-integration.txt
+    type: meeting-notes
+    maturity: bronze
+  - file: design-session-payment-reconciliation.txt
+    type: design-session
+    maturity: bronze
+  - file: 2024-claims-gateway-outage-postmortem.txt
+    type: postmortem
+    maturity: rusty
+  - file: provider-credentialing.txt
+    type: stub
+    maturity: stub
+
+  # M dataset additions (20 docs)
+  # Gold (2)
+  - file: claims-data-model-reference.txt
+    type: data-model-reference
+    maturity: gold
+  - file: integration-patterns-guide.txt
+    type: architecture
+    maturity: gold
+
+  # Silver (4)
+  - file: monitoring-alerting-runbook.txt
+    type: runbook
+    maturity: silver
+  - file: claims-coding-standards.txt
+    type: standards
+    maturity: silver
+  - file: deployment-guide.txt
+    type: runbook
+    maturity: silver
+  - file: eligibility-monitoring-guide.txt
+    type: runbook
+    maturity: silver
+
+  # Bronze (6)
+  - file: meeting-notes-vendor-migration-kickoff.txt
+    type: meeting-notes
+    maturity: bronze
+  - file: meeting-notes-quarterly-ops-review-2025q3.txt
+    type: meeting-notes
+    maturity: bronze
+  - file: meeting-notes-member-portal-redesign.txt
+    type: meeting-notes
+    maturity: bronze
+  - file: design-session-cob-handling.txt
+    type: design-session
+    maturity: bronze
+  - file: design-session-accumulator-rework.txt
+    type: design-session
+    maturity: bronze
+  - file: requirements-provider-portal-2023.txt
+    type: requirements
+    maturity: bronze
+
+  # Rusty (4)
+  - file: postmortem-2022-eligibility-outage.txt
+    type: postmortem
+    maturity: rusty
+  - file: postmortem-2023-payment-file-corruption.txt
+    type: postmortem
+    maturity: rusty
+  - file: claims-gateway-api-v1-deprecated.txt
+    type: api-technical
+    maturity: rusty
+  - file: original-architecture-2021.txt
+    type: architecture
+    maturity: rusty
+
+  # Stub (2)
+  - file: pharmacy-claims.txt
+    type: stub
+    maturity: stub
+  - file: enrollment-workflow.txt
+    type: stub
+    maturity: stub
+
+  # Messy (2)
+  - file: claims-ops-contacts-and-escalation.txt
+    type: contact
+    maturity: messy
+  - file: ocr-pipeline-extracted-spec.txt
+    type: technical-spec
+    maturity: messy

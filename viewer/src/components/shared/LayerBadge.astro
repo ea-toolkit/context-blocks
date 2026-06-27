@@ -1,0 +1,18 @@
+---
+/**
+ * Layer badge — colored dot + label for knowledge layers.
+ * Color from meta-model config, vocabulary-agnostic.
+ */
+interface Props {
+  layer: string;
+  label?: string;
+  color?: string;
+}
+
+const { layer, label, color } = Astro.props;
+const displayLabel = label || layer;
+---
+<span class="badge badge--layer" style={color ? `--badge-color: ${color}; --badge-bg: ${color}15;` : ''}>
+  <span class="entity-pill__dot" style={color ? `background: ${color};` : 'background: var(--cb-text-faint);'}></span>
+  {displayLabel}
+</span>

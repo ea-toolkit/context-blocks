@@ -1,0 +1,420 @@
+{
+  "source_document": "requirements-provider-portal-2023.txt",
+  "document_summary": "Requirements document for a provider self-service portal to allow healthcare providers to manage their profile information, upload credentialing documents, view network status and payment history. Project was drafted in 2023 but deprioritized in favor of Rules Engine migration.",
+  "entities": [
+    {
+      "entity_type": "system",
+      "id": "provider-portal",
+      "name": "Provider Self-Service Portal",
+      "description": "Self-service web portal for healthcare providers to manage their information and interact with Clearview",
+      "overview": "A proposed provider-facing web portal that would allow healthcare providers to update demographic information, upload credentialing documents, view network participation status, and access payment history. The system was designed to reduce manual processing workload for the Provider Network team by enabling provider self-service.",
+      "details": "The Provider Portal would serve as the primary interface for Clearview's 14K+ contracted providers to manage their relationship with the health plan. Core functionality includes profile management (address, phone, practice locations), credentialing document upload (medical license, DEA certificate, malpractice insurance), network status viewing, fee schedule access, and payment history with ERA 835 download capability. The system would implement role-based access control with FIDO2/WebAuthn authentication and integrate with Provider Directory, Payment Engine, and potentially Pre-Auth Service. The project was originally planned for 2024 delivery but was paused in December 2023 due to Rules Engine migration priority, with potential restart in Q1 2026.",
+      "status": "planned",
+      "tags": [
+        "provider-facing",
+        "self-service",
+        "web-portal",
+        "needs-review"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "James Whitfield authored the requirements and Provider Network team would own the portal"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Portal would push approved changes to Provider Directory in real-time"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment history data comes from the Payment Engine"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Stretch goal includes integration for prior auth submission"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as a software system with specific functionality and integration requirements"
+    },
+    {
+      "entity_type": "persona",
+      "id": "provider-office-manager",
+      "name": "Provider Office Manager",
+      "description": "Primary user persona for Provider Portal - handles administrative tasks at provider offices",
+      "overview": "The main user of the Provider Portal who manages credentials, updates practice information, and checks payment status. This persona represents the administrative staff at healthcare provider offices who handle the business operations and interact with health plans on behalf of the providers.",
+      "details": "Provider Office Managers are the primary target users for the Provider Portal, responsible for managing provider demographic information, uploading credentialing documents, monitoring network participation status, accessing fee schedules, and tracking payment history. They handle the day-to-day administrative interactions with Clearview and would be the most frequent users of the portal's functionality. In the current manual process, they email or fax changes to the Provider Network team.",
+      "status": "active",
+      "tags": [
+        "external-user",
+        "primary-persona",
+        "administrative"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Identified as the primary user persona for the portal"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Explicitly defined as the primary user persona with clear responsibilities"
+    },
+    {
+      "entity_type": "persona",
+      "id": "clearview-provider-relations-rep",
+      "name": "Clearview Provider Relations Rep",
+      "description": "Internal user who reviews and approves provider-submitted changes through the portal",
+      "overview": "Internal Clearview employee responsible for reviewing provider-submitted changes and acting as a gatekeeper for sensitive modifications. This role ensures data quality and prevents unauthorized changes to critical provider information.",
+      "details": "Provider Relations Representatives are internal Clearview users who would review and approve provider-submitted changes through the portal, particularly for sensitive data like address and phone number updates. They serve as gatekeepers for changes that could impact provider payments or network participation. The requirement specifies they should review changes within 2 business days. They would have administrative access to approve or reject provider submissions.",
+      "status": "active",
+      "tags": [
+        "internal-user",
+        "approval-workflow",
+        "gatekeeper"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Internal user who reviews provider submissions through the portal"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined as an internal user role with specific approval responsibilities"
+    },
+    {
+      "entity_type": "persona",
+      "id": "credentialing-specialist",
+      "name": "Credentialing Specialist",
+      "description": "Internal user who reviews credentialing document submissions and manages re-credentialing workflows",
+      "overview": "Internal Clearview employee specialized in credentialing processes who reviews provider-uploaded documents and manages the re-credentialing workflow. This role ensures providers maintain proper credentials and comply with NCQA requirements.",
+      "details": "Credentialing Specialists are internal users who would be notified when providers upload new credentialing documents through the portal. They review medical licenses, DEA certificates, malpractice insurance, board certifications, and CME records to ensure provider compliance. They manage the re-credentialing workflow and monitor credential expiration dates, with system alerts sent 90 days before expiration per NCQA requirements for 3-year re-credentialing cycles.",
+      "status": "active",
+      "tags": [
+        "internal-user",
+        "credentialing",
+        "compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Reviews credentialing documents submitted through the portal"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Explicitly defined as internal user role with credentialing-specific responsibilities"
+    },
+    {
+      "entity_type": "process",
+      "id": "provider-change-approval-workflow",
+      "name": "Provider Change Approval Workflow",
+      "description": "Two-business-day approval process for provider demographic changes submitted through the portal",
+      "overview": "A workflow process where Provider Relations Representatives review and approve provider-submitted changes to demographic information within 2 business days. This process ensures data quality while enabling provider self-service for non-critical updates.",
+      "details": "When providers submit changes to address, phone, fax, email, office hours, or accepting-new-patients status through the portal, these changes enter an approval queue for Provider Relations review. The process has a 2-business-day SLA for review and approval. Once approved, changes are pushed to the Provider Directory in real-time. Sensitive changes like NPI, TIN, specialty, and credentials require manual review and cannot be self-updated through the portal.",
+      "status": "active",
+      "tags": [
+        "approval-workflow",
+        "two-day-sla",
+        "data-quality"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Portal would implement this approval workflow"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "clearview-provider-relations-rep",
+          "target_entity_name": "Clearview Provider Relations Rep",
+          "reasoning": "Provider Relations Rep performs the approval review"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clearly described workflow with specific SLA and approval requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "credentialing-document-workflow",
+      "name": "Credentialing Document Workflow",
+      "description": "Process for providers to upload credentialing documents and specialists to review them",
+      "overview": "A workflow enabling providers to upload credentialing documents through the portal, with automatic notification to Credentialing Specialists for review. The process tracks credentialing status and provides automated expiration alerts.",
+      "details": "Providers can upload medical licenses, DEA certificates, malpractice insurance, board certifications, and CME records in PDF, JPG, or PNG format (max 10MB per file). Documents are stored in a secure document management system and Credentialing Specialists are automatically notified of new uploads. The system tracks credentialing status (ACTIVE, PENDING, EXPIRED, REVIEW_REQUIRED) and sends alerts 90 days before credential expiration to comply with NCQA requirements for 3-year re-credentialing cycles.",
+      "status": "active",
+      "tags": [
+        "credentialing",
+        "document-management",
+        "ncqa-compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Portal would implement this document upload workflow"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "credentialing-specialist",
+          "target_entity_name": "Credentialing Specialist",
+          "reasoning": "Credentialing Specialist reviews uploaded documents"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined process with specific document types and workflow steps"
+    },
+    {
+      "entity_type": "api",
+      "id": "provider-portal-bff",
+      "name": "Provider Portal Backend-for-Frontend",
+      "description": "Proposed BFF API to serve the Provider Portal frontend with provider-specific data aggregation",
+      "overview": "A proposed Backend-for-Frontend service that would aggregate data from multiple backend services (Provider Directory, Payment Engine, Pre-Auth Service) to serve the Provider Portal frontend. This architectural approach would separate provider-facing API concerns from internal system APIs.",
+      "details": "James Whitfield prefers building a separate BFF rather than extending the existing Provider Directory API with provider-facing endpoints, to avoid mixing internal and external API concerns. The BFF would handle authentication, authorization, and data aggregation from Provider Directory for profile data, Payment Engine for payment history and ERA 835 access, and potentially Pre-Auth Service for prior authorization submission. The service would implement role-based access control and handle the provider-specific data formatting and security requirements.",
+      "status": "proposed",
+      "tags": [
+        "bff-pattern",
+        "provider-facing",
+        "api-aggregation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposes",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "BFF would serve the Provider Portal frontend"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "BFF would retrieve provider profile data from Provider Directory"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "BFF would retrieve payment history data from Payment Engine"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Could be a new BFF that talks to Provider Directory, Payment Engine, Pre-Auth Service"
+      ],
+      "reasoning": "Technical architecture option discussed in the requirements with clear API aggregation purpose"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "credentialing-status-model",
+      "name": "Credentialing Status Model",
+      "description": "Data model representing provider credentialing status with defined status values",
+      "overview": "A data model that tracks provider credentialing status through defined status values: ACTIVE, PENDING, EXPIRED, and REVIEW_REQUIRED. The model supports the credentialing workflow and compliance monitoring requirements.",
+      "details": "The credentialing status model includes status enumeration (ACTIVE, PENDING, EXPIRED, REVIEW_REQUIRED) and likely includes expiration dates for tracking 90-day alert requirements. The model supports NCQA compliance requirements for 3-year re-credentialing cycles and integrates with the automated alert system for credential expiration notifications.",
+      "status": "active",
+      "tags": [
+        "credentialing",
+        "status-model",
+        "ncqa-compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Portal displays credentialing status to providers"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "The model likely includes expiration dates for tracking 90-day alert requirements"
+      ],
+      "reasoning": "Specific status values are clearly defined, though full data structure is inferred from requirements"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "caqh-proview-database",
+      "name": "CAQH ProView Database",
+      "description": "Industry standard provider data exchange database mentioned for potential integration",
+      "overview": "CAQH ProView is an industry-standard database for provider credentialing data exchange that James mentioned wanting to integrate with the Provider Portal. This integration could potentially automate provider data retrieval and reduce manual data entry.",
+      "details": "CAQH (Council for Affordable Quality Healthcare) ProView database is mentioned as a potential integration point for pulling provider credentialing data automatically. James identified this as a feasibility question for the portal development. CAQH ProView is widely used in the healthcare industry for provider data standardization and could reduce manual credentialing data entry if integration is implemented.",
+      "status": "proposed",
+      "tags": [
+        "industry-standard",
+        "credentialing",
+        "integration-candidate"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Mentioned as potential integration for automated provider data retrieval"
+        }
+      ],
+      "confidence": 0.7,
+      "hedged_statements": [
+        "Could potentially automate provider data retrieval and reduce manual data entry"
+      ],
+      "reasoning": "Referenced as external data source but integration feasibility is still a question"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "provider-data-update-restrictions",
+      "name": "Provider Data Update Restrictions",
+      "description": "Business rules defining which provider data fields can be self-updated versus requiring manual review",
+      "overview": "Business rules that govern which provider information can be self-updated through the portal versus requiring manual review for data integrity and compliance. These rules balance provider self-service convenience with data security and accuracy requirements.",
+      "details": "Providers can self-update: address, phone, fax, email, office hours, accepting-new-patients flag, and practice locations (add, remove, edit). Providers CANNOT self-update: NPI, TIN, specialty, and credentials - these require manual review due to their critical nature for payment processing, network management, and credentialing compliance. Address and phone changes go through a 2-business-day approval queue handled by Provider Relations representatives to ensure accuracy.",
+      "status": "active",
+      "tags": [
+        "data-governance",
+        "self-service-limits",
+        "approval-required"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Portal would implement these update restriction rules"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Rules define what provider data can be self-updated"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly specified business rules with explicit allowed and restricted fields"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "credential-expiration-alert-rules",
+      "name": "Credential Expiration Alert Rules",
+      "description": "Business rule requiring 90-day advance alerts for credential expiration per NCQA requirements",
+      "overview": "Automated alert system that notifies providers 90 days before credential expiration to ensure compliance with NCQA requirements for 3-year re-credentialing cycles. This rule supports proactive credential management and regulatory compliance.",
+      "details": "The system must alert providers 90 days before credential expiration to comply with NCQA requirements for re-credentialing every 3 years. This includes medical licenses, DEA certificates, malpractice insurance, board certifications, and CME records. The alert system would be automated and integrated with the credentialing status tracking to ensure providers have adequate time to renew credentials before expiration.",
+      "status": "active",
+      "tags": [
+        "ncqa-compliance",
+        "automated-alerts",
+        "credentialing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Portal would implement the automated alert system"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "credentialing-status-model",
+          "target_entity_name": "Credentialing Status Model",
+          "reasoning": "Alert rules operate on credentialing status data"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific regulatory requirement with clear 90-day alert timeframe and NCQA compliance purpose"
+    },
+    {
+      "entity_type": "decision",
+      "id": "provider-portal-deprioritization-2023",
+      "name": "Provider Portal Deprioritization (2023)",
+      "description": "Decision to pause Provider Portal development in December 2023 in favor of Rules Engine migration",
+      "overview": "Strategic decision made in December 2023 to deprioritize the Provider Portal project in favor of the Rules Engine migration. The project was originally planned for 2024 delivery but was paused with potential restart in Q1 2026.",
+      "details": "The Provider Portal project was paused in December 2023 despite having requirements documented and timeline planned for Q1-Q4 2024 delivery. The decision was made to prioritize the Rules Engine migration project over provider portal development. As of October 2025, the project is tentatively scheduled for Q1 2026 roadmap, with James re-validating requirements. This decision reflects the strategic importance of the Rules Engine migration and limited development resources.",
+      "status": "active",
+      "tags": [
+        "strategic-decision",
+        "resource-allocation",
+        "project-prioritization",
+        "legacy-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "provider-portal",
+          "target_entity_name": "Provider Self-Service Portal",
+          "reasoning": "Decision directly affected the Provider Portal project timeline"
+        },
+        {
+          "relationship_type": "made_by",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "Provider Network team made the prioritization decision"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly documented decision with timeline and reasoning provided in the document"
+    }
+  ],
+  "questions": [
+    "Which document management system will be used for credentialing uploads? The document mentions this is TBD and Nadia suggested GCS + metadata service - has this been decided?",
+    "How will large provider groups with hundreds of providers be handled? Will there be bulk upload or CSV import capabilities?",
+    "What is the current status of CAQH ProView integration feasibility assessment that James mentioned?",
+    "Has the authentication system been selected between FIDO2/WebAuthn and SAML SSO options?",
+    "What was the cost estimate that was supposed to be completed before re-prioritization?",
+    "How does the fee schedule comparison tool compliance concern mentioned by the Compliance team get resolved?",
+    "What specific notification preferences system will be implemented for email vs portal alerts?"
+  ],
+  "new_jargon": [
+    "CAQH ProView",
+    "Provider Relations Rep",
+    "Credentialing Specialist"
+  ],
+  "decision_log": [
+    {
+      "subject": "Provider Portal entity classification",
+      "decision": "classified as system",
+      "reasoning": "The Provider Portal is described as a complete software system with specific functionality, user interfaces, and integration requirements with other systems"
+    },
+    {
+      "subject": "Provider personas",
+      "decision": "created separate entities for each persona type",
+      "reasoning": "The document explicitly defines distinct personas (Provider Office Manager, Provider, Provider Relations Rep, Credentialing Specialist) with different responsibilities and access patterns"
+    },
+    {
+      "subject": "Provider BFF API",
+      "decision": "classified as api entity with proposed status",
+      "reasoning": "James discusses this as a specific architectural approach for API design, though it's not yet implemented - fits api entity type as it defines an interface layer"
+    },
+    {
+      "subject": "Credentialing workflow processes",
+      "decision": "created separate process entities for change approval and document workflows",
+      "reasoning": "These represent distinct business processes with different steps, participants, and outcomes despite being part of the same overall portal functionality"
+    },
+    {
+      "subject": "CAQH ProView database",
+      "decision": "classified as reference-data with proposed status",
+      "reasoning": "Described as an industry standard database for provider data exchange - fits reference-data pattern as external authoritative data source"
+    },
+    {
+      "subject": "Existing entity relationships",
+      "decision": "connected Provider Portal to existing Provider Directory, Payment Engine, and Pre-Auth Service",
+      "reasoning": "Document clearly states the portal would integrate with these existing systems for data access and updates"
+    }
+  ]
+}

@@ -1,0 +1,526 @@
+{
+  "source_document": "2024-claims-gateway-outage-postmortem.txt",
+  "document_summary": "Post-mortem analysis of a SEV-1 Claims Gateway outage on March 12, 2024, caused by connection pool exhaustion when processing an abnormally large batch of institutional claims, including root cause analysis, timeline, impact, and action items.",
+  "entities": [
+    {
+      "entity_type": "software-component",
+      "id": "hikaricp",
+      "name": "HikariCP",
+      "description": "JDBC connection pool library used by Claims Gateway for PostgreSQL connections",
+      "overview": "HikariCP is the connection pooling library used by the Claims Gateway to manage database connections to PostgreSQL. The pool was configured with a maximum of 100 connections at the time of the March 2024 incident.",
+      "details": "HikariCP manages the database connection pool for the Claims Gateway, configured with a maximum of 100 connections to the Cloud SQL PostgreSQL instance claims-gw-prod-01. The library provides connection pooling capabilities but was not configured with separate pools for batch vs real-time processing, which led to the March 2024 outage when a large batch exhausted all connections. The configuration was later changed in Q3 2024 when the system moved to PgBouncer connection pooling.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "database-connection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway uses HikariCP for database connection pooling"
+        },
+        {
+          "relationship_type": "connects_to",
+          "target_entity_id": "claims-gw-prod-01",
+          "target_entity_name": "claims-gw-prod-01",
+          "reasoning": "HikariCP pool connects to the PostgreSQL instance"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a software component - a specific library/technology used for infrastructure purposes rather than implementing business logic"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "claims-gw-prod-01",
+      "name": "claims-gw-prod-01",
+      "description": "Production Cloud SQL PostgreSQL database instance for Claims Gateway",
+      "overview": "The production PostgreSQL database instance hosted on Google Cloud SQL that serves as the primary data store for the Claims Gateway. This instance was the target of the connection pool exhaustion during the March 2024 incident.",
+      "details": "claims-gw-prod-01 is the Cloud SQL PostgreSQL database instance that stores Claims Gateway data. During the March 2024 incident, this database became inaccessible when the HikariCP connection pool was exhausted by the large batch of institutional claims processing. The database itself was not the problem - it was the connection pool management that caused the outage. All 100 connections in the pool were active running INSERT statements for institutional claims batch processing.",
+      "status": "active",
+      "tags": [
+        "database",
+        "production",
+        "cloud-sql"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway stores its data in this PostgreSQL instance"
+        },
+        {
+          "relationship_type": "deployed_on",
+          "target_entity_id": "google-cloud-platform",
+          "target_entity_name": "Google Cloud Platform",
+          "reasoning": "This is a Cloud SQL instance running on GCP"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a specific database instance - infrastructure software that supports but doesn't implement business logic"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "hikaricp-pool-exhaustion-event",
+      "name": "HikariCP Pool Exhaustion Event",
+      "description": "Event that occurs when the Claims Gateway connection pool reaches its maximum capacity and can't serve new requests",
+      "overview": "This event represents the condition where the HikariCP connection pool becomes fully utilized and cannot allocate new database connections. When this happens, the Claims Gateway begins returning 503 errors and all claims processing stops.",
+      "details": "The HikariCP pool exhaustion event occurs when all available database connections in the pool are in use, preventing new database operations from proceeding. During the March 2024 incident, this happened when 14,000 institutional claims were processed simultaneously, each acquiring a database connection for INSERT operations. The event has cascading effects - it causes the Claims Gateway to return 503 errors, stops all claims processing (both real-time and batch), and can trigger cascading failures in downstream services like the Eligibility Service when they timeout waiting for responses from the gateway.",
+      "status": "active",
+      "tags": [
+        "infrastructure-failure",
+        "database-connection",
+        "cascading-failure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "institutional-claims-batch-processing",
+          "target_entity_name": "Institutional Claims Batch Processing",
+          "reasoning": "Large batch processing triggered the pool exhaustion in March 2024"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Pool exhaustion causes Claims Gateway to return 503 errors"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "eligibility-service-timeout-cascade",
+          "target_entity_name": "Eligibility Service Timeout Cascade",
+          "reasoning": "Gateway failures cause cascading timeouts in Eligibility Service"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a specific event flow that carries system state information and triggers cascading effects across multiple systems"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "eligibility-service-timeout-cascade",
+      "name": "Eligibility Service Timeout Cascade",
+      "description": "Cascading failure event where Eligibility Service's connection pool fills up due to timeouts from Claims Gateway",
+      "overview": "When Claims Gateway fails and stops responding, the Eligibility Service experiences timeout errors on synchronous calls from the gateway. These timeouts cause the Eligibility Service's own connection pool to fill up, creating a cascading failure.",
+      "details": "This cascading failure occurs because the Eligibility Service receives synchronous calls from the Claims Gateway during claim intake processing. When the Claims Gateway is failing (such as during connection pool exhaustion), these calls timeout but still consume connection pool resources in the Eligibility Service while waiting. The accumulation of these hanging connections eventually fills up the Eligibility Service's connection pool, causing it to also become unavailable. This demonstrates the lack of circuit breaker patterns between the services, which was identified as a preventive action item (CLV-3904) but was later deprioritized.",
+      "status": "active",
+      "tags": [
+        "cascading-failure",
+        "timeout",
+        "infrastructure-failure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "hikaricp-pool-exhaustion-event",
+          "target_entity_name": "HikariCP Pool Exhaustion Event",
+          "reasoning": "Gateway connection pool exhaustion causes timeouts that cascade to Eligibility Service"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "This cascading failure directly impacts Eligibility Service availability"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal eligibility checks fail during this cascading failure"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct event flow representing a cascading failure pattern between systems"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-gateway-incident-response",
+      "name": "Claims Gateway Incident Response",
+      "description": "The operational process followed during the March 2024 Claims Gateway outage",
+      "overview": "This incident response process involved detecting the outage through Datadog alerts, initial misdiagnosis as a network issue, escalation to bring in additional expertise, root cause identification, and systematic resolution steps.",
+      "details": "The incident response process began at 02:43 UTC when a Datadog alert fired for error rate exceeding 50%. The on-call engineer (Marcus Reeves) initially misdiagnosed the issue as a network problem based on generic timeout error messages and attempted resolution by restarting gateway pods at 02:55. When this provided only temporary relief, Priya Anand was escalated at 03:10 and identified the actual root cause using pg_stat_activity to see all 100 connections running INSERT statements. The systematic resolution involved: 1) killing the batch processing job, 2) restarting gateway pods, 3) restoring professional claims processing, 4) resubmitting the institutional batch in smaller 500-claim chunks, and 5) verification of complete processing. The process revealed gaps in alerting, error messaging clarity, and architectural separation of concerns.",
+      "status": "active",
+      "tags": [
+        "incident-response",
+        "operational-process"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "This response process was triggered by the March 2024 outage"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "marcus-reeves",
+          "target_entity_name": "Marcus Reeves",
+          "reasoning": "Marcus was the on-call engineer who initially responded"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Priya was escalated and identified the root cause"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Datadog alerts were used for detection"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a business process with defined steps and participants for handling incidents"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "batch-vs-realtime-connection-separation",
+      "name": "Batch vs Real-time Connection Separation",
+      "description": "Architectural pattern requiring separate connection pools for batch and real-time processing",
+      "overview": "This design principle requires that batch operations and real-time operations use separate database connection pools to prevent batch processing from starving real-time operations of database connections.",
+      "details": "This architectural pattern addresses the fundamental conflict between batch processing (which can consume many connections for extended periods) and real-time processing (which requires guaranteed connection availability for low-latency responses). The March 2024 incident demonstrated the risks when this separation doesn't exist - a large batch of 14,000 institutional claims exhausted all 100 connections in the shared pool, preventing real-time professional claims from being processed and violating the 30-second SLA. The lack of this separation was identified as a known design issue that was deprioritized in Q4 2023 but became critical after the incident. Implementation was completed in sprint 38 (CLV-3901) with separate connection pools for batch and real-time processing.",
+      "status": "active",
+      "tags": [
+        "architectural-pattern",
+        "performance",
+        "sla-protection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "This pattern was implemented in Claims Gateway after the March 2024 incident"
+        },
+        {
+          "relationship_type": "motivated_by",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "The outage demonstrated the need for this separation"
+        },
+        {
+          "relationship_type": "enforced_via",
+          "target_entity_id": "clv-3901",
+          "target_entity_name": "CLV-3901",
+          "reasoning": "This action item implemented the connection separation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a business rule/design principle that systems must follow to prevent resource starvation"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "batch-size-admission-control",
+      "name": "Batch Size Admission Control",
+      "description": "Business rule limiting the maximum number of claims that can be submitted in a single batch",
+      "overview": "This rule caps batch submissions at 2,000 claims per batch to prevent resource exhaustion. Large submissions must be split into multiple smaller batches.",
+      "details": "The batch size admission control rule was implemented after the March 2024 incident where Northeast Clearinghouse submitted an abnormally large batch of 14,000 institutional claims, far exceeding their normal 2,000-3,000 claim batches. The rule sets a hard limit of 2,000 claims per batch at the Claims Submission API /claims/batch endpoint. This prevents single large batches from overwhelming system resources, particularly database connection pools. Submitters requiring larger volumes must split their submissions into multiple 2,000-claim batches. The rule was implemented as CLV-3902 and completed by March 25, 2024. Northeast Clearinghouse was specifically notified about this new limit and adjusted their submission process accordingly.",
+      "status": "active",
+      "tags": [
+        "admission-control",
+        "resource-protection",
+        "api-limit"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "The API endpoint enforces the 2,000 claim batch size limit"
+        },
+        {
+          "relationship_type": "motivated_by",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "The large batch submission caused the outage that led to this rule"
+        },
+        {
+          "relationship_type": "implemented_via",
+          "target_entity_id": "clv-3902",
+          "target_entity_name": "CLV-3902",
+          "reasoning": "This action item implemented the batch size limit"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a business rule that the system enforces at runtime to control resource usage"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3901",
+      "name": "CLV-3901",
+      "description": "Action item to implement separate connection pools for batch and real-time processing",
+      "overview": "CLV-3901 was an action item created after the March 2024 Claims Gateway outage to implement separate database connection pools for batch and real-time processing.",
+      "details": "CLV-3901 was assigned to Priya Anand with a target completion in sprint 38. The action item addressed the root cause of the March 2024 outage by separating the database connection pools so that batch processing operations cannot exhaust all connections and prevent real-time operations from proceeding. This was identified as a known design issue that had been deprioritized in Q4 2023 but became critical after the incident. The work was completed and merged on April 2, 2024.",
+      "status": "active",
+      "tags": [
+        "action-item",
+        "architectural-improvement",
+        "completed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "assigned_to",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Priya was assigned this action item"
+        },
+        {
+          "relationship_type": "addresses",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "This action item was created to address the root cause of the outage"
+        },
+        {
+          "relationship_type": "implements",
+          "target_entity_id": "batch-vs-realtime-connection-separation",
+          "target_entity_name": "Batch vs Real-time Connection Separation",
+          "reasoning": "This action item implemented the connection separation pattern"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is clearly business jargon - an internal identifier for a specific work item"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3902",
+      "name": "CLV-3902",
+      "description": "Action item to add batch size limit to Claims Submission API",
+      "overview": "CLV-3902 was an action item to implement a 2,000 claim limit on the /claims/batch endpoint to prevent resource exhaustion from overly large batch submissions.",
+      "details": "CLV-3902 addressed the need for admission control on batch size following the March 2024 incident where a 14,000 claim batch overwhelmed the system. The action item added validation to the Claims Submission API's /claims/batch endpoint to reject batches larger than 2,000 claims. This forces large submissions to be split into manageable chunks. The work was completed and merged on March 25, 2024, making it one of the first remediation items completed after the incident.",
+      "status": "active",
+      "tags": [
+        "action-item",
+        "api-improvement",
+        "completed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "addresses",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "This action item was created to prevent similar batch size issues"
+        },
+        {
+          "relationship_type": "implements",
+          "target_entity_id": "batch-size-admission-control",
+          "target_entity_name": "Batch Size Admission Control",
+          "reasoning": "This action item implemented the batch size control rule"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "This action item added validation to the Claims Submission API"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is business jargon - an internal identifier for a specific work item"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3905",
+      "name": "CLV-3905",
+      "description": "Action item to improve error logging for connection pool exhaustion",
+      "overview": "CLV-3905 improved error messages to include connection pool statistics when database connection issues occur, making diagnosis easier for on-call engineers.",
+      "details": "CLV-3905 addressed the diagnostic challenge identified during the March 2024 incident where the on-call engineer initially misdiagnosed the problem because error messages were generic ('Connection is not available, request timed out after 30000ms'). The action item enhanced error logging to include connection pool utilization statistics and clearer indicators of connection pool exhaustion. This improvement helps on-call engineers quickly identify connection pool issues rather than assuming network problems. The work was completed and merged on March 20, 2024.",
+      "status": "active",
+      "tags": [
+        "action-item",
+        "logging-improvement",
+        "completed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "addresses",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "This action item was created to improve diagnosis of similar issues"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "This action item improved Claims Gateway error logging"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is business jargon - an internal identifier for a specific work item"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3906",
+      "name": "CLV-3906",
+      "description": "Action item to notify Northeast Clearinghouse about new batch size limits",
+      "overview": "CLV-3906 was a communication action item to inform Northeast Clearinghouse about the new 2,000 claim batch size limit and help them adjust their submission process.",
+      "details": "CLV-3906 involved reaching out to Northeast Clearinghouse to notify them about the new batch size limits implemented after their 14,000 claim submission caused the March 2024 outage. James Whitfield was responsible for this communication. The clearinghouse was informed about the 2,000 claim limit and adjusted their submission process accordingly to comply with the new restrictions. This demonstrates the business impact of technical decisions and the need to coordinate with external partners when system constraints change.",
+      "status": "active",
+      "tags": [
+        "action-item",
+        "external-communication",
+        "completed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "assigned_to",
+          "target_entity_id": "james-whitfield",
+          "target_entity_name": "James Whitfield",
+          "reasoning": "James was responsible for communicating with Northeast Clearinghouse"
+        },
+        {
+          "relationship_type": "addresses",
+          "target_entity_id": "northeast-clearinghouse",
+          "target_entity_name": "Northeast Clearinghouse",
+          "reasoning": "This action item involved communicating with Northeast Clearinghouse"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "batch-size-admission-control",
+          "target_entity_name": "Batch Size Admission Control",
+          "reasoning": "This communication was about the new batch size control rule"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is business jargon - an internal identifier for a specific work item"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "northeast-family-medicine-associates",
+      "name": "Northeast Family Medicine Associates",
+      "description": "Provider group that experienced real-time claim submission failures during the March 2024 outage",
+      "overview": "Northeast Family Medicine Associates is a provider group that was impacted by the March 2024 Claims Gateway outage. They called to complain about real-time submission failures during the incident.",
+      "details": "Northeast Family Medicine Associates represents one of the affected provider groups during the March 2024 Claims Gateway outage. They experienced failures when attempting real-time professional claim submissions during the 65-minute window when professional claims processing was down (02:17 - 03:20 UTC). The provider group called Clearview to report the submission failures, demonstrating the direct business impact of the technical outage on provider operations. This feedback likely contributed to the urgency around implementing the remediation action items.",
+      "status": "active",
+      "tags": [
+        "provider-group",
+        "affected-party"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "affected_by",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "This provider group was impacted by the outage and complained about it"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "They submit claims through the API that was affected by the outage"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is an external party - an organization outside Clearview that interacts with their systems"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "connection-pool-utilization-alerting",
+      "name": "Connection Pool Utilization Alerting",
+      "description": "Alert threshold rule triggering when database connection pool utilization exceeds 90% for 2 minutes",
+      "overview": "This alerting rule monitors database connection pool utilization and triggers alerts when usage exceeds 90% for a sustained 2-minute period, providing earlier detection of connection pool exhaustion than error-rate based alerts.",
+      "details": "The connection pool utilization alerting rule was implemented as CLV-3903 after the March 2024 incident revealed that error-rate based alerts (50% error rate for 5 minutes) were too slow to detect connection pool exhaustion. The new rule monitors pool utilization in real-time and triggers alerts at >90% utilization sustained for 2 minutes, providing approximately 24 minutes earlier detection than the previous error-rate threshold. This proactive alerting allows operations teams to take preventive action before complete pool exhaustion occurs, such as scaling connection pools or throttling batch operations. The rule was implemented in Datadog and completed by March 19, 2024.",
+      "status": "active",
+      "tags": [
+        "alerting-rule",
+        "proactive-monitoring",
+        "performance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Datadog monitors and triggers these connection pool utilization alerts"
+        },
+        {
+          "relationship_type": "motivated_by",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "The slow detection during this incident motivated the new alerting rule"
+        },
+        {
+          "relationship_type": "monitors",
+          "target_entity_id": "hikaricp",
+          "target_entity_name": "HikariCP",
+          "reasoning": "This rule monitors HikariCP connection pool utilization"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a business rule that defines when alerts should be triggered based on system metrics"
+    }
+  ],
+  "questions": [
+    "What specific changes were made to the connection pool configuration when they moved to PgBouncer in Q3 2024, and where is the current configuration documented?",
+    "Why was CLV-3904 (circuit breaker between Claims Gateway and Eligibility Service) deprioritized in favor of the rules engine migration, and does this architectural gap still exist?",
+    "What is the current batch size limit for institutional claims after the CLV-3902 implementation - is it still 2,000 claims per batch?",
+    "How does the current system handle the coordination between batch processing job killing and pod restarts during incident response?",
+    "What specific metrics does the connection pool utilization alert (CLV-3903) monitor - total connections, active connections, or both?",
+    "Are there separate Datadog alerts for the new PgBouncer configuration versus the legacy HikariCP alerts mentioned in this postmortem?"
+  ],
+  "new_jargon": [
+    "837I",
+    "SEV-1",
+    "pg_stat_activity"
+  ],
+  "decision_log": [
+    {
+      "subject": "HikariCP connection pool library",
+      "decision": "classified as software-component",
+      "reasoning": "HikariCP is infrastructure software that provides connection pooling capabilities but doesn't implement business logic specific to the claims domain - it's a generic database connection management library"
+    },
+    {
+      "subject": "claims-gw-prod-01 database instance",
+      "decision": "classified as software-component",
+      "reasoning": "This is a specific PostgreSQL database instance - infrastructure that stores data but doesn't implement domain business logic"
+    },
+    {
+      "subject": "Connection pool exhaustion event",
+      "decision": "classified as business-event",
+      "reasoning": "This represents a specific event flow that carries system state information and triggers cascading effects across multiple systems, affecting business operations"
+    },
+    {
+      "subject": "Eligibility Service timeout cascade",
+      "decision": "classified as separate business-event",
+      "reasoning": "This is a distinct cascading failure pattern that deserves its own entity - it's a different event flow from the initial connection pool exhaustion"
+    },
+    {
+      "subject": "Incident response process",
+      "decision": "classified as process",
+      "reasoning": "This is a business process with defined steps, participants, and workflows for handling operational incidents"
+    },
+    {
+      "subject": "Batch vs real-time connection separation",
+      "decision": "classified as domain-logic",
+      "reasoning": "This is an architectural design rule that systems must enforce to prevent resource conflicts - it's a business rule about how systems should behave"
+    },
+    {
+      "subject": "Action items CLV-3901, CLV-3902, etc.",
+      "decision": "classified as jargon-business",
+      "reasoning": "These are internal business identifiers for work items that domain experts use but newcomers wouldn't understand"
+    },
+    {
+      "subject": "Northeast Family Medicine Associates",
+      "decision": "classified as external-party",
+      "reasoning": "This is an organization outside Clearview that interacts with their systems and was affected by the outage"
+    },
+    {
+      "subject": "Connection pool utilization alerting",
+      "decision": "classified as domain-logic",
+      "reasoning": "This is a business rule that defines when alerts should be triggered based on system behavior - it's runtime decision logic"
+    }
+  ]
+}

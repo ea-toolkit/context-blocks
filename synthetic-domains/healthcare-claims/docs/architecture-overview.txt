@@ -1,0 +1,245 @@
+Claims Platform — Architecture Overview
+Last updated: 2025-11-14 by Priya Anand (Claims Ops Engineering Lead)
+
+Overview
+
+This page describes the production architecture for Clearview Health Plans' claims processing platform. If you're looking for the deployment runbook, that's a separate page. This is the "how things fit together" doc.
+
+
+== System Landscape ==
+
+The claims platform comprises eight primary systems. Three teams own them. Here's the lay of the land:
+
+Claims Operations (team lead: Marcus Reeves)
+  - Claims Gateway
+  - Rules Engine (vendor — HealthLogic Adjudicator 4.x, currently being replaced)
+  - Payment Engine
+  - Fraud Detection
+  - Pre-Auth Service
+
+Member Services (team lead: Dana Okafor)
+  - Eligibility Service
+  - Member Portal
+
+Provider Network (team lead: James Whitfield)
+  - Provider Directory
+
+
+== Claims Gateway ==
+
+Entry point for all claim submissions. Accepts four formats:
+  - EDI 837 Professional (CMS-1500 equivalent) — real-time, 30-second SLA
+  - EDI 837 Institutional (UB-04 equivalent) — batch processing, 4-hour window
+  - JSON via REST API — used by Member Portal for OON submissions
+  - Paper/OCR — scanned claims go through the OCR pipeline before hitting the gateway
+
+The gateway validates format and required fields, runs duplicate detection (composite key: member ID + provider NPI + date of service + procedure codes), and routes claims downstream.
+
+Routing logic:
+  1. All claims → Eligibility Service for coverage verification
+  2. Claims for auth-required services → Pre-Auth Service for authorization status check
+  3. Claims scoring >0.82 on the fraud model → held for SIU review
+  4. Everything else → Rules Engine for adjudication
+
+Tech stack: Java 17, Spring Boot 3.x, deployed on Kubernetes (GKE). PostgreSQL for claim tracking. Kafka for async routing to batch processors.
+
+The gateway exposes the Claims Submission API:
+  POST /claims            — single claim (EDI or JSON)
+  POST /claims/batch      — batch submission (EDI 837 file)
+  GET  /claims/{id}       — status and details
+  GET  /claims/{id}/eob   — EOB for processed claim
+
+
+== Rules Engine ==
+
+This is where adjudication happens. Currently running HealthLogic Adjudicator 4.2 — a vendor product. We're in the middle of replacing it (see ADR-2024-007 for context on the migration). The vendor provides the execution platform; our Claims Ops team maintains the rules.
+
+What the rules engine evaluates:
+  - Member benefit plan terms (deductible, copay, coinsurance)
+  - Provider contract fee schedules → determines the allowed amount
+  - Medical policy edits and clinical rules
+  - Pre-authorization status (mandatory check before adjudication)
+  - Regulatory requirements
+
+Output is a claim disposition:
+  - PAY — claim approved, routed to Payment Engine
+  - DENY — claim denied, denial reason code attached, EOB generated
+  - PEND — claim needs manual review, routed to pend queue with pend reason code
+
+Important: cost-sharing is calculated against the ALLOWED amount, not the billed amount. New engineers trip on this constantly. The allowed amount comes from the provider's contract fee schedule (stored in Provider Directory). The billed amount is what the provider charged — it's often higher.
+
+The rules engine talks to:
+  - Claims Gateway (inbound — receives validated claims)
+  - Eligibility Service (outbound — queries member eligibility + accumulators)
+  - Pre-Auth Service (outbound — looks up auth decision codes)
+  - Payment Engine (outbound — sends adjudicated claims for payment)
+  - Provider Directory (outbound — queries network status + fee schedules)
+  - Fraud Detection (outbound — feeds post-payment analysis data)
+
+
+== Eligibility Service ==
+
+Source of truth for member enrollment. Handles:
+  - EDI 270/271 eligibility inquiry/response transactions
+  - Real-time eligibility verification
+  - Benefit accumulator tracking (deductible met, OOP max progress)
+  - Point-in-time eligibility queries (as-of-date lookups — critical for adjudication)
+  - Coordination of Benefits (COB) data
+
+Key behavior: retroactive enrollment changes (up to 60 days back) trigger automatic claim reprocessing. This catches situations where a member's coverage was backdated — any claims processed during that window get re-adjudicated.
+
+Accumulators use soft reservations to prevent over-application during concurrent claim processing. Without this, two claims processing simultaneously could both apply the same $500 toward the deductible.
+
+Exposes the Eligibility Check API:
+  GET  /eligibility/{memberId}                — current eligibility
+  GET  /eligibility/{memberId}/asof/{date}    — point-in-time lookup
+  GET  /eligibility/{memberId}/accumulators   — benefit balances
+  POST /eligibility/batch                     — batch verification (EDI 270)
+
+Tech stack: Java 17, Quarkus, PostgreSQL. Deployed on GKE same cluster as the gateway.
+
+Owned by Member Services team.
+
+
+== Payment Engine ==
+
+Translates adjudicated claims into actual financial transactions. This is where the money moves.
+
+Payment types:
+  - Provider payments (batched per TIN per payment cycle) via EFT, check, or virtual card
+  - Member reimbursements for OON claims (processed within 10 business days)
+  - ERA 835 electronic remittance advice generation
+  - EOB document generation for members
+
+Payment rules:
+  - Minimum payment threshold: $5 — amounts below are held until threshold is met
+  - Recoupments exceeding 50% of a payment are spread across multiple payment cycles
+  - Void/reissue workflow for incorrect payments
+
+Payment API:
+  GET    /payments/provider/{tin}        — provider payment history
+  GET    /payments/member/{memberId}     — member reimbursement history
+  GET    /payments/{id}/remittance       — ERA 835 remittance advice
+  POST   /payments/hold                  — payment hold (fraud detection use)
+  DELETE /payments/hold/{id}             — release payment hold
+
+Tech stack: Java 17, Spring Boot, PostgreSQL + separate ledger DB. Kafka consumer for adjudicated claims. Batch jobs run nightly for payment cycle processing.
+
+
+== Fraud Detection ==
+
+ML-based Fraud, Waste, and Abuse (FWA) detection. Two modes:
+
+Pre-payment scoring:
+  - Claims Gateway sends new claims for scoring at intake
+  - Score >0.82 → automatic hold, routed to SIU for review
+  - Score 0.65–0.82 → proceeds to adjudication, tagged for post-payment review
+  - Score <0.65 → normal processing
+
+Post-payment analysis:
+  - Historical pattern detection across adjudicated claims
+  - Detects: aberrant billing, upcoding, unbundling, phantom billing
+  - Generates alerts for SIU investigation
+
+Models are retrained monthly. Target false positive rate: below 8%.
+
+Tech stack: Python, scikit-learn + XGBoost models, served via FastAPI. Training pipeline on Vertex AI. PostgreSQL for case management.
+
+
+== Pre-Auth Service ==
+
+Manages the prior authorization lifecycle:
+  1. Provider submits auth request
+  2. System evaluates against clinical criteria
+  3. Routine requests auto-approved (~60% target rate)
+  4. Complex cases routed to clinical reviewers
+  5. Determination issued (approved/denied/pended)
+  6. Approval code generated with validity period
+
+Validity periods:
+  - Standard authorizations: 90 days
+  - Surgical authorizations: 60 days
+
+Auth-required service lists are updated quarterly per benefit plan.
+
+The claims gateway checks auth status during intake for any service on the auth-required list. The rules engine also checks auth decision codes during adjudication — if a claim references a service that required auth but no auth exists, it's denied.
+
+
+== Member Portal ==
+
+Consumer-facing web + mobile app for plan members.
+
+Features:
+  - Claims status and history (reflects adjudication within 15 minutes)
+  - Benefit balances and accumulator progress
+  - Provider search with network status filtering
+  - EOB document access (available digitally before physical mail)
+  - OON claim submission
+  - Pre-auth request status
+  - Digital insurance ID cards
+  - Secure messaging with member services reps
+
+All data access is HIPAA-scoped — members only see their own data. Authentication via OAuth 2.0 + MFA.
+
+Tech stack: React frontend, Node.js BFF layer, talks to backend services via internal APIs.
+
+
+== Provider Directory ==
+
+Master data for all contracted providers:
+  - Demographics and contact information
+  - Credentials and credentialing status
+  - Specialties and board certifications
+  - Practice locations and service areas
+  - Network participation status (per plan — a provider can be in-network for some plans, OON for others)
+  - Contract fee schedules
+
+Network status is evaluated as of the claim's date of service, not the processing date. This is important for claims that are submitted weeks after the service was rendered.
+
+Re-credentialing is required every 3 years per NCQA standards. Provider Network team manages this.
+
+Tech stack: Java, Spring Boot, PostgreSQL. ElasticSearch for the provider search functionality exposed via Member Portal.
+
+
+== Data Flow Summary ==
+
+Simplified flow for a standard professional claim:
+
+  Provider → EDI 837P → Claims Gateway
+    → Eligibility Service (coverage check)
+    → Fraud Detection (pre-payment score)
+    → Pre-Auth Service (if auth-required service)
+    → Rules Engine (adjudication)
+      → Eligibility Service (accumulator query)
+      → Provider Directory (fee schedule lookup)
+      → Pre-Auth Service (auth decision code)
+    → Payment Engine (if disposition = PAY)
+      → Provider Directory (payment preferences)
+    → Member Portal (status update, EOB)
+
+
+== Infrastructure ==
+
+All services run on Google Kubernetes Engine (GKE), us-central1 region. Two clusters:
+  - prod-claims-01: production workloads
+  - nonprod-claims-01: dev, staging, QA
+
+Databases: Cloud SQL (PostgreSQL 15) with HA failover.
+Message broker: Kafka (Confluent Cloud) for async processing.
+Secrets: HashiCorp Vault.
+CI/CD: GitHub Actions → Artifact Registry → GKE.
+Monitoring: Datadog for metrics and alerting, Splunk for log aggregation.
+
+For deployment procedures see the deployment runbook (separate page — ask Marcus or Priya for link if you can't find it).
+
+
+== Diagrams ==
+
+Architecture diagram: https://lucidchart.com/clearview/claims-platform-v3 (requires VPN)
+Data flow diagram: https://lucidchart.com/clearview/claims-dataflow-2025
+Network topology: ask Platform Engineering, they maintain those
+
+Page history:
+  2025-11-14 — Priya Anand — updated fraud detection section, added Vertex AI reference
+  2025-08-22 — Marcus Reeves — added payment engine API endpoints
+  2025-03-10 — Priya Anand — initial version migrated from old wiki

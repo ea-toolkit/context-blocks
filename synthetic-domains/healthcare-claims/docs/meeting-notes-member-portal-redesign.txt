@@ -1,0 +1,78 @@
+Member Portal Redesign — Sprint Planning
+2025-09-22, 11:00 AM ET
+Attendees: Dana Okafor, Priya Anand (partial), Mei-Lin Torres (UX lead), Leo Chen
+
+Quick sync on the portal redesign scope for the November launch.
+
+---
+
+Dana: OK so the big thing is the new claims status page. Members currently see a flat list of claims with a status. We want to show more — the processing timeline, what stage the claim is in, estimated completion.
+
+Mei-Lin: I've got the mockups. Three views:
+  1. Summary — cards showing recent claims with status chips (Processing, Approved, Denied, Under Review)
+  2. Detail — timeline view showing each step (Received → Validated → Eligibility Verified → Adjudicated → Payment Scheduled → Paid)
+  3. EOB — the existing EOB view but integrated into the detail page instead of being a separate PDF download
+
+Dana: the tricky part is the "Under Review" status. That covers both claims pended for manual review and claims held for SIU investigation. But we absolutely cannot tell members their claim is being investigated for fraud.
+
+Mei-Lin: right, so "Under Review" for both pend and fraud hold. Same visual treatment. And we agreed there's no estimated time for "Under Review" claims — we just say "your claim requires additional review."
+
+Dana: correct. Compliance was very clear about this.
+
+Leo: on the API side — the Member Portal BFF currently calls GET /claims/{id} and gets back a flat status. For the timeline view we need the status history. Claims Gateway would need to expose something like GET /claims/{id}/history that returns each status transition with timestamps.
+
+Dana: do we have that data?
+
+Leo: we log status transitions in the claims_status_history table. It's there for auditing. We just need an API endpoint to expose it. Pretty straightforward.
+
+Dana: who owns that change?
+
+Leo: Claims Gateway, so that's Claims Ops. Priya?
+
+Priya (joined late): sorry, what do you need?
+
+Leo explained the claims status history endpoint.
+
+Priya: easy. I'll add it to our sprint 46 backlog. The data's already there, just need to wrap an API around it.
+
+Other items for the redesign:
+
+  Benefit balance improvements:
+    - Show a visual progress bar for deductible and OOP max
+    - Break down "amount met" by category (claims paid, pending claims, etc.)
+    - This requires the Eligibility Service to return pending reservation amounts, which it already does via the accumulators endpoint
+
+  Provider search:
+    - Add "accepting new patients" filter (Provider Directory has this data)
+    - Add distance-based search (current search is zip code only, members want "within 10 miles")
+    - Leo: distance-based search means we need geocoding. ElasticSearch can do it but we'd need lat/lng on provider locations. James's team would need to add that.
+    - Dana: let's descope distance search for November launch. Zip code filter is fine for now.
+
+  Digital ID card:
+    - Redesign the ID card view — current one is just a static image
+    - Show member ID, group number, plan name, PCP (for HMO), copay summary
+    - Add "share" functionality — members can save it as an image or add to Apple Wallet
+    - Mei-Lin: Apple Wallet integration is a separate project. Let's not scope that for November.
+
+  Secure messaging:
+    - Enhance the messaging to show claim context — if a member messages about a specific claim, the rep should see that claim's details inline
+    - TBD: this might need backend work on the messaging service which is... I think it's a third-party tool?
+    - Dana: it's Zendesk under the hood. We'd need to pass claim context via their API. Let's check feasibility.
+
+Action items:
+  [ ] Priya — add claims status history endpoint to sprint 46
+  [ ] Leo — check if provider locations have lat/lng data (for future distance search)
+  [ ] Mei-Lin — finalize mockups for the three claims views. Review with Dana by Friday.
+  [ ] Dana — check Zendesk API for passing claim context to messaging
+  [ ] Dana — descope distance search and Apple Wallet from November launch. Move to backlog.
+
+Priya left at 11:30 — had a conflict with the rules engine migration sync.
+
+Post-Priya discussion:
+Dana mentioned that the clinical reviewer persona is also asking for portal improvements. The clinical reviewers who review pended claims and pre-auth requests currently use an internal tool that's basically a set of database queries wrapped in a web form. They want a proper review interface showing the claim details, member history, clinical criteria, and an approve/deny workflow. This is separate from the member-facing portal but uses the same backend APIs.
+
+Dana: that's a bigger project. Probably Q1 2026. But let's keep it in mind — the claims adjudicator and clinical reviewer workflows are the most common personas requesting tooling improvements.
+
+Mei-Lin: I can start research on the reviewer interface in parallel. The personas are different (member vs. internal staff) but the data is similar.
+
+Meeting ended 11:45.

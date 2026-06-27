@@ -1,0 +1,349 @@
+{
+  "source_document": "postmortem-2022-eligibility-outage.txt",
+  "document_summary": "Post-mortem analysis of a 4-hour Eligibility Service outage in September 2022 caused by a database migration that locked the members table, cascading to Claims Gateway and Rules Engine failures and creating an 18K claim backlog.",
+  "entities": [
+    {
+      "entity_type": "business-event",
+      "id": "september-2022-eligibility-outage",
+      "name": "September 2022 Eligibility Service Outage",
+      "description": "Complete Eligibility Service outage lasting 3 hours 47 minutes due to database migration table lock",
+      "overview": "A SEV-1 incident on September 17, 2022 where a database migration to add an index on the members table used a blocking operation instead of CREATE INDEX CONCURRENTLY. This locked the entire members table, causing Eligibility Service queries to timeout and cascading failures across Claims Gateway, Rules Engine, and Member Portal.",
+      "details": "Timeline started at 09:12 ET when Tom Nguyen deployed a database migration using ALTER TABLE members ADD INDEX, acquiring a table-level lock on the 800K-row members table. By 09:14, Eligibility Service queries were timing out, and by 09:18 Claims Gateway was returning 503 errors because it couldn't verify eligibility. The incident escalated through multiple attempted fixes including pg_terminate_backend() before Dana Okafor decided to restart the Cloud SQL instance at 09:42. The database came back up at 09:55, but an 18K claim backlog took until 11:40 to fully clear due to HealthLogic Adjudicator throughput limitations. The incident was closed at 12:59 after 1 hour of stable metrics.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "sev-1",
+        "database",
+        "cascading-failure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involved",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Primary system that went down due to database lock"
+        },
+        {
+          "relationship_type": "involved",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Failed cascadingly when Eligibility Service became unavailable"
+        },
+        {
+          "relationship_type": "involved",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Impacted by eligibility verification failures"
+        },
+        {
+          "relationship_type": "involved",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Unable to display benefit information during outage"
+        },
+        {
+          "relationship_type": "caused_by",
+          "target_entity_id": "members-table-index-migration",
+          "target_entity_name": "Members Table Index Migration",
+          "reasoning": "The blocking database migration that triggered the outage"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a significant business event with defined timeline, impact, and consequences documented in detail"
+    },
+    {
+      "entity_type": "process",
+      "id": "members-table-index-migration",
+      "name": "Members Table Index Migration",
+      "description": "Database migration to add index on members table that caused September 2022 outage",
+      "overview": "A database migration process initiated by Tom Nguyen to add an index on the members table for a new query pattern. The migration used ALTER TABLE members ADD INDEX instead of CREATE INDEX CONCURRENTLY, causing a table-level lock on the 800K-row table that blocked all reads and triggered the outage.",
+      "details": "The migration was deployed at 09:12 ET on September 17, 2022 without senior engineer or DBA review. It was intended to support a new query pattern but used a blocking index creation approach. When Tom realized the migration was causing the outage at 09:25, he tried to cancel it but it was partway through index creation. Dana Okafor later attempted to kill the query via pg_terminate_backend() but dependent transactions kept the table lock active, ultimately requiring a database restart to resolve.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "database",
+        "migration",
+        "incident-trigger"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "tom-nguyen",
+          "target_entity_name": "Tom Nguyen",
+          "reasoning": "Tom deployed the migration that caused the outage"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "members-table",
+          "target_entity_name": "Members Table",
+          "reasoning": "The migration was adding an index to this table"
+        },
+        {
+          "relationship_type": "triggered",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "This migration caused the outage by locking the table"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is a specific operational process with clear steps, timeline, and business impact"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "members-table",
+      "name": "Members Table",
+      "description": "Database table storing member enrollment data with approximately 800K rows",
+      "overview": "A core database table in the Eligibility Service that stores member enrollment information for Clearview's approximately 800K covered members. This table is heavily accessed for eligibility verification and accumulator queries during claims processing.",
+      "details": "The members table is a critical component of the Eligibility Service database, containing enrollment data for all covered members. During the September 2022 incident, a migration to add an index on this table used a blocking ALTER TABLE operation instead of CREATE INDEX CONCURRENTLY, which locked the entire table and prevented all read operations. The table's size (~800K rows) made the migration operation particularly lengthy and impactful when it acquired a full table lock.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "database",
+        "core-data"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "The Eligibility Service manages this table and was impacted by the lock"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway queries this table via Eligibility Service for coverage verification"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine needs member data for claim adjudication"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "The table appears to be part of the Eligibility Service database based on the context"
+      ],
+      "reasoning": "This is clearly a data structure with defined schema and usage patterns, though some details about its exact structure are inferred"
+    },
+    {
+      "entity_type": "decision",
+      "id": "database-restart-decision-2022",
+      "name": "Database Restart Decision (2022 Outage)",
+      "description": "Dana Okafor's decision to restart the Cloud SQL instance to resolve the table lock",
+      "overview": "During the September 2022 Eligibility Service outage, Dana Okafor made the decision to restart the entire Cloud SQL database instance after attempts to terminate the blocking migration query failed to fully release the table lock. This was a high-risk decision during a SEV-1 incident that ultimately resolved the issue.",
+      "details": "At 09:35, Dana attempted to kill the migration query directly using pg_terminate_backend(), but the table lock wasn't fully released due to dependent transactions waiting. After 7 minutes of unsuccessful attempts to resolve the lock, Dana decided at 09:42 to restart the database instance. This was a significant decision during a SEV-1 incident because database restarts carry risk and extend downtime, but it was the only viable option to clear the persistent table lock. The restart took 13 minutes (09:42-09:55) and successfully resolved the issue.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "incident-response",
+        "high-risk"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "made_by",
+          "target_entity_id": "dana-okafor",
+          "target_entity_name": "Dana Okafor",
+          "reasoning": "Dana made this critical decision during the incident"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "The decision involved restarting the Cloud SQL instance"
+        },
+        {
+          "relationship_type": "resolved",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "This decision ultimately resolved the outage"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly documented decision with rationale, alternatives considered, and outcome"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "postgresql-migration-best-practices",
+      "name": "PostgreSQL Migration Best Practices",
+      "description": "Guidelines requiring concurrent index creation and DBA review for schema changes",
+      "overview": "Best practices established after the September 2022 outage requiring database migrations to use CREATE INDEX CONCURRENTLY for non-blocking operations, mandatory DBA or senior engineer review for schema changes, and off-hours deployment for large DDL operations. These practices include testing against prod-sized datasets in staging.",
+      "details": "Following the September 2022 incident, specific rules were established: 1) Use CREATE INDEX CONCURRENTLY instead of standard CREATE INDEX to avoid table locks, 2) All schema changes require DBA or senior engineer review before deployment, 3) Large DDL operations must be scheduled during off-hours rather than peak times (the original migration was deployed at 9 AM), 4) Migrations must be tested against production-sized datasets in staging environments first. A CI pre-deploy check was also implemented to warn about non-concurrent index creation.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "database",
+        "operational-practices"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "These practices govern PostgreSQL database operations"
+        },
+        {
+          "relationship_type": "enforced_via",
+          "target_entity_id": "schema-change-review-process",
+          "target_entity_name": "Schema Change Review Process",
+          "reasoning": "DBA review requirement enforces these practices"
+        },
+        {
+          "relationship_type": "originated_from",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "These practices were created as a direct result of this incident"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "These are clearly defined operational rules and constraints that govern system behavior"
+    },
+    {
+      "entity_type": "process",
+      "id": "schema-change-review-process",
+      "name": "Schema Change Review Process",
+      "description": "DBA review requirement for all database schema changes established after 2022 outage",
+      "overview": "A governance process implemented as follow-up action INC-2022-0094-A1 requiring DBA or senior engineer review for all schema changes before deployment. This process was completed to prevent similar migration-related outages.",
+      "details": "This review process was established as a direct response to the September 2022 outage where Tom Nguyen deployed a blocking database migration without senior oversight. The process requires that all DDL operations, particularly index creation and schema modifications, undergo review by either a DBA or senior engineer before deployment. This ensures that best practices like CREATE INDEX CONCURRENTLY are followed and that migrations are properly planned for off-hours deployment when appropriate.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "governance",
+        "database"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "implements",
+          "target_entity_id": "postgresql-migration-best-practices",
+          "target_entity_name": "PostgreSQL Migration Best Practices",
+          "reasoning": "This process enforces the migration best practices"
+        },
+        {
+          "relationship_type": "resulted_from",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "This process was created as follow-up action from the incident"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined organizational process with specific scope and purpose"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "inc-2022-0094",
+      "name": "INC-2022-0094",
+      "description": "Incident tracking identifier for the September 2022 Eligibility Service outage",
+      "overview": "The formal incident tracking number assigned to the September 17, 2022 Eligibility Service outage. This SEV-1 incident lasted 3 hours 47 minutes and generated multiple follow-up action items tracked with sub-identifiers like INC-2022-0094-A1 through INC-2022-0094-A4.",
+      "details": "INC-2022-0094 is the incident management system identifier for the database migration outage that impacted the Eligibility Service, Claims Gateway, Rules Engine, and Member Portal. The incident generated four specific action items: A1 (DBA review requirement - completed), A2 (PostgreSQL best practices documentation - completed), A3 (CI pre-deploy checks - completed), and A4 (circuit breaker implementation - not started). Action item A4 was later reopened as CLV-3904 after the March 2024 gateway outage, showing the ongoing relevance of this incident's lessons.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "incident-tracking"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "identifies",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "This is the formal tracking identifier for the incident"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "clv-3904",
+          "target_entity_name": "CLV-3904",
+          "reasoning": "CLV-3904 is the reopened version of action item INC-2022-0094-A4"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "This is clearly organizational jargon for incident tracking with defined format and meaning"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "sev-1",
+      "name": "SEV-1",
+      "description": "Highest severity incident classification for complete service outages affecting business operations",
+      "overview": "Severity 1 incident designation used at Clearview for the most critical production issues that cause complete service outages or severe business impact. The September 2022 Eligibility Service outage was classified as SEV-1 due to its cascading impact across multiple systems and complete halt of claims processing.",
+      "details": "SEV-1 represents the highest severity level in Clearview's incident classification system, reserved for incidents that cause complete service outages, data loss, or severe business impact. The September 2022 incident qualified as SEV-1 because it took down the Eligibility Service completely, cascaded to Claims Gateway and Rules Engine failures, prevented claims processing for nearly 4 hours, and impacted member-facing services. SEV-1 incidents trigger immediate escalation procedures and require post-incident reviews.",
+      "status": "active",
+      "tags": [
+        "incident-management",
+        "classification"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "september-2022-eligibility-outage",
+          "target_entity_name": "September 2022 Eligibility Service Outage",
+          "reasoning": "This incident was classified as SEV-1"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "march-2024-claims-gateway-outage",
+          "target_entity_name": "March 2024 Claims Gateway Outage",
+          "reasoning": "Both incidents likely shared similar severity classification"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "SEV-1 likely triggers specific escalation procedures based on the incident response pattern"
+      ],
+      "reasoning": "This is clearly business jargon for incident severity classification with defined meaning in the organization"
+    }
+  ],
+  "questions": [
+    "What happened to the PostgreSQL migration best practices document that Tom Nguyen wrote? The 2023 note says it's 'somewhere in the wiki' but can't be found - was it lost during a wiki migration or reorganization?",
+    "Why has the circuit breaker action item (INC-2022-0094-A4, later CLV-3904) been consistently deprioritized for over 2 years despite being flagged as important after both the 2022 and 2024 outages?",
+    "What specific throughput limitations does the HealthLogic Adjudicator have that made clearing the 18K claim backlog take 2+ hours? Is this a licensing constraint, API rate limit, or processing capacity issue?",
+    "What is the current process for testing database migrations against prod-sized datasets in staging - was this implemented as part of the follow-up actions?",
+    "How do the 3 provider groups that called during the outage connect to Clearview's systems - are they using the Claims Gateway directly or through clearinghouse partners?"
+  ],
+  "new_jargon": [
+    "INC-2022-0094",
+    "CREATE INDEX CONCURRENTLY",
+    "pg_terminate_backend()"
+  ],
+  "decision_log": [
+    {
+      "subject": "September 2022 Eligibility outage",
+      "decision": "Classified as business-event",
+      "reasoning": "This is a significant operational event with defined timeline, impact, and consequences that affected business operations across multiple systems. It's not just a technical incident but a business-impacting event that generated follow-up processes and decisions."
+    },
+    {
+      "subject": "Members table index migration",
+      "decision": "Classified as process",
+      "reasoning": "This represents a specific operational workflow (database migration) with defined steps, inputs, outputs, and failure modes. While it caused an incident, the migration itself is a process that can be repeated and improved."
+    },
+    {
+      "subject": "Database restart decision",
+      "decision": "Classified as decision",
+      "reasoning": "Dana's choice to restart the database was a specific architectural/operational decision made under pressure with clear alternatives, rationale, and consequences. It represents a one-time choice that shaped the incident response."
+    },
+    {
+      "subject": "PostgreSQL best practices",
+      "decision": "Classified as domain-logic",
+      "reasoning": "These are operational rules and constraints that govern how the system should behave - specifically how database migrations should be executed. They're not one-time decisions but ongoing rules that are repeatedly applied."
+    },
+    {
+      "subject": "Tom Nguyen departure note",
+      "decision": "Not extracted as entity",
+      "reasoning": "The note about Tom leaving in January 2023 is informational context but doesn't represent a domain concept worth tracking. His departure is a personnel change, not a technical or business entity."
+    },
+    {
+      "subject": "18K claim backlog",
+      "decision": "Mentioned in event details but not separate entity",
+      "reasoning": "The backlog is a consequence/metric of the outage rather than a distinct entity with its own identity and lifecycle. It's better captured as part of the incident impact."
+    },
+    {
+      "subject": "INC-2022-0094 vs CLV-3904 relationship",
+      "decision": "Linked via relationship",
+      "reasoning": "These are different tracking identifiers for related work - the circuit breaker action item was reopened under a new ticket number. Important to capture this continuity without duplicating the underlying concept."
+    }
+  ]
+}

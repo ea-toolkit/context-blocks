@@ -1,0 +1,799 @@
+{
+  "source_document": "integration-patterns-guide.txt",
+  "document_summary": "Comprehensive guide to integration patterns used across Clearview Health Plans claims platform, covering six patterns: synchronous request-response, event-driven Kafka messaging, batch processing, EDI transaction processing, data replication/denormalization, and external partner integration. Includes anti-patterns to avoid.",
+  "entities": [
+    {
+      "entity_type": "software-component",
+      "id": "istio-service-mesh",
+      "name": "Istio Service Mesh",
+      "description": "Internal service mesh handling all synchronous inter-service communication with circuit breakers and timeouts",
+      "overview": "Istio service mesh routes all HTTP/REST calls between claims platform services, providing service discovery, circuit breaking, and observability. All sync calls must go through the mesh rather than direct pod-to-pod calls.",
+      "details": "The service mesh enforces standard communication patterns across the platform with DNS-based service discovery (e.g., eligibility-service.member-svc.svc.cluster.local), 5-second default timeouts configurable per route, Resilience4j circuit breakers (3 consecutive failures → open for 30 seconds), and correlation ID header propagation (X-Correlation-ID). All services must log correlation IDs for cross-service tracing during incidents.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "internal-networking"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway makes sync calls through the service mesh to other services"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine makes sync calls through the service mesh for lookups"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal makes sync calls through the service mesh"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear infrastructure component with specific configuration and usage patterns across services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "resilience4j",
+      "name": "Resilience4j",
+      "description": "Circuit breaker library implementing fault tolerance for service-to-service calls",
+      "overview": "Resilience4j provides circuit breaker functionality in the Istio service mesh, opening circuits after 3 consecutive failures for 30-second periods. This prevents cascading failures across the claims platform microservices architecture.",
+      "details": "Configured with a 3-failure threshold before opening the circuit, 30-second recovery window, and integration with the Istio service mesh for automatic fault tolerance. This replaced earlier approaches that led to cascading failures in the platform.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "fault-tolerance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "istio-service-mesh",
+          "target_entity_name": "Istio Service Mesh",
+          "reasoning": "Circuit breaker implementation within the service mesh"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific technical component with clear configuration parameters mentioned"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "claim-submitted-event-kafka",
+      "name": "Claim Submitted Event (Kafka)",
+      "description": "Kafka event published when Claims Gateway receives and validates a new claim submission",
+      "overview": "Published by Claims Gateway on the clearview.claims.claim.submitted topic when a claim passes initial validation. Consumed by Fraud Detection for post-payment analysis and the reporting pipeline for analytics.",
+      "details": "Topic: clearview.claims.claim.submitted with Avro schema registered in Confluent Schema Registry. Partitioned by member_id to ensure all claims for a member go to the same partition for ordering. 30-day retention policy. Key consumers are Fraud Detection (for post-payment pattern analysis) and the reporting pipeline.",
+      "status": "active",
+      "tags": [
+        "event-driven",
+        "kafka"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway publishes this event after validation"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection consumes for post-payment analysis"
+        },
+        {
+          "relationship_type": "carries",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Event carries claim data in its payload"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific Kafka event with clear topic name, schema, and consumer patterns"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "payment-completed-event",
+      "name": "Payment Completed Event",
+      "description": "Kafka event published when Payment Engine completes a payment transaction",
+      "overview": "Published by Payment Engine on clearview.claims.payment.completed topic when a payment is processed. Consumed by Member Portal for EOB availability, Provider Directory for payment preferences, and reporting pipeline.",
+      "details": "Topic: clearview.claims.payment.completed with Avro schema, partitioned by payee_id (TIN or member_id), 90-day retention policy. Triggers EOB availability in Member Portal, updates payment preferences in Provider Directory, and feeds reporting analytics. Longer retention than other events due to financial reconciliation requirements.",
+      "status": "active",
+      "tags": [
+        "event-driven",
+        "kafka",
+        "financial"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine publishes when payment completes"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal consumes to show EOB availability"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory consumes to update payment preferences"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific Kafka event with clear topic, partitioning, and consumer patterns"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "enrollment-change-event",
+      "name": "Enrollment Change Event",
+      "description": "Kafka event published when member enrollment or eligibility status changes",
+      "overview": "Published by Eligibility Service on clearview.eligibility.enrollment.changed when member enrollment changes. Consumed by Claims Gateway to trigger retroactive reprocessing for changes up to 60 days back.",
+      "details": "Topic: clearview.eligibility.enrollment.changed with 7-day retention (shorter than other events). Partitioned by member_id. Triggers automatic retroactive claim reprocessing when enrollment changes occur within the 60-day lookback window. Critical for handling enrollment corrections and ensuring proper claim adjudication.",
+      "status": "active",
+      "tags": [
+        "event-driven",
+        "kafka",
+        "eligibility"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service publishes enrollment changes"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway consumes to trigger retroactive reprocessing"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "retroactive-reprocessing",
+          "target_entity_name": "Retroactive Reprocessing",
+          "reasoning": "Event triggers retroactive claim reprocessing workflow"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific Kafka event with clear business purpose and consumer patterns"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "provider-status-changed-event",
+      "name": "Provider Status Changed Event",
+      "description": "Kafka event published when provider information or network status changes in Provider Directory",
+      "overview": "Published by Provider Directory on clearview.providers.status.changed when provider data is updated. Consumed by Rules Engine for cache invalidation and Member Portal for provider search updates.",
+      "details": "Topic: clearview.providers.status.changed with 7-day retention, partitioned by NPI. Triggers cache invalidation in Rules Engine to ensure current provider data during adjudication. Also updates Member Portal provider search to reflect current network status and provider information.",
+      "status": "active",
+      "tags": [
+        "event-driven",
+        "kafka",
+        "provider-data"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory publishes status changes"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine consumes for cache invalidation"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal consumes for provider search updates"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific Kafka event with clear data change propagation purpose"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "fraud-alert-generated-event",
+      "name": "Fraud Alert Generated Event",
+      "description": "Kafka event published when Fraud Detection generates a fraud alert requiring investigation",
+      "overview": "Published by Fraud Detection on clearview.fraud.alert.generated when suspicious patterns are detected. Consumed by SIU case management and Payment Engine for payment holds.",
+      "details": "Topic: clearview.fraud.alert.generated with 365-day retention (compliance requirement), partitioned by provider_npi. Triggers SIU case creation and Payment Engine payment holds. Longest retention of any topic due to fraud investigation compliance requirements.",
+      "status": "active",
+      "tags": [
+        "event-driven",
+        "kafka",
+        "fraud",
+        "compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection publishes alerts"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine consumes to place payment holds"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific fraud-related event with compliance-driven retention requirements"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "confluent-schema-registry",
+      "name": "Confluent Schema Registry",
+      "description": "Schema registry managing Avro schemas for Kafka message evolution and compatibility",
+      "overview": "Confluent Schema Registry manages schema evolution for all Kafka messages using Avro format with backward compatibility enforcement. All schemas must be registered before deploying producers.",
+      "details": "Hosted at https://confluent.clearviewhealth.internal/schema-registry with CI pipeline validation for schema compatibility. Enforces backward compatible changes only to prevent breaking downstream consumers. All Kafka messages use Avro schemas registered here, enabling schema evolution without service coupling.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "kafka",
+        "schema-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "confluent-cloud-kafka",
+          "target_entity_name": "Confluent Cloud Kafka",
+          "reasoning": "Schema registry is part of the Confluent Cloud Kafka platform"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific infrastructure component with clear URL and schema management responsibilities"
+    },
+    {
+      "entity_type": "process",
+      "id": "institutional-claims-intake-batch",
+      "name": "Institutional Claims Intake Batch",
+      "description": "Scheduled batch job processing EDI 837I institutional claims files from clearinghouses",
+      "overview": "Automated batch job running every 4 hours to process institutional claims (EDI 837I) from clearinghouse SFTP drops. Validates, parses, and routes claims to adjudication with a 2,000 claim per batch limit.",
+      "details": "Runs at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC using Spring Batch framework. Claims Gateway picks up 837I files from clearinghouse SFTP, validates format, parses to internal model, inserts into claims table, and routes to adjudication. 2,000 claim batch size limit added after the 2024 connection pool incident to prevent resource exhaustion.",
+      "status": "active",
+      "tags": [
+        "batch-processing",
+        "edi",
+        "scheduled"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway executes this batch process"
+        },
+        {
+          "relationship_type": "processes",
+          "target_entity_id": "edi-837-institutional",
+          "target_entity_name": "EDI 837 Institutional",
+          "reasoning": "This process handles EDI 837I files specifically"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined batch process with specific schedule, limits, and business purpose"
+    },
+    {
+      "entity_type": "process",
+      "id": "fraud-model-retraining-batch",
+      "name": "Fraud Model Retraining Batch",
+      "description": "Monthly batch job retraining fraud detection ML models using historical claims and investigation outcomes",
+      "overview": "Monthly scheduled job on the 1st at 06:00 UTC that retrains fraud detection models using the last 12 months of claims data plus SIU investigation outcomes. Runs on Vertex AI and deploys new models to GCS.",
+      "details": "Uses Vertex AI platform with input from 12 months of claims history combined with SIU investigation outcomes. Outputs new model binary pushed to Google Cloud Storage, which Fraud Detection service picks up on restart. Custom Python scripts handle the retraining workflow rather than Spring Batch framework used elsewhere.",
+      "status": "active",
+      "tags": [
+        "batch-processing",
+        "ml",
+        "scheduled",
+        "fraud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "vertex-ai",
+          "target_entity_name": "Vertex AI",
+          "reasoning": "Vertex AI platform executes the model training"
+        },
+        {
+          "relationship_type": "feeds",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Retraining produces models consumed by Fraud Detection service"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific ML retraining process with clear schedule and platform"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "dead-letter-topic",
+      "name": "Dead Letter Topic (DLT)",
+      "description": "Kafka topic pattern for handling failed message processing using .dlt suffix convention",
+      "overview": "Standard pattern where every Kafka consumer must have a dead letter topic configured following the naming convention <original-topic>.dlt. Messages that fail processing are sent to DLT for investigation and potential replay.",
+      "details": "Required pattern for all Kafka consumers to handle message processing failures. DLT topics follow the naming pattern of appending .dlt to the original topic name. Enables investigation of failed messages and potential replay after fixing underlying issues. Part of the overall fault tolerance strategy in the event-driven architecture.",
+      "status": "active",
+      "tags": [
+        "kafka",
+        "error-handling",
+        "pattern"
+      ],
+      "relationships": [],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Technical pattern with specific naming convention and usage requirements"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "exactly-once-semantics",
+      "name": "Exactly-Once Semantics",
+      "description": "Kafka delivery guarantee ensuring messages are processed exactly once, used for financial transactions",
+      "overview": "Kafka delivery guarantee configured for Payment Engine consumers to ensure financial transactions are processed exactly once. Other consumers use at-least-once with idempotent processing instead.",
+      "details": "Critical for Payment Engine due to financial transaction requirements where duplicate processing could cause incorrect payments. More complex than at-least-once semantics but necessary for monetary operations. Other services use simpler at-least-once delivery with application-level idempotency to handle duplicates.",
+      "status": "active",
+      "tags": [
+        "kafka",
+        "financial",
+        "delivery-guarantee"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine requires exactly-once semantics for financial safety"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific Kafka configuration with clear business reasoning for financial transactions"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "consumer-groups",
+      "name": "Consumer Groups",
+      "description": "Kafka consumer group naming pattern following team.service.purpose convention",
+      "overview": "Standardized naming pattern for Kafka consumer groups using the format <team>.<service>.<purpose>, such as claims-ops.payment-engine.adjudicated-claims. Enables clear ownership and purpose identification.",
+      "details": "All Kafka consumers must follow the naming pattern <team>.<service>.<purpose> for consumer groups. Example: claims-ops.payment-engine.adjudicated-claims identifies the Claims Operations team's Payment Engine service consuming adjudicated claims. This pattern enables clear operational ownership and troubleshooting during incidents.",
+      "status": "active",
+      "tags": [
+        "kafka",
+        "naming-convention",
+        "operations"
+      ],
+      "relationships": [],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific naming convention with example and operational reasoning"
+    },
+    {
+      "entity_type": "process",
+      "id": "edi-transaction-processing",
+      "name": "EDI Transaction Processing",
+      "description": "Standardized workflow for processing healthcare EDI transactions with clearinghouses and trading partners",
+      "overview": "Standard workflow handling inbound and outbound EDI transactions including 837P/I claims, 270/271 eligibility, and 278 prior authorization. Processes both real-time and batch transactions through SFTP and AS2 protocols.",
+      "details": "Five-step process: 1) Clearinghouse sends file via SFTP or real-time AS2, 2) Claims Gateway validates ISA/GS envelope segments, 3) Transaction sets parsed to internal data model, 4) Each transaction processed by type, 5) EDI 997/999 acknowledgment generated and returned. Supports multiple trading partners with partner-specific SFTP configurations stored in Vault. Strict validation of EDI field lengths (e.g., NPI exactly 10 digits, ICD-10 codes 3-7 characters).",
+      "status": "active",
+      "tags": [
+        "edi",
+        "integration",
+        "healthcare-standards"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway handles EDI envelope validation and parsing"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "hashicorp-vault",
+          "target_entity_name": "HashiCorp Vault",
+          "reasoning": "SFTP configuration and credentials stored in Vault"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined process with specific steps, protocols, and validation rules"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "northeast-clearinghouse",
+      "name": "Northeast Clearinghouse",
+      "description": "Primary healthcare clearinghouse handling ~60% of Clearview's EDI transaction volume",
+      "overview": "Primary trading partner for EDI transactions, processing approximately 60% of Clearview's healthcare transaction volume. Integrated via SFTP and AS2 protocols with partner-specific directory structures.",
+      "details": "Largest clearinghouse partner with dedicated SFTP configuration and credentials managed in Vault. Handles majority of inbound EDI 837P/I claims and outbound EDI 835 remittance advice. Uses standard healthcare EDI protocols with partner-specific directory structures for file exchange.",
+      "status": "active",
+      "tags": [
+        "trading-partner",
+        "edi",
+        "healthcare"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway handles EDI integration with this clearinghouse"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific external organization with volume metrics and integration details"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "medconnect-exchange",
+      "name": "MedConnect Exchange",
+      "description": "Healthcare clearinghouse handling ~25% of Clearview's EDI transaction volume",
+      "overview": "Secondary trading partner for EDI transactions, processing approximately 25% of Clearview's healthcare transaction volume. Integrated via SFTP and AS2 protocols.",
+      "details": "Mid-size clearinghouse partner with dedicated SFTP configuration and credentials managed in Vault. Handles quarter of inbound EDI transaction volume with same protocols as other trading partners but partner-specific directory structures.",
+      "status": "active",
+      "tags": [
+        "trading-partner",
+        "edi",
+        "healthcare"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway handles EDI integration with this clearinghouse"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific external organization with volume metrics and integration details"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "directsubmit",
+      "name": "DirectSubmit",
+      "description": "Healthcare clearinghouse handling ~15% of Clearview's EDI volume, mostly smaller provider groups",
+      "overview": "Smaller trading partner for EDI transactions, processing approximately 15% of Clearview's healthcare transaction volume, primarily serving smaller provider groups. Integrated via SFTP and AS2 protocols.",
+      "details": "Smallest of the three main clearinghouse partners, specializing in smaller provider groups that need EDI transaction services. Uses same SFTP/AS2 protocols as other partners with partner-specific configurations stored in Vault.",
+      "status": "active",
+      "tags": [
+        "trading-partner",
+        "edi",
+        "healthcare",
+        "small-providers"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway handles EDI integration with this clearinghouse"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific external organization with volume metrics and provider focus"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "banking-partner",
+      "name": "Banking Partner",
+      "description": "Financial institution processing EFT/ACH payments and providing settlement confirmations",
+      "overview": "Banking partner handling electronic funds transfers and ACH payments generated by Payment Engine. Receives NACHA-formatted files via SFTP and provides daily settlement confirmations.",
+      "details": "Receives nightly NACHA-formatted EFT/ACH files from Payment Engine via SFTP for payment processing. Provides daily settlement confirmation files showing payment status. Critical partner for the payment cycle workflow enabling provider and member reimbursements.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "payments",
+        "external-integration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine sends NACHA files to banking partner"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific financial partner with clear integration pattern and file formats"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "nacha-format",
+      "name": "NACHA Format",
+      "description": "Standard file format for ACH/EFT payment transactions sent to banking partners",
+      "overview": "Industry-standard format for electronic payment files generated by Payment Engine and sent to banking partners. Contains payment instructions for provider EFT payments and member reimbursements.",
+      "details": "National Automated Clearing House Association (NACHA) standard format used for all electronic payment transactions. Payment Engine generates these files nightly during payment cycle processing and transmits them via SFTP to the banking partner for settlement.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "data-format",
+        "payments"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "produced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine generates NACHA formatted files"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Standard financial data format with clear generation and usage"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "as2-protocol",
+      "name": "AS2 Protocol",
+      "description": "Applicability Statement 2 protocol for secure real-time EDI transmission",
+      "overview": "Secure protocol used for real-time EDI transmission with clearinghouses, complementing SFTP for batch processing. Provides secure, reliable document exchange for healthcare transactions.",
+      "details": "AS2 (Applicability Statement 2) enables secure, real-time transmission of EDI documents with clearinghouses. Used alongside SFTP for batch processing, AS2 provides immediate transmission capabilities for time-sensitive healthcare transactions with built-in security and reliability features.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "protocol",
+        "real-time"
+      ],
+      "relationships": [],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Technical protocol mentioned for EDI real-time transmission"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "edi-997-999",
+      "name": "EDI 997/999",
+      "description": "Functional acknowledgment transaction sets confirming receipt and processing of EDI documents",
+      "overview": "Standard EDI transaction sets (997/999) generated by Claims Gateway to acknowledge receipt and processing status of inbound EDI documents from trading partners.",
+      "details": "EDI 997 (Functional Acknowledgment) and 999 (Implementation Acknowledgment) transaction sets provide automated confirmation of EDI document receipt and processing results. Generated by Claims Gateway as the final step in EDI transaction processing workflow and transmitted back to trading partners via SFTP or AS2.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "acknowledgment",
+        "healthcare-standards"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "produced_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway generates acknowledgment documents"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Standard EDI transaction types with clear generation process"
+    },
+    {
+      "entity_type": "persona",
+      "id": "nadia-volkov",
+      "name": "Nadia Volkov",
+      "description": "Claims Operations team member specializing in EDI and clearinghouse integrations",
+      "overview": "Claims Operations team member who serves as the subject matter expert for EDI transaction processing and clearinghouse integrations. Contact person for EDI-related questions and issues.",
+      "details": "Subject matter expert within Claims Operations team for all EDI/clearinghouse related matters. Point of contact for questions about EDI transaction processing, clearinghouse integrations, and trading partner relationships.",
+      "status": "active",
+      "tags": [
+        "team-member",
+        "edi-expert"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Identified as Claims Operations team member"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Named individual with specific expertise area mentioned in contacts"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "x12-validator",
+      "name": "X12 Validator",
+      "description": "Tool for validating EDI document compliance with X12 standards before transmission",
+      "overview": "Validation tool used to verify EDI document compliance with X12 healthcare standards. Required for testing any system components that generate EDI documents to ensure proper field lengths and formatting.",
+      "details": "Essential tool for validating EDI documents against X12 healthcare standards before transmission to trading partners. Critical for ensuring proper field lengths (e.g., NPI exactly 10 digits, ICD-10 codes 3-7 characters) and format compliance. Must be used when building anything that generates EDI to prevent transmission errors.",
+      "status": "active",
+      "tags": [
+        "validation",
+        "edi",
+        "testing"
+      ],
+      "relationships": [],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Specific validation tool mentioned as requirement for EDI development"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "data-replication-rules",
+      "name": "Data Replication Rules",
+      "description": "Governance rules for implementing data replication and denormalization across services",
+      "overview": "Established rules governing when and how to implement data replication between services: source service remains source of truth, replicated data must have defined freshness SLA, cache invalidation events required, and replication must be documented.",
+      "details": "Four-rule framework for data replication: 1) Source service always remains source of truth, 2) Replicated data must have defined freshness SLA (how stale can it be?), 3) Cache invalidation events must exist (Kafka topic or webhook), 4) Document the replication in integration guide to prevent debugging nightmares. Applied to current implementations like Fraud Detection's provider profile denormalization and Member Portal's eligibility caching.",
+      "status": "active",
+      "tags": [
+        "data-governance",
+        "architecture-rules"
+      ],
+      "relationships": [],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear governance rules with specific requirements for data replication patterns"
+    },
+    {
+      "entity_type": "decision",
+      "id": "fraud-detection-sync-migration",
+      "name": "Fraud Detection Sync Migration",
+      "description": "2025 decision to move fraud detection integration from async Kafka to synchronous HTTP for real-time claim blocking",
+      "overview": "Decision made in 2025 to migrate fraud detection integration from asynchronous Kafka sidecar to synchronous HTTP calls, enabling real-time claim blocking at intake. The 120ms p99 latency made this architectural change feasible.",
+      "details": "Originally implemented as async Kafka-based sidecar pattern, but moved to synchronous HTTP in 2025 to enable blocking claims at intake based on fraud scores. The 120ms p99 latency performance made real-time integration viable without impacting overall intake throughput. Decision documented in fraud detection meeting notes with specific performance rationale.",
+      "status": "active",
+      "tags": [
+        "architecture-decision",
+        "performance",
+        "fraud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Decision specifically about fraud detection integration pattern"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Decision affects how Claims Gateway integrates with fraud detection"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific architectural decision with timeline, performance metrics, and business reasoning"
+    },
+    {
+      "entity_type": "process",
+      "id": "manual-payment-approval-gate",
+      "name": "Manual Payment Approval Gate",
+      "description": "Manual approval process requiring Claims Ops lead approval before releasing payment files to banking partner",
+      "overview": "Manual approval step in payment cycle processing where batch jobs generate payment files but require Claims Operations lead approval in admin console before release to bank. Provides human oversight for financial transactions.",
+      "details": "Built into payment cycle batch processing as a safety mechanism. Payment cycle jobs run automatically, generate EFT files and ERA documents, but pause before transmission to banking partner. Claims Operations lead must review and approve in the admin console before files are released for actual payment processing. Prevents automated processing of potentially problematic payments.",
+      "status": "active",
+      "tags": [
+        "manual-approval",
+        "financial-controls",
+        "payments"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "payment-cycle-processing",
+          "target_entity_name": "Payment Cycle Processing",
+          "reasoning": "Manual approval gate is part of the payment cycle process"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team provides the approval"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific manual process with clear business purpose and ownership"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "2024-connection-pool-incident",
+      "name": "2024 Connection Pool Incident",
+      "description": "Production incident that led to implementing 2,000 claim batch size limits in institutional claims processing",
+      "overview": "Production incident in 2024 that caused connection pool exhaustion during institutional claims batch processing. Led to implementing the 2,000 claim per batch size limit to prevent resource exhaustion.",
+      "details": "Incident during institutional claims intake batch processing that caused connection pool exhaustion, likely due to processing too many claims in a single batch. Resolution involved implementing the current 2,000 claim limit per batch to prevent overwhelming database connections and system resources.",
+      "status": "active",
+      "tags": [
+        "incident",
+        "batch-processing",
+        "legacy-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "led_to",
+          "target_entity_id": "institutional-claims-intake-batch",
+          "target_entity_name": "Institutional Claims Intake Batch",
+          "reasoning": "Incident led to batch size limits in this process"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "The incident likely involved connection pool exhaustion based on the batch size limit resolution"
+      ],
+      "reasoning": "Referenced incident with clear impact on current architecture but limited detail on root cause"
+    }
+  ],
+  "questions": [
+    "What were the specific details of the 2024 connection pool incident that led to the 2,000 claim batch size limit?",
+    "What is the SIU case management system that consumes fraud alerts, and is it internal or external?",
+    "How does the 'admin console' for manual payment approval work, and who specifically has access to approve payments?",
+    "What are the specific fraud detection meeting notes referenced for the sync migration decision, and where are they stored?",
+    "What is the 'reporting pipeline' that consumes multiple Kafka events - is this an internal system or external analytics platform?",
+    "How are the state regulatory agency reporting requirements structured, and what are the three different formats mentioned?",
+    "What specific issues does ADR-2024-007 identify with HealthLogic, and how does this integrate with the SOAP web services mentioned?",
+    "What is the relationship between the VPN tunnel to HealthLogic data center and the overall HealthLogic replacement strategy?",
+    "Are there any disaster recovery or failover procedures for the external partner integrations (clearinghouses, banking)?",
+    "What monitoring and alerting exists for the various batch jobs, especially the financial payment cycles?"
+  ],
+  "new_jargon": [
+    "AS2",
+    "X12 validator",
+    "Dead letter topic (DLT)",
+    "Exactly-once semantics",
+    "Consumer groups",
+    "NACHA format"
+  ],
+  "decision_log": [
+    {
+      "subject": "Istio service mesh",
+      "decision": "classified as software-component",
+      "reasoning": "Infrastructure component that supports but doesn't implement business logic - provides networking, circuit breaking, and service discovery"
+    },
+    {
+      "subject": "Kafka events",
+      "decision": "created separate entities for each named event type",
+      "reasoning": "Each Kafka topic represents a distinct event flow with specific producers, consumers, and business meaning - consolidating would lose important details"
+    },
+    {
+      "subject": "Batch processes",
+      "decision": "classified specific batch jobs as process entities",
+      "reasoning": "Each has defined schedule, steps, and business purpose - institutional claims intake and fraud model retraining are distinct processes"
+    },
+    {
+      "subject": "Trading partners",
+      "decision": "classified clearinghouses as external-party entities",
+      "reasoning": "External organizations that participate in the domain through EDI integration - each has specific volume and characteristics"
+    },
+    {
+      "subject": "Technical patterns and conventions",
+      "decision": "classified as jargon-tech entities",
+      "reasoning": "Domain-specific technical terminology that team members need to understand - DLT, consumer groups, etc."
+    },
+    {
+      "subject": "Data replication rules",
+      "decision": "classified as domain-logic",
+      "reasoning": "These are governance rules that constrain how the system operates - business rules about data architecture patterns"
+    },
+    {
+      "subject": "Manual approval gate",
+      "decision": "classified as process entity",
+      "reasoning": "Defined workflow step with specific participants and business purpose, even though it's manual rather than automated"
+    }
+  ]
+}

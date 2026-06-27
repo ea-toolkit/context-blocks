@@ -1,0 +1,19 @@
+---
+/**
+ * Ask page — primary entry point.
+ * Always a Q&A interface. Shows server status and instructions when offline.
+ * Example questions from eval results are shown as clickable suggestions.
+ */
+import Layout from '../layouts/Layout.astro';
+import AskView from '../components/ask/AskView';
+import { loadEvalData } from '../data/eval-loader';
+
+const evalData = loadEvalData();
+const results = evalData?.results ?? [];
+---
+<Layout title="Ask" activePage="ask">
+  <AskView
+    client:load
+    results={results}
+  />
+</Layout>

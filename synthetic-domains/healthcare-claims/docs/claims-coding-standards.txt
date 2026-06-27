@@ -1,0 +1,176 @@
+Claims Platform — Coding & Configuration Standards
+Version: 2.0
+Last updated: 2025-07-20
+
+These standards apply to all code in the claims platform repositories. If you're writing a PR, reviewers will check against this. If something here is wrong or outdated, talk to Priya before ignoring it.
+
+
+== Language & Frameworks ==
+
+Java services (Claims Gateway, Eligibility Service, Payment Engine, Pre-Auth Service, Provider Directory):
+  - Java 17 (LTS). Do not use preview features.
+  - Spring Boot 3.x for Claims Gateway, Payment Engine, Provider Directory
+  - Quarkus for Eligibility Service (chosen for faster startup time — it handles cold starts better on GKE)
+  - Build tool: Gradle (Kotlin DSL)
+  - Test framework: JUnit 5 + Mockito
+
+Python services (Fraud Detection):
+  - Python 3.11+
+  - FastAPI for serving
+  - scikit-learn + XGBoost for models
+  - Poetry for dependency management
+  - Test framework: pytest
+
+Frontend (Member Portal):
+  - React 18 with TypeScript
+  - Node.js BFF (Backend For Frontend) layer
+  - Vite for build tooling
+
+
+== API Standards ==
+
+REST endpoints:
+  - Use plural nouns: /claims, /payments, /eligibility (not /claim, /payment)
+  - HTTP methods: GET for reads, POST for creates, PUT for full updates, PATCH for partial updates, DELETE for deletes
+  - Always return JSON. Set Content-Type: application/json.
+  - EDI endpoints are the exception — they accept and return EDI X12 format with Content-Type: application/edi-x12
+
+Status codes:
+  200 — success (GET, PUT, PATCH)
+  201 — created (POST)
+  204 — no content (DELETE)
+  400 — bad request (validation failure, malformed input)
+  401 — unauthorized (missing or invalid token)
+  403 — forbidden (valid token but insufficient scope)
+  404 — not found
+  409 — conflict (duplicate detection, optimistic lock failure)
+  429 — rate limit exceeded
+  500 — internal server error (log it, alert on it)
+  503 — service unavailable (circuit breaker open, maintenance mode)
+
+Error response format:
+  {
+    "error": "ERROR_CODE",
+    "message": "Human-readable description",
+    "details": { ... },
+    "correlation_id": "claim-id or request-id"
+  }
+
+Versioning:
+  - URL path versioning: /v1/claims, /v2/eligibility
+  - Major version bumps only for breaking changes
+  - Old versions supported for minimum 6 months after deprecation notice
+  - Currently: Claims Submission API v1 (deprecated) and v2 (current), Eligibility API v2
+
+
+== Naming Conventions ==
+
+Java:
+  - Package: com.clearviewhealth.<service>.<domain>
+  - Classes: PascalCase
+  - Methods/variables: camelCase
+  - Constants: UPPER_SNAKE_CASE
+  - DTOs: <Entity>Request, <Entity>Response (e.g., ClaimRequest, EligibilityResponse)
+
+Database:
+  - Tables: snake_case, plural (claims, members, payments)
+  - Columns: snake_case
+  - Indexes: idx_<table>_<columns> (e.g., idx_claims_member_id_date)
+  - Foreign keys: fk_<table>_<referenced_table>
+  - Constraints: chk_<table>_<constraint_name>
+
+Kafka:
+  - Topics: clearview.<domain>.<entity>.<event> (e.g., clearview.claims.claim.adjudicated)
+  - Consumer groups: <team>.<service>.<purpose>
+  - Avro schemas: <Entity><Event> (e.g., ClaimAdjudicated)
+
+Configuration:
+  - Environment variables: UPPER_SNAKE_CASE, prefixed with service name (e.g., CLAIMS_GW_DB_MAX_CONNECTIONS)
+  - Spring properties: kebab-case (e.g., claims-gw.db.max-connections)
+  - Secrets: always in Vault, never in environment variables or config files
+
+
+== Code Review Standards ==
+
+Every PR requires:
+  1. At least one approving review from a team member
+  2. All CI checks passing (build, test, lint, security scan)
+  3. No decrease in code coverage (minimum 80% line coverage)
+  4. API changes must include updated OpenAPI spec
+  5. Database schema changes must include a migration script (Flyway for Java services)
+  6. Kafka schema changes must pass compatibility check in Schema Registry
+
+PR description must include:
+  - What changed and why
+  - JIRA ticket reference
+  - How to test (if not obvious from the tests)
+  - Any deployment dependencies (e.g., "deploy Eligibility Service first")
+
+
+== Configuration Management ==
+
+  Application config: Spring Boot application.yml / Quarkus application.properties
+  Secrets: HashiCorp Vault
+  Feature flags: LaunchDarkly (we're considering removing this — it's expensive and we barely use it)
+  Environment-specific config: Kubernetes ConfigMaps
+
+Config precedence (highest to lowest):
+  1. Environment variables
+  2. Vault secrets
+  3. ConfigMap values
+  4. Application config defaults
+
+Rule: never put environment-specific values in application config. Use ConfigMaps for env-specific stuff, Vault for secrets.
+
+
+== Logging ==
+
+Format: structured JSON (all services)
+  {
+    "timestamp": "2025-07-20T14:30:00Z",
+    "level": "INFO",
+    "service": "claims-gateway",
+    "correlation_id": "CLM-20250720-001234",
+    "message": "Claim validated successfully",
+    "metadata": { "member_id": "CLV-000284715", "submission_type": "EDI_837P" }
+  }
+
+Rules:
+  - Always include correlation_id (claim_id for claim operations, auth_id for auth operations, etc.)
+  - PII fields (member name, SSN, DOB) must NEVER appear in logs. Use IDs only.
+  - Log at appropriate levels: DEBUG for detailed processing, INFO for operations, WARN for recoverable issues, ERROR for failures
+  - HIPAA: logs containing PHI (Protected Health Information) must go to the HIPAA-compliant Splunk index. Currently this only applies to the clinical review logs in the Pre-Auth Service.
+
+Splunk indexes:
+  claims-gateway — Claims Gateway logs
+  rules-engine — Rules Engine logs
+  payment-engine — Payment Engine logs
+  eligibility-service — Eligibility Service logs
+  fraud-detection — Fraud Detection logs
+  claims-batch-processing — all batch job logs
+  preauth-service — Pre-Auth Service logs (includes HIPAA index partition)
+
+
+== HIPAA Compliance ==
+
+This is healthcare. HIPAA is not optional.
+
+  - Never log PHI (Protected Health Information) in plaintext
+  - All data at rest encrypted (Cloud SQL encryption, GCS encryption)
+  - All data in transit encrypted (TLS 1.3 minimum)
+  - Member SSN stored as SHA-256 hash only
+  - API authentication required for all endpoints (OAuth 2.0)
+  - Member-facing APIs (Member Portal) enforce member-scoped access — a member can only see their own data
+  - Audit logging for all access to member records
+  - Data retention: claims data retained for 7 years per state regulation (varies by state, we use the longest requirement)
+
+Violations of HIPAA logging rules will be flagged by the security scan in CI. Don't bypass it.
+
+
+== Dependency Management ==
+
+  - Dependabot enabled on all repos for security patches
+  - Major version upgrades: quarterly review with the team
+  - No SNAPSHOT dependencies in production builds
+  - Vendor libraries (HealthLogic SDK): pinned to exact versions, not ranges
+  - Container base images: use Clearview's hardened base images from Artifact Registry (gcr.io/clearview-prod/base-java:17, etc.)

@@ -1,0 +1,390 @@
+{
+  "source_document": "postmortem-2023-payment-file-corruption.txt",
+  "document_summary": "Post-mortem analysis of a April 2023 payment file corruption incident where duplicate provider payments totaling $2.3M were sent due to race condition between void/reissue operations and nightly payment batching, requiring months of recoupment recovery.",
+  "entities": [
+    {
+      "entity_type": "business-event",
+      "id": "inc-2023-0031",
+      "name": "INC-2023-0031: Payment File Corruption Incident",
+      "description": "SEV-1 incident where duplicate provider payments totaling $2.3M were processed due to race condition in payment batching logic",
+      "overview": "On April 28, 2023, a race condition between concurrent void/reissue operations and the nightly payment batch job caused duplicate payment records for 147 provider TINs to be included in the NACHA EFT file. The duplicate payments totaling $2.3M were processed by the banking partner before detection, requiring manual recoupment efforts over 4 months.",
+      "details": "The incident was triggered when Claims Ops initiated bulk reprocessing of 3,200 claims for a Statewide Physicians Group fee schedule correction, generating ~800 void/reissue operations concurrent with the nightly payment cycle. The payment batching query lacked proper transaction isolation, picking up both voided payments (not yet committed) and their replacements. Impact included $2.3M in duplicate payments to 147 TINs, only $412K recoverable via banking partner reversals, remainder requiring manual recoupment through August 2023. Seven provider offices complained about recoupment letters, and reputational damage occurred with Statewide Physicians Group.",
+      "status": "active",
+      "tags": [
+        "financial-impact",
+        "race-condition",
+        "legacy-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "The payment engine's nightly batch job was the system that generated the corrupted NACHA file"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "void-reissue-workflow",
+          "target_entity_name": "Void/Reissue Workflow",
+          "reasoning": "Concurrent void/reissue operations caused the race condition"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "marcus-reeves",
+          "target_entity_name": "Marcus Reeves",
+          "reasoning": "Marcus was the postmortem owner and incident commander"
+        },
+        {
+          "relationship_type": "discovered_by",
+          "target_entity_id": "leo-chen",
+          "target_entity_name": "Leo Chen",
+          "reasoning": "Leo investigated the initial provider report and identified the duplicate payments"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a named business event with significant domain impact, financial consequences, and documented timeline"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "payment-batching-query-logic",
+      "name": "Payment Batching Query Logic",
+      "description": "SQL query logic that selects pending payments for NACHA file generation, historically vulnerable to race conditions",
+      "overview": "The payment batching process uses a SQL query to identify all claims with PAY disposition awaiting payment for inclusion in the nightly NACHA EFT file. The original implementation had a race condition vulnerability where concurrent void/reissue operations could cause both original and replacement payments to be selected.",
+      "details": "Original vulnerable query: SELECT claim_id, SUM(plan_paid) as total FROM payment_claims pc JOIN payments p ON pc.payment_id = p.payment_id WHERE p.status NOT IN ('VOIDED', 'HELD') AND p.payment_date IS NULL GROUP BY claim_id. The problem was that payments being voided in concurrent transactions still showed status = 'PROCESSED' until the void transaction committed, while replacement payments were already committed separately. Fixed in May 2023 to use FOR UPDATE SKIP LOCKED to avoid picking up rows being modified by concurrent transactions.",
+      "status": "active",
+      "tags": [
+        "financial-logic",
+        "concurrency",
+        "fixed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "The payment engine executes this query logic during nightly batch processing"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "payment",
+          "target_entity_name": "Payment",
+          "reasoning": "This logic operates on payment data model records"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is business logic that governs how payments are selected for processing, with specific rules and algorithms"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "statewide-physicians-group",
+      "name": "Statewide Physicians Group",
+      "description": "Provider group whose fee schedule correction triggered the bulk reprocessing that led to the 2023 payment corruption incident",
+      "overview": "A provider organization under contract with Clearview that required a fee schedule correction in April 2023. The bulk reprocessing of 3,200 claims related to their contract generated the void/reissue operations that triggered the payment corruption incident.",
+      "details": "Statewide Physicians Group had a contract with fee schedule issues that required correction, leading Claims Ops to initiate bulk reprocessing of 3,200 claims on April 27, 2023. This reprocessing generated approximately 800 void/reissue payment operations that ran concurrently with the nightly payment cycle, causing the race condition. The incident resulted in reputational damage with this provider group, as they were both the trigger for the correction and affected by the subsequent financial chaos.",
+      "status": "active",
+      "tags": [
+        "provider",
+        "contract-related"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "has_contract_with",
+          "target_entity_id": "clearview-health-plans",
+          "target_entity_name": "Clearview Health Plans",
+          "reasoning": "They have a provider contract that includes fee schedules"
+        },
+        {
+          "relationship_type": "affected_by",
+          "target_entity_id": "inc-2023-0031",
+          "target_entity_name": "INC-2023-0031: Payment File Corruption Incident",
+          "reasoning": "The fee schedule correction for this group triggered the incident"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is clearly an external provider organization that has business relationships with Clearview"
+    },
+    {
+      "entity_type": "process",
+      "id": "nacha-file-generation",
+      "name": "NACHA File Generation Process",
+      "description": "Nightly batch process that creates EFT payment files in NACHA format for submission to banking partner",
+      "overview": "The payment engine's nightly batch job that queries pending payments, formats them into NACHA standard EFT files, and submits them to the banking partner's SFTP for processing. Runs at 2:00 AM as part of the payment cycle.",
+      "details": "Process runs nightly at 2:00 AM, querying the payments table for all claims with PAY disposition awaiting payment. Originally vulnerable to race conditions with concurrent void/reissue operations. Enhanced after the 2023 incident with duplicate detection pass and reconciliation checks requiring human approval before release to banking partner. Files are submitted via SFTP to the banking partner and typically processed by 6:00 AM.",
+      "status": "active",
+      "tags": [
+        "financial-process",
+        "nightly-batch",
+        "enhanced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "The payment engine system runs this nightly process"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "nacha-format",
+          "target_entity_name": "NACHA Format",
+          "reasoning": "This process generates files in NACHA format"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "banking-partner",
+          "target_entity_name": "Banking Partner",
+          "reasoning": "Files are submitted to banking partner for EFT processing"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-batching-query-logic",
+          "target_entity_name": "Payment Batching Query Logic",
+          "reasoning": "Uses the payment batching query logic to select payments"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined business process with specific steps and timing"
+    },
+    {
+      "entity_type": "process",
+      "id": "payment-recoupment-process",
+      "name": "Payment Recoupment Process",
+      "description": "Manual process for recovering overpaid amounts from providers through recoupment requests and deductions from future payments",
+      "overview": "When providers receive overpayments that cannot be reversed through banking channels, Claims Ops initiates recoupment requests to recover the funds. The process involves manual identification of overpayments, sending recoupment letters, and deducting amounts from future payments to the affected providers.",
+      "details": "Used extensively after the 2023 payment corruption incident to recover $1.9M in duplicate payments that couldn't be reversed by the banking partner. Process took 4 months (through August 2023) to complete for 124 affected TINs. Generated complaints from 7 provider offices about recoupment letters. Recovery likely involves deducting amounts from future legitimate payments to gradually recover overpaid funds.",
+      "status": "active",
+      "tags": [
+        "financial-recovery",
+        "manual-process"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Ops team manually manages the recoupment process"
+        },
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "inc-2023-0031",
+          "target_entity_name": "INC-2023-0031: Payment File Corruption Incident",
+          "reasoning": "This incident required extensive use of the recoupment process"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Recovery likely involves deducting amounts from future legitimate payments to gradually recover overpaid funds"
+      ],
+      "reasoning": "This is a business process with defined steps and ownership, though some operational details are inferred"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "nacha-duplicate-detection",
+      "name": "NACHA File Duplicate Detection",
+      "description": "Validation logic added to detect duplicate payment records before NACHA file submission to banking partner",
+      "overview": "Safeguard logic implemented after the 2023 payment corruption incident to scan generated NACHA files for duplicate payment records before submission to the banking partner. Part of enhanced financial controls to prevent duplicate payments.",
+      "details": "Implemented as action item INC-2023-0031-A2 and completed by Leo Chen on 2023-05-15. Performs duplicate detection pass on generated NACHA files to identify potential duplicate payments before file submission. Works in conjunction with reconciliation checks and human approval gates to prevent financial errors.",
+      "status": "active",
+      "tags": [
+        "financial-safeguard",
+        "duplicate-prevention",
+        "post-incident"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "The payment engine implements this duplicate detection logic"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "nacha-format",
+          "target_entity_name": "NACHA Format",
+          "reasoning": "This logic validates NACHA format files"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "nacha-file-generation",
+          "target_entity_name": "NACHA File Generation Process",
+          "reasoning": "This duplicate detection is part of the NACHA file generation workflow"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is specific business logic for data validation and error prevention"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "nacha-reconciliation-check",
+      "name": "NACHA File Reconciliation Check",
+      "description": "Financial control that compares NACHA file totals against expected payment totals before banking partner release",
+      "overview": "Pre-submission validation that compares the total payment amount in generated NACHA files against expected totals from the payment batching process. Requires human approval before releasing files to the banking partner.",
+      "details": "Implemented as action item INC-2023-0031-A3 and completed by Marcus Reeves on 2023-05-20. Provides a reconciliation check with human approval gate before NACHA file release to prevent financial discrepancies. Part of enhanced safeguards following the lesson learned that financial operations need more controls than non-financial operations.",
+      "status": "active",
+      "tags": [
+        "financial-control",
+        "human-approval",
+        "post-incident"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "The payment engine implements this reconciliation logic"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "nacha-file-generation",
+          "target_entity_name": "NACHA File Generation Process",
+          "reasoning": "This check is part of the NACHA file generation workflow"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is specific financial control logic with defined validation rules"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "void-reissue-fencing-logic",
+      "name": "Void/Reissue Fencing Logic",
+      "description": "Proposed time-based restriction preventing void/reissue operations during payment cycle windows to avoid race conditions",
+      "overview": "Proposed safeguard to prevent void/reissue operations from running within 4 hours of the payment cycle batch job. Designed to eliminate the race condition that caused the 2023 payment corruption incident.",
+      "details": "Action item INC-2023-0031-A4 that was identified as a follow-up to the 2023 incident but was never implemented (marked as deprioritized). Would create a time fence where no void/reissue operations are allowed to execute within 4 hours of the nightly payment batch job to prevent concurrent modification of payment records during batching.",
+      "status": "planned",
+      "tags": [
+        "race-condition-prevention",
+        "deprioritized",
+        "never-implemented"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "would_apply_to",
+          "target_entity_id": "void-reissue-workflow",
+          "target_entity_name": "Void/Reissue Workflow",
+          "reasoning": "This logic would constrain when void/reissue operations can execute"
+        },
+        {
+          "relationship_type": "would_prevent",
+          "target_entity_id": "nacha-file-generation",
+          "target_entity_name": "NACHA File Generation Process",
+          "reasoning": "This fencing would prevent interference with payment batch processing"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is proposed business logic with defined rules, though it was never implemented"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "payment-void-linkage-enhancement",
+      "name": "Payment Void Linkage Enhancement",
+      "description": "Enhancement to payment data model adding void_reason and linked_payment_id fields for better void/reissue tracking",
+      "overview": "Data model enhancement completed in June 2025 as part of the payment reconciliation rework, adding void_reason and linked_payment_id fields to payment records for improved tracking of void/reissue relationships.",
+      "details": "Implemented as action item INC-2023-0031-A5, taking 2 years from incident to completion (June 2025). Adds void_reason field to capture why a payment was voided and linked_payment_id to create explicit relationships between original and replacement payments. Part of broader payment reconciliation rework effort to improve financial tracking and auditability.",
+      "status": "active",
+      "tags": [
+        "data-enhancement",
+        "void-tracking",
+        "completed-late"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "extends",
+          "target_entity_id": "payment",
+          "target_entity_name": "Payment",
+          "reasoning": "This enhancement adds fields to the existing payment data model"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "payment-reconciliation-rework",
+          "target_entity_name": "Payment Reconciliation Rework",
+          "reasoning": "This enhancement was delivered as part of the payment reconciliation rework"
+        },
+        {
+          "relationship_type": "improves",
+          "target_entity_id": "void-reissue-workflow",
+          "target_entity_name": "Void/Reissue Workflow",
+          "reasoning": "These fields improve tracking and auditability of void/reissue operations"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a specific data model enhancement with defined fields and business purpose"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "inc-2023-0031",
+      "name": "INC-2023-0031",
+      "description": "Incident tracking number for the 2023 payment file corruption incident",
+      "overview": "Internal incident tracking identifier for the April 2023 payment file corruption incident where duplicate provider payments totaling $2.3M were processed due to race condition in payment batching logic.",
+      "details": "Standard incident numbering format following pattern INC-YYYY-NNNN where YYYY is year and NNNN is sequential number. This particular incident was significant enough to generate multiple follow-up action items (A1 through A5) and took over 2 years to fully resolve all remediation actions.",
+      "status": "active",
+      "tags": [
+        "incident-tracking",
+        "financial-incident"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "identifies",
+          "target_entity_id": "inc-2023-0031",
+          "target_entity_name": "INC-2023-0031: Payment File Corruption Incident",
+          "reasoning": "This jargon term is the identifier for the business event"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly domain-specific jargon for incident tracking that follows organizational conventions"
+    }
+  ],
+  "questions": [
+    "What specific database transaction isolation level was used before and after the fix to the payment batching query?",
+    "How exactly does the FOR UPDATE SKIP LOCKED syntax prevent the race condition - does it skip the entire row or just during the concurrent modification?",
+    "What is the typical timeline for recoupment recovery - is 4 months standard or was this incident particularly challenging?",
+    "Why was the void/reissue fencing logic (INC-2023-0031-A4) deprioritized when it seems like a fundamental fix for the race condition?",
+    "What happened to Nina Petrovich's original design documentation for the void/reissue workflow?",
+    "How does the banking partner's EFT processing work - can they reverse payments after 6 AM processing but before provider deposit?",
+    "What are the compliance or regulatory implications of duplicate payments to providers?",
+    "How does the current payment reconciliation rework compare to the manual recoupment process used after this incident?"
+  ],
+  "new_jargon": [
+    "NACHA"
+  ],
+  "decision_log": [
+    {
+      "subject": "INC-2023-0031",
+      "decision": "Classified as business-event rather than just jargon-business",
+      "reasoning": "While the incident number itself is jargon, the incident represents a significant business event with timeline, impact, and consequences that warrants its own entity"
+    },
+    {
+      "subject": "Payment batching query logic",
+      "decision": "Classified as domain-logic rather than software-component",
+      "reasoning": "This is business logic that implements payment selection rules and algorithms, not infrastructure software"
+    },
+    {
+      "subject": "Statewide Physicians Group",
+      "decision": "Classified as external-party",
+      "reasoning": "Clearly a provider organization external to Clearview with contractual relationships"
+    },
+    {
+      "subject": "Various action items (A1-A5)",
+      "decision": "Created separate entities for implemented logic/enhancements rather than tracking action items themselves",
+      "reasoning": "The resulting business logic and data model changes are more valuable to capture than the administrative tracking of work items"
+    },
+    {
+      "subject": "NACHA format",
+      "decision": "Reused existing entity rather than creating new",
+      "reasoning": "The document mentions NACHA format in context of existing financial processing, adds detail but doesn't create new concept"
+    },
+    {
+      "subject": "Marcus Reeves and Leo Chen",
+      "decision": "Used existing persona entities rather than creating new",
+      "reasoning": "These are established team members already in the seed context"
+    }
+  ]
+}

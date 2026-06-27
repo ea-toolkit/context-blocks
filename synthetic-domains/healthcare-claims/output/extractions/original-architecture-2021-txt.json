@@ -1,0 +1,580 @@
+{
+  "source_document": "original-architecture-2021.txt",
+  "document_summary": "Historical documentation of Clearview Health Plans' 2021 claims processing architecture after migrating from the ClaimsPro monolith to microservices, including original system components, infrastructure setup, known issues, and team structure.",
+  "entities": [
+    {
+      "entity_type": "system",
+      "id": "claimspro",
+      "name": "ClaimsPro",
+      "description": "Legacy .NET monolithic claims processing system replaced during 2020-2021 migration",
+      "overview": "ClaimsPro was Clearview's original monolithic claims processing system that ran from 2014 to 2021. It was a .NET application running on on-premises Windows servers that handled all claims processing functions in a single application.",
+      "details": "ClaimsPro was a comprehensive monolithic system from ClaimsPro Inc. that included intake, adjudication, eligibility, payment, and provider directory modules. By 2020, it was struggling with scale issues as membership grew from ~500K to projected 800K members. The vendor had effectively stopped development, making it unsustainable. The system's tightly coupled architecture made extraction difficult, particularly for the payment module which was deeply entangled with adjudication logic. Provider data within ClaimsPro was particularly messy, with no clear separation between demographics, credentialing, and contracting data. The monolith shared a single database across all modules, which created data quality and scaling challenges.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "monolithic",
+        "replaced",
+        "vendor-product"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway replaced ClaimsPro's intake module"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service was extracted from ClaimsPro's eligibility module"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine replaced ClaimsPro's payment module after rewrite"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory was extracted from ClaimsPro after data cleanup"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as a complete software system that handled claims processing business logic"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "claimspro-inc",
+      "name": "ClaimsPro Inc.",
+      "description": "Vendor company that developed and supported the legacy ClaimsPro monolithic system",
+      "overview": "ClaimsPro Inc. was the vendor that provided the ClaimsPro monolithic claims processing system to Clearview. By 2020, they had effectively stopped development on the product, contributing to Clearview's decision to migrate away from the system.",
+      "details": "ClaimsPro Inc. was the software vendor that developed and maintained the ClaimsPro system that Clearview used from 2014 to 2021. The company's lack of continued development and support for the product was one of the key factors driving Clearview's migration to a microservices architecture. Their abandonment of the product left Clearview with a legacy system that couldn't scale to meet growing business needs.",
+      "status": "active",
+      "tags": [
+        "vendor",
+        "legacy-era",
+        "software-provider"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "provided",
+          "target_entity_id": "claimspro",
+          "target_entity_name": "ClaimsPro",
+          "reasoning": "ClaimsPro Inc. was the vendor that developed the ClaimsPro system"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "External organization that provided software to Clearview, fitting the external-party definition"
+    },
+    {
+      "entity_type": "decision",
+      "id": "claimspro-migration-decision",
+      "name": "ClaimsPro Migration Decision",
+      "description": "Decision to migrate from ClaimsPro monolith to microservices architecture in 2020-2021",
+      "overview": "The decision to migrate away from ClaimsPro was driven by scalability issues and vendor abandonment. The migration was executed in Q4 2020 through Q1 2021 under the leadership of Principal Architect Samir Patel.",
+      "details": "The migration decision was motivated by ClaimsPro's inability to handle the growing member base (500K to 800K projected) and the vendor's effective cessation of product development. The migration involved extracting key modules (eligibility, payment, provider directory) and building new components (Claims Gateway) while replacing adjudication with HealthLogic. The migration strategy included a 6-month dual-write period for the eligibility module to ensure data consistency during cutover. The payment module required a complete rewrite due to its deep entanglement with adjudication logic.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "architecture",
+        "migration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claimspro",
+          "target_entity_name": "ClaimsPro",
+          "reasoning": "Decision was specifically about migrating away from ClaimsPro"
+        },
+        {
+          "relationship_type": "made_by",
+          "target_entity_id": "samir-patel",
+          "target_entity_name": "Samir Patel",
+          "reasoning": "Samir Patel led the migration as Principal Architect"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This represents a major architectural decision that shaped the entire system migration"
+    },
+    {
+      "entity_type": "decision",
+      "id": "healthlogic-selection-decision",
+      "name": "HealthLogic Selection Decision",
+      "description": "Decision to choose HealthLogic Adjudicator over alternatives for rules engine in 2019",
+      "overview": "In 2019, Clearview evaluated three options for their rules engine: HealthLogic, Facets (TriZetto), and building their own. They chose HealthLogic for fastest time-to-market, though this later proved problematic.",
+      "details": "The evaluation considered HealthLogic Adjudicator, Facets from TriZetto, and building a custom solution in-house. HealthLogic was selected because it offered the fastest implementation timeline at 4 months versus 18 months for building their own. However, the document notes this was 'a mistake' in hindsight, with ADR-2024-007 documenting the issues that led to the current replacement effort. The decision prioritized speed over long-term flexibility and control.",
+      "status": "active",
+      "tags": [
+        "legacy-era",
+        "vendor-selection",
+        "regrettable"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Decision was about selecting the rules engine implementation"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "adr-2024-007",
+          "target_entity_name": "ADR-2024-007",
+          "reasoning": "ADR-2024-007 documents the replacement strategy, indicating this decision is being reversed"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a documented vendor selection decision with clear alternatives and rationale"
+    },
+    {
+      "entity_type": "persona",
+      "id": "samir-patel",
+      "name": "Samir Patel",
+      "description": "Former Principal Architect who led the ClaimsPro migration, left Clearview in Q2 2022",
+      "overview": "Samir Patel was the Principal Architect who led the migration from ClaimsPro to microservices architecture in 2020-2021. He authored this architectural documentation and recommended splitting the Claims Platform team into three teams before leaving in Q2 2022.",
+      "details": "Samir Patel served as Principal Architect and was the primary driver of the ClaimsPro migration project. He led the architectural decisions including the microservices decomposition strategy and vendor evaluations. He created this architectural documentation and was responsible for the overall technical direction during the critical migration period. Before leaving Clearview in Q2 2022, he recommended the organizational restructuring that split the single Claims Platform team into the current three teams (Claims Ops, Member Services, Provider Network). His departure appears to have coincided with the completion of the initial migration phase.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "architect",
+        "former-employee"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "made",
+          "target_entity_id": "claimspro-migration-decision",
+          "target_entity_name": "ClaimsPro Migration Decision",
+          "reasoning": "Led the migration decision and execution"
+        },
+        {
+          "relationship_type": "made",
+          "target_entity_id": "healthlogic-selection-decision",
+          "target_entity_name": "HealthLogic Selection Decision",
+          "reasoning": "Would have been involved in the vendor selection process as Principal Architect"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as a specific person with architectural responsibilities"
+    },
+    {
+      "entity_type": "persona",
+      "id": "tom-nguyen",
+      "name": "Tom Nguyen",
+      "description": "Former Senior Engineer on Claims Platform team who left in Q1 2023",
+      "overview": "Tom Nguyen was a Senior Engineer on the original Claims Platform team during the ClaimsPro migration. He left Clearview in Q1 2023.",
+      "details": "Tom Nguyen served as a Senior Engineer on the unified Claims Platform team during the 2021 migration period. He was part of the core engineering team that executed the migration from ClaimsPro to the microservices architecture. He left the company in Q1 2023, which was after the team reorganization into separate Claims Ops, Member Services, and Provider Network teams.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "engineer",
+        "former-employee"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belonged_to",
+          "target_entity_id": "claims-platform-team-2021",
+          "target_entity_name": "Claims Platform Team (2021)",
+          "reasoning": "Listed as member of the original unified team"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Listed as a specific person with engineering role during the migration period"
+    },
+    {
+      "entity_type": "persona",
+      "id": "nina-petrovich",
+      "name": "Nina Petrovich",
+      "description": "Former Senior Engineer who led the Payment Engine rewrite, left in Q4 2022",
+      "overview": "Nina Petrovich was a Senior Engineer who led the rewrite of the Payment Engine during the ClaimsPro migration. She designed the void/reissue workflow and left Clearview in Q4 2022.",
+      "details": "Nina Petrovich played a critical role in the ClaimsPro migration by leading the Payment Engine extraction and rewrite. The payment module was identified as the most challenging extraction due to its deep entanglement with ClaimsPro's adjudication logic, requiring a complete rewrite rather than simple extraction. She designed the void/reissue workflow that is still used today. Her departure in Q4 2022 coincided with the completion of the major migration work and the team reorganization period.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "engineer",
+        "former-employee",
+        "payment-expert"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "led",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Led the rewrite of the Payment Engine during migration"
+        },
+        {
+          "relationship_type": "belonged_to",
+          "target_entity_id": "claims-platform-team-2021",
+          "target_entity_name": "Claims Platform Team (2021)",
+          "reasoning": "Was a Senior Engineer on the original unified team"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific individual with clearly documented contributions to the Payment Engine"
+    },
+    {
+      "entity_type": "team",
+      "id": "claims-platform-team-2021",
+      "name": "Claims Platform Team (2021)",
+      "description": "Original unified team that executed the ClaimsPro migration before being split in late 2022",
+      "overview": "The Claims Platform team was the single engineering team responsible for the entire claims processing platform during the 2021 migration period. It was later split into three specialized teams in late 2022 as the platform grew in complexity.",
+      "details": "The Claims Platform team was formed to execute the ClaimsPro migration and initially owned all claims processing systems. The team included Samir Patel (Principal Architect), Marcus Reeves (Engineering Manager), Tom Nguyen and Nina Petrovich (Senior Engineers), Dana Okafor, James Whitfield, and later Priya Anand (mid-2021). The team was responsible for extracting modules from ClaimsPro, building new systems like Claims Gateway, and managing the entire migration process. In late 2022, following Samir's recommendation, the team was split into three specialized teams: Claims Operations (led by Marcus), Member Services (led by Dana), and Provider Network (led by James). This reorganization reflected the platform's growth and the need for more focused domain expertise.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "unified-team",
+        "migration-team"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "split_into",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Was reorganized into Claims Operations team in late 2022"
+        },
+        {
+          "relationship_type": "split_into",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Was reorganized into Member Services team in late 2022"
+        },
+        {
+          "relationship_type": "split_into",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "Was reorganized into Provider Network team in late 2022"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as an organizational unit with specific responsibilities and membership"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "rabbitmq-2021",
+      "name": "RabbitMQ (2021)",
+      "description": "Message broker used in original 2021 architecture, later replaced by Kafka in Q2 2022",
+      "overview": "RabbitMQ was the original message broker used for asynchronous communication between services in the 2021 architecture. It was replaced by Kafka in Q2 2022 due to message loss issues under heavy load.",
+      "details": "RabbitMQ served as the async messaging backbone for the initial microservices architecture. However, it had critical reliability issues under heavy load where messages would be dropped if the queue depth exceeded memory limits, causing claims to disappear without a trace. This was identified as one of the major architectural problems that needed to be addressed. The move to Kafka in Q2 2022 solved this issue by providing persistent, replicated message storage. The message loss problem was particularly problematic for claims processing where every message represents financial transactions that cannot be lost.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "messaging",
+        "replaced",
+        "reliability-issues"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "confluent-cloud-kafka",
+          "target_entity_name": "Confluent Cloud Kafka",
+          "reasoning": "Was replaced by Kafka in Q2 2022 due to reliability issues"
+        },
+        {
+          "relationship_type": "deployed_on",
+          "target_entity_id": "gke-single-cluster-2021",
+          "target_entity_name": "GKE Single Cluster (2021)",
+          "reasoning": "Was deployed on the original single GKE cluster"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure software component that supported but didn't implement business logic"
+    },
+    {
+      "entity_type": "platform",
+      "id": "gke-single-cluster-2021",
+      "name": "GKE Single Cluster (2021)",
+      "description": "Original single GKE cluster in us-central1 that hosted all services before prod/nonprod separation",
+      "overview": "The 2021 architecture used a single GKE cluster in us-central1 to host all services without separation between production and non-production environments. This was later upgraded to separate clusters for better isolation.",
+      "details": "The initial post-migration infrastructure used a single Google Kubernetes Engine cluster located in us-central1 region. This cluster hosted all microservices without any environment separation - both production and non-production workloads ran on the same cluster. This setup was acknowledged as inadequate for the current volume and was later upgraded to separate production and non-production clusters for better isolation, security, and capacity management. The single-cluster approach was a migration simplification that was always intended to be temporary.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "infrastructure",
+        "single-cluster",
+        "replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "gke-prod-claims-01",
+          "target_entity_name": "GKE Production Cluster (prod-claims-01)",
+          "reasoning": "Was replaced by separate production cluster"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "gke-nonprod-claims-01",
+          "target_entity_name": "GKE Non-Production Cluster (nonprod-claims-01)",
+          "reasoning": "Was replaced by separate non-production cluster"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure platform that hosted the applications and services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "cloud-sql-single-instance-2021",
+      "name": "Cloud SQL Single Instance (2021)",
+      "description": "Original single Cloud SQL PostgreSQL instance without HA failover used in 2021 architecture",
+      "overview": "The 2021 architecture used a single Cloud SQL PostgreSQL instance for all services without high availability failover. This was acknowledged as inadequate and was later upgraded to separate instances per service.",
+      "details": "The initial migration used a single Cloud SQL for PostgreSQL instance to host databases for all microservices. This instance had no high availability failover configuration, which was recognized as a significant risk. The document notes 'single instance, no HA failover — yes, really' indicating the team was aware this was not production-ready. This was addressed in Q2 2022 when the architecture moved to separate database instances per service, providing better isolation, performance, and reliability. The single-instance approach was likely a migration expedient to get off ClaimsPro quickly.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "database",
+        "single-point-failure",
+        "replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "Was replaced by separate instances per service in Q2 2022"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure software component that provided database services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "jenkins-2021",
+      "name": "Jenkins (2021)",
+      "description": "Original CI/CD tool used in 2021, later migrated to GitHub Actions in 2023",
+      "overview": "Jenkins was the continuous integration and deployment tool used in the original 2021 architecture. It was later replaced by GitHub Actions in 2023 as part of the platform modernization efforts.",
+      "details": "Jenkins served as the CI/CD pipeline tool for the initial microservices architecture, handling build, test, and deployment automation for all services. The migration to GitHub Actions in 2023 was likely driven by the desire for better integration with GitHub-hosted repositories and more modern CI/CD capabilities. This change represents the continued evolution of the platform infrastructure beyond the initial migration period.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "ci-cd",
+        "replaced"
+      ],
+      "relationships": [],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure software component that supported development and deployment processes"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "cloudwatch-grafana-2021",
+      "name": "CloudWatch + Grafana (2021)",
+      "description": "Original monitoring setup using CloudWatch and custom Grafana dashboards, replaced by Datadog in Q3 2022",
+      "overview": "The 2021 monitoring solution combined CloudWatch for metrics collection with custom Grafana dashboards for visualization. This was later replaced by Datadog in Q3 2022 for better observability.",
+      "details": "The original monitoring infrastructure used AWS CloudWatch for metrics collection paired with custom-built Grafana dashboards for visualization and alerting. This combination provided basic observability for the new microservices architecture but was later replaced by Datadog in Q3 2022, likely for better service monitoring capabilities, integrated APM, and reduced operational overhead of maintaining custom dashboards. The timing suggests this upgrade happened after the initial migration stabilized and the team could focus on operational improvements.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "monitoring",
+        "replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Was replaced by Datadog for monitoring in Q3 2022"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure software components that provided monitoring capabilities"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "kubernetes-secrets-2021",
+      "name": "Kubernetes Secrets (2021)",
+      "description": "Original secret management using native Kubernetes secrets, later replaced by Vault in 2023",
+      "overview": "The 2021 architecture used native Kubernetes secrets for secret management, which was later upgraded to HashiCorp Vault in 2023 for better security and secret lifecycle management.",
+      "details": "The initial implementation used Kubernetes' built-in secrets management for storing sensitive configuration like database passwords, API keys, and service credentials. This was adequate for the initial migration but was recognized as insufficient for production-grade secret management. The migration to HashiCorp Vault in 2023 provided better security controls, secret rotation, audit logging, and integration with external identity providers - all critical for HIPAA compliance and enterprise security requirements.",
+      "status": "deprecated",
+      "tags": [
+        "legacy-era",
+        "secrets",
+        "security",
+        "replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "hashicorp-vault",
+          "target_entity_name": "HashiCorp Vault",
+          "reasoning": "Was replaced by Vault for secret management in 2023"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Infrastructure software component that provided secret management capabilities"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "dual-write",
+      "name": "Dual-Write",
+      "description": "Migration strategy where data is written to both old and new systems simultaneously during transition",
+      "overview": "Dual-write was the migration strategy used during the eligibility service extraction where data was written to both ClaimsPro and the new eligibility database simultaneously for 6 months to ensure data consistency during cutover.",
+      "details": "Dual-write is a common migration pattern where during the transition period, all data changes are written to both the legacy system (ClaimsPro database) and the new system (new eligibility service database) simultaneously. This ensures that both systems remain in sync and allows for safe cutover with the ability to rollback if needed. Clearview used this approach for 6 months during the eligibility service migration, writing eligibility changes to both the ClaimsPro database via database views and the new dedicated database. This pattern reduces risk during critical system migrations but adds complexity during the transition period.",
+      "status": "active",
+      "tags": [
+        "migration-pattern",
+        "data-consistency"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Dual-write was specifically used during eligibility service migration"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Technical business process term specific to migration strategies"
+    },
+    {
+      "entity_type": "process",
+      "id": "void-reissue-workflow",
+      "name": "Void/Reissue Workflow",
+      "description": "Payment correction process designed by Nina Petrovich during Payment Engine rewrite",
+      "overview": "The void/reissue workflow is a payment correction process that allows Clearview to cancel incorrect payments and reissue corrected ones. It was designed during the Payment Engine rewrite as part of the ClaimsPro migration.",
+      "details": "The void/reissue workflow was designed by Nina Petrovich during the Payment Engine rewrite to handle payment corrections. This process allows the system to void (cancel) incorrect payments that have already been issued and then reissue corrected payments. This capability is critical for claims processing where payment errors need to be corrected while maintaining proper audit trails and financial reconciliation. The workflow was likely one of the most complex aspects of the payment system rewrite, requiring careful handling of payment states, provider notifications, and accounting adjustments.",
+      "status": "active",
+      "tags": [
+        "payment-process",
+        "error-correction"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "designed_by",
+          "target_entity_id": "nina-petrovich",
+          "target_entity_name": "Nina Petrovich",
+          "reasoning": "Nina Petrovich designed this workflow during the Payment Engine rewrite"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "This workflow is part of the Payment Engine functionality"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Defined workflow with specific steps for handling payment corrections"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "cascading-failures",
+      "name": "Cascading Failures",
+      "description": "System failure pattern where one service failure triggers failures in dependent services",
+      "overview": "Cascading failures refer to the system reliability issue in the 2021 architecture where the failure of one service would cause dependent services to fail as well, due to lack of circuit breakers and fault isolation.",
+      "details": "Cascading failures were a significant architectural problem in the 2021 system where a failure in one microservice would propagate through the system, causing multiple services to fail simultaneously. This happened because the initial architecture lacked circuit breakers and other fault isolation patterns. When one service went down, other services would continue trying to call it, eventually timing out or failing themselves, creating a domino effect across the platform. The document notes this issue is still not fully addressed as of 2024 (CLV-3904), indicating it remains an ongoing technical challenge requiring circuit breaker implementation and better fault isolation design.",
+      "status": "active",
+      "tags": [
+        "reliability-issue",
+        "fault-tolerance",
+        "ongoing-problem"
+      ],
+      "relationships": [],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Technical term specific to distributed systems reliability patterns"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3904",
+      "name": "CLV-3904",
+      "description": "Ticket or issue identifier for ongoing cascading failure problem",
+      "overview": "CLV-3904 appears to be a ticket or issue identifier referencing the ongoing cascading failure problem that still exists as of 2024, indicating that circuit breaker implementation remains incomplete.",
+      "details": "CLV-3904 is referenced in the context of cascading failures not being fully addressed, suggesting it's a tracking ticket, JIRA issue, or similar work item for implementing circuit breakers and fault isolation mechanisms. The fact that this issue is mentioned as still open in 2024 indicates it's a complex, ongoing engineering effort to improve system reliability by preventing single service failures from cascading across the entire platform.",
+      "status": "active",
+      "tags": [
+        "issue-tracking",
+        "ongoing-work"
+      ],
+      "relationships": [],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "CLV-3904 appears to be a ticket or issue identifier"
+      ],
+      "reasoning": "Appears to be internal tracking identifier, though the exact system isn't specified"
+    }
+  ],
+  "questions": [
+    "What specific issues are documented in ADR-2024-007 that make the HealthLogic selection 'a mistake in hindsight'?",
+    "What was the specific timeline and process for the team split in late 2022 - was it driven by headcount growth, domain complexity, or other factors?",
+    "Are the Lucidchart links (https://lucidchart.com/clearview/claims-platform-v1 and https://lucidchart.com/clearview/claimspro-migration-plan) still accessible, and do they contain useful architectural diagrams?",
+    "What were the specific data quality issues with provider records that required 15% of records to be cleaned up, and how were they resolved?",
+    "What is the current status of CLV-3904 and the circuit breaker implementation - is this still a priority issue in 2024?",
+    "What was the specific HIPAA compliance issue discovered in the 2022 audit related to clinical data in logs, and how was the log partitioning implemented?",
+    "What were the alternatives considered to TriZetto Facets, and what were the specific evaluation criteria used in the vendor selection?",
+    "What was the business impact of the RabbitMQ message loss issue - how many claims were lost and what was the financial exposure?",
+    "What drove the decision to use Quarkus for the Eligibility Service 'startup time improvements' - what were the specific performance issues with Spring Boot?"
+  ],
+  "new_jargon": [
+    "dual-write",
+    "cascading failures",
+    "CLV-3904"
+  ],
+  "decision_log": [
+    {
+      "subject": "ClaimsPro",
+      "decision": "classified as system",
+      "reasoning": "ClaimsPro was a complete software application that implemented claims processing business logic, making it clearly a system despite being monolithic and deprecated"
+    },
+    {
+      "subject": "ClaimsPro Inc.",
+      "decision": "classified as external-party",
+      "reasoning": "This is a vendor organization outside Clearview that provided software, fitting the external-party definition perfectly"
+    },
+    {
+      "subject": "ClaimsPro migration decision",
+      "decision": "classified as decision",
+      "reasoning": "This represents a major architectural choice about migrating from monolith to microservices, with clear alternatives and rationale"
+    },
+    {
+      "subject": "HealthLogic selection decision",
+      "decision": "classified as decision",
+      "reasoning": "This was a vendor selection decision with documented alternatives (HealthLogic vs Facets vs build-our-own) and clear rationale, even though it was later regretted"
+    },
+    {
+      "subject": "Former employees",
+      "decision": "classified as persona with deprecated status",
+      "reasoning": "These are specific individuals who played important roles in the system's history, so they deserve documentation even though they're no longer with the company"
+    },
+    {
+      "subject": "Claims Platform Team (2021)",
+      "decision": "created new entity instead of reusing existing teams",
+      "reasoning": "This was a different organizational structure than the current three teams - it was the unified predecessor team that was later split"
+    },
+    {
+      "subject": "RabbitMQ (2021)",
+      "decision": "created separate entity with year suffix",
+      "reasoning": "This is a different instance/configuration than any current RabbitMQ usage, and it has specific historical context and issues that are important to document"
+    },
+    {
+      "subject": "Infrastructure components with (2021) suffix",
+      "decision": "created separate legacy entities",
+      "reasoning": "The 2021 infrastructure was significantly different from current setup (single cluster, single database, different tools) and these differences are architecturally important to document"
+    },
+    {
+      "subject": "Dual-write",
+      "decision": "classified as jargon-business",
+      "reasoning": "This is a specific technical business process term related to migration strategies that new team members should understand"
+    },
+    {
+      "subject": "Void/Reissue Workflow",
+      "decision": "classified as process",
+      "reasoning": "This is a defined business workflow with specific steps for handling payment corrections, making it clearly a process entity"
+    }
+  ]
+}

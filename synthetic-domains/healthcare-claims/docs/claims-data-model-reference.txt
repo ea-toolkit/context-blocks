@@ -1,0 +1,332 @@
+Claims Data Model Reference
+Version: 3.1
+Last updated: 2025-10-28 by Leo Chen
+
+This document describes the core data models used across the Clearview Health Plans claims platform. If you're integrating with any of our services, this is your starting point for understanding what data lives where and how it connects.
+
+
+== Claim ==
+
+The central entity. Everything in the platform revolves around claims.
+
+Table: claims (Claims Gateway DB)
+
+  claim_id          VARCHAR(30)   PK    Format: CLM-YYYYMMDD-NNNNNN
+  submission_type   VARCHAR(10)         EDI_837P | EDI_837I | JSON | OCR
+  submission_date   TIMESTAMP           When the claim was received
+  date_of_service   DATE                When the service was rendered
+  member_id         VARCHAR(15)   FK    References member record in Eligibility Service
+  provider_npi      VARCHAR(10)   FK    National Provider Identifier
+  provider_tin      VARCHAR(10)         Tax Identification Number (for payment grouping)
+  facility_type     VARCHAR(5)          11=Office, 21=Inpatient, 22=Outpatient, 23=ER, 31=SNF
+  place_of_service  VARCHAR(2)          CMS place of service code
+  total_billed      DECIMAL(12,2)       What the provider charged
+  status            VARCHAR(20)         RECEIVED | VALIDATED | ELIGIBLE | ADJUDICATED | PAID | DENIED | PENDED | REJECTED
+  disposition       VARCHAR(10)         PAY | DENY | PEND (set after adjudication)
+  denial_reason     VARCHAR(10)         Standard denial reason code (CARC/RARC)
+  pend_reason       VARCHAR(10)         Internal pend code
+  auth_id           VARCHAR(30)         Pre-authorization reference (nullable)
+  fraud_score       DECIMAL(4,3)        Pre-payment fraud score (0.000 - 1.000)
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+
+Claim Line Items (child table):
+
+Table: claim_lines
+
+  line_id           BIGSERIAL     PK
+  claim_id          VARCHAR(30)   FK
+  line_number       INT                 Sequential within claim
+  procedure_code    VARCHAR(7)          CPT or HCPCS code
+  modifier_1        VARCHAR(2)          CPT modifier (e.g., 25=significant E&M, 59=distinct procedure)
+  modifier_2        VARCHAR(2)
+  diagnosis_ptr     INT[]               Pointers to diagnosis codes on the claim
+  units             DECIMAL(7,2)        Service units (usually 1, but anesthesia uses time units)
+  billed_amount     DECIMAL(10,2)       Billed amount for this line
+  allowed_amount    DECIMAL(10,2)       Calculated from fee schedule during adjudication
+  plan_paid         DECIMAL(10,2)       What the plan pays
+  member_resp       DECIMAL(10,2)       Member cost-sharing (deductible + copay + coinsurance)
+  copay             DECIMAL(8,2)
+  coinsurance       DECIMAL(8,2)
+  deductible_applied DECIMAL(8,2)
+  line_status       VARCHAR(20)         PAID | DENIED | PENDED
+
+Diagnosis Codes (child table):
+
+Table: claim_diagnoses
+
+  claim_id          VARCHAR(30)   FK
+  sequence          INT                 1=primary, 2-12=secondary
+  diagnosis_code    VARCHAR(8)          ICD-10-CM code
+  present_on_admit  VARCHAR(1)          Y/N/U/W (institutional claims only)
+
+
+== Member ==
+
+Stored and managed by the Eligibility Service.
+
+Table: members
+
+  member_id         VARCHAR(15)   PK    Format: CLV-XXXXXXXXX
+  subscriber_id     VARCHAR(15)   FK    The primary subscriber (member may be dependent)
+  relationship      VARCHAR(10)         SELF | SPOUSE | CHILD | DOMESTIC_PARTNER
+  first_name        VARCHAR(50)
+  last_name         VARCHAR(50)
+  date_of_birth     DATE
+  gender            VARCHAR(1)          M | F | U
+  ssn_hash          VARCHAR(64)         SHA-256 hash, never stored in plaintext
+  address_line_1    VARCHAR(100)
+  address_line_2    VARCHAR(100)
+  city              VARCHAR(50)
+  state             VARCHAR(2)
+  zip_code          VARCHAR(10)
+  phone             VARCHAR(15)
+  email             VARCHAR(100)
+  plan_id           VARCHAR(20)   FK    Current benefit plan assignment
+  enrollment_status VARCHAR(15)         ACTIVE | TERMINATED | COBRA | PENDING
+  effective_date    DATE                Coverage start
+  termination_date  DATE                Coverage end (null if active)
+  pcp_npi           VARCHAR(10)         Primary care provider NPI (HMO plans)
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+
+Notes:
+  - A subscriber can have multiple dependents. subscriber_id = member_id for the primary subscriber.
+  - COBRA members have a different premium structure but same benefits.
+  - The Eligibility Service also stores historical enrollment records for point-in-time lookups. Historical records are in the member_enrollment_history table (same fields + period_start / period_end).
+
+
+== Provider ==
+
+Stored and managed by Provider Directory.
+
+Table: providers
+
+  npi               VARCHAR(10)   PK    National Provider Identifier
+  tin               VARCHAR(10)         Tax Identification Number (group or individual)
+  provider_type     VARCHAR(5)          1=Individual, 2=Organization
+  first_name        VARCHAR(50)         (individual providers)
+  last_name         VARCHAR(50)         (individual providers)
+  org_name          VARCHAR(100)        (organizational providers)
+  specialty_code    VARCHAR(10)         Primary taxonomy code
+  specialty_desc    VARCHAR(100)
+  credential        VARCHAR(10)         MD, DO, NP, PA, etc.
+  license_state     VARCHAR(2)
+  license_number    VARCHAR(20)
+  license_expiry    DATE
+  cred_status       VARCHAR(15)         ACTIVE | PENDING | EXPIRED | REVOKED
+  cred_expiry       DATE                Next re-credentialing due date (3-year cycle per NCQA)
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+
+Provider Locations (many-to-many):
+
+Table: provider_locations
+
+  npi               VARCHAR(10)   FK
+  location_id       BIGSERIAL     PK
+  address_line_1    VARCHAR(100)
+  city              VARCHAR(50)
+  state             VARCHAR(2)
+  zip_code          VARCHAR(10)
+  phone             VARCHAR(15)
+  fax               VARCHAR(15)
+  accepting_patients BOOLEAN
+
+Provider Network Participation:
+
+Table: provider_network_status
+
+  npi               VARCHAR(10)   FK
+  plan_id           VARCHAR(20)   FK
+  network_status    VARCHAR(10)         IN_NETWORK | OUT_OF_NETWORK | PENDING
+  effective_date    DATE
+  termination_date  DATE
+  contract_id       VARCHAR(20)   FK    References the provider contract
+
+Important: network status is per-plan. A provider can be in-network for the Gold PPO but OON for the Silver HMO. The Rules Engine always queries network status using the member's plan_id and the claim's date_of_service.
+
+
+== Benefit Plan ==
+
+Stored in the Eligibility Service (plan configuration) and referenced everywhere.
+
+Table: benefit_plans
+
+  plan_id           VARCHAR(20)   PK    Format: TIER-TYPE-YEAR (e.g., GOLD-PPO-2025)
+  plan_name         VARCHAR(100)        Human-readable name
+  plan_type         VARCHAR(5)          PPO | HMO | EPO | POS
+  plan_year         INT                 Calendar year the plan is effective
+  individual_deductible    DECIMAL(10,2)
+  family_deductible        DECIMAL(10,2)
+  individual_oop_max       DECIMAL(10,2)
+  family_oop_max           DECIMAL(10,2)
+  copay_primary_care       DECIMAL(8,2)    PCP visit copay
+  copay_specialist         DECIMAL(8,2)    Specialist visit copay
+  copay_er                 DECIMAL(8,2)    ER visit copay (waived if admitted)
+  coinsurance_rate         DECIMAL(4,2)    Member coinsurance % after deductible (e.g., 0.20 = 20%)
+  oon_coinsurance_rate     DECIMAL(4,2)    OON coinsurance (usually higher, e.g., 0.40)
+  rx_tier_1_copay          DECIMAL(8,2)    Generic drugs
+  rx_tier_2_copay          DECIMAL(8,2)    Preferred brand
+  rx_tier_3_copay          DECIMAL(8,2)    Non-preferred brand
+  rx_tier_4_coinsurance    DECIMAL(4,2)    Specialty drugs (coinsurance %)
+  status            VARCHAR(10)         ACTIVE | INACTIVE
+  created_at        TIMESTAMP
+
+Plan-level configuration also includes:
+  - Auth-required service lists (maintained quarterly, stored in pre_auth_service_lists table)
+  - Covered service lists with exclusions
+  - Age/sex-specific coverage rules
+  - COB rules for dual coverage scenarios
+
+The Rules Engine loads plan configuration at the start of adjudication. Plan config is cached with a 15-minute TTL — changes to plan config take up to 15 minutes to propagate.
+
+
+== Payment ==
+
+Stored in the Payment Engine.
+
+Table: payments
+
+  payment_id        BIGSERIAL     PK
+  payment_type      VARCHAR(15)         PROVIDER | MEMBER_REIMB
+  payee_id          VARCHAR(15)         Provider TIN or Member ID
+  payment_method    VARCHAR(10)         EFT | CHECK | VCARD
+  payment_amount    DECIMAL(12,2)
+  payment_date      DATE                Scheduled payment date
+  settlement_date   DATE                Actual settlement date (null until settled)
+  payment_cycle     VARCHAR(10)         Format: YYYY-WNN (year + week number)
+  era_835_id        VARCHAR(30)         Remittance advice reference
+  status            VARCHAR(15)         SCHEDULED | PROCESSED | SETTLED | VOIDED | HELD
+  void_reason       VARCHAR(100)        (added 2025-06 per design session)
+  linked_payment_id BIGINT        FK    Points to replacement payment for void/reissue
+  void_type         VARCHAR(10)         REPROCESS | FRAUD | MANUAL | RECOUP
+  hold_reason       VARCHAR(50)         Fraud hold, compliance hold, etc.
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+
+Payment-to-Claim linkage:
+
+Table: payment_claims
+
+  payment_id        BIGINT        FK
+  claim_id          VARCHAR(30)   FK
+  line_number       INT                 (nullable — some payments are at claim level)
+  plan_paid         DECIMAL(10,2)       Amount paid for this claim/line
+
+Notes:
+  - Provider payments are batched per TIN per payment cycle. A single payment record can cover multiple claims.
+  - The void linkage fields (void_reason, linked_payment_id, void_type) were added in the 2025 payment reconciliation rework. Older void records don't have these fields populated.
+  - Payments below $5 are held until the threshold is met (minimum_payment_threshold in system config).
+
+
+== Fee Schedule ==
+
+Stored in Provider Directory, queried by the Rules Engine during adjudication.
+
+Table: fee_schedules
+
+  contract_id       VARCHAR(20)   FK
+  procedure_code    VARCHAR(7)          CPT/HCPCS code
+  modifier          VARCHAR(2)          (nullable)
+  allowed_amount    DECIMAL(10,2)       The contracted rate for this procedure
+  effective_date    DATE
+  termination_date  DATE
+  facility_flag     BOOLEAN             Different rate for facility vs non-facility
+  created_at        TIMESTAMP
+
+The fee schedule is the source of truth for the allowed amount. During adjudication, the Rules Engine looks up:
+  provider NPI → contract_id → fee_schedule → procedure_code → allowed_amount
+
+If no fee schedule entry exists for a procedure code, the fallback is the Clearview standard fee schedule (maintained by the actuarial team, updated annually).
+
+For OON providers, the "usual and customary" rate is used instead of a contracted rate. This rate is derived from Medicare RBRVS data with a geographic adjustment factor.
+
+
+== Authorization ==
+
+Stored in the Pre-Auth Service.
+
+Table: authorizations
+
+  auth_id           VARCHAR(30)   PK    Format: AUTH-YYYYMMDD-NNNNNN
+  member_id         VARCHAR(15)   FK
+  provider_npi      VARCHAR(10)   FK
+  service_category  VARCHAR(30)         e.g., IMAGING, SURGERY, SPECIALTY_DRUG
+  procedure_codes   VARCHAR(7)[]        Array of approved procedure codes
+  diagnosis_codes   VARCHAR(8)[]        Supporting diagnoses
+  determination     VARCHAR(15)         APPROVED | DENIED | PENDED_CLINICAL
+  approval_code     VARCHAR(30)         (set on approval)
+  denial_reason     VARCHAR(100)        (set on denial)
+  requested_date    DATE
+  determined_at     TIMESTAMP
+  determined_by     VARCHAR(50)         'auto-approve' or reviewer name
+  validity_start    DATE
+  validity_end      DATE                90 days for standard, 60 for surgical
+  units_approved    INT                 Number of approved service units
+  units_used        INT                 Updated as claims are processed against this auth
+  status            VARCHAR(15)         ACTIVE | EXPIRED | CANCELLED | EXHAUSTED
+  created_at        TIMESTAMP
+  updated_at        TIMESTAMP
+
+
+== Accumulator ==
+
+Stored in the Eligibility Service. Tracks deductible and OOP max progress.
+
+Table: accumulators
+
+  member_id         VARCHAR(15)   FK
+  plan_year         INT
+  accumulator_type  VARCHAR(30)         IND_DEDUCTIBLE | FAM_DEDUCTIBLE | IND_OOP_MAX | FAM_OOP_MAX
+  limit_amount      DECIMAL(10,2)       Annual limit from benefit plan
+  met_amount        DECIMAL(10,2)       Amount applied so far
+  remaining         DECIMAL(10,2)       Computed: limit - met
+  last_updated      TIMESTAMP
+
+Table: accumulator_reservations (soft locks during concurrent adjudication)
+
+  reservation_id    BIGSERIAL     PK
+  member_id         VARCHAR(15)   FK
+  claim_id          VARCHAR(30)   FK
+  accumulator_type  VARCHAR(30)
+  reserved_amount   DECIMAL(10,2)
+  reserved_at       TIMESTAMP
+  status            VARCHAR(10)         ACTIVE | RELEASED | EXPIRED
+
+Reservations are cleaned up by a batch job every 6 hours (reservations older than 4 hours are expired). This is a known workaround for the case where the Rules Engine crashes mid-adjudication — see JIRA CLV-4521.
+
+
+== Cross-Service Relationships ==
+
+  Claim → Member (via member_id)
+  Claim → Provider (via provider_npi)
+  Claim → Authorization (via auth_id)
+  Claim → Payment (via payment_claims join table)
+  Claim → Claim Lines (parent-child)
+  Claim → Diagnoses (parent-child)
+  Member → Benefit Plan (via plan_id)
+  Member → Accumulators (via member_id + plan_year)
+  Provider → Fee Schedules (via contract_id)
+  Provider → Network Status (via npi + plan_id)
+  Provider → Locations (via npi)
+  Authorization → Member (via member_id)
+  Authorization → Provider (via provider_npi)
+  Payment → Claims (via payment_claims)
+
+Diagram: https://lucidchart.com/clearview/claims-data-model-v3 (VPN required)
+
+
+== Naming Conventions ==
+
+  - IDs use hyphenated prefixes: CLM-, CLV-, AUTH-, BATCH-
+  - All timestamps are stored in UTC
+  - Money fields are DECIMAL(12,2) or DECIMAL(10,2), never FLOAT
+  - Status fields use UPPER_SNAKE_CASE
+  - Date fields use DATE type (no time component) for business dates, TIMESTAMP for system dates
+  - Provider identifiers use NPI (10 digits) for clinical identity and TIN (9 digits) for financial identity
+
+Page history:
+  2025-10-28 — Leo Chen — added payment reconciliation fields, accumulator reservation table
+  2025-07-15 — Leo Chen — added fee schedule section, authorization model
+  2025-04-02 — Priya Anand — initial version, claim + member + provider models

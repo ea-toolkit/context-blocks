@@ -1,0 +1,471 @@
+{
+  "source_document": "eligibility-api-reference.txt",
+  "document_summary": "API reference documentation for the Eligibility Check API v2.3, detailing endpoints for member eligibility verification, accumulator tracking, batch processing, authentication, and integration patterns used by internal systems.",
+  "entities": [
+    {
+      "entity_type": "api",
+      "id": "eligibility-api-v2",
+      "name": "Eligibility API v2",
+      "description": "RESTful API providing member eligibility verification, benefit accumulator tracking, and point-in-time eligibility lookups",
+      "overview": "Version 2.3 of Clearview's internal Eligibility API serving real-time and batch eligibility checks for Claims Gateway, Rules Engine, Pre-Auth Service, and Member Portal. The API supports current eligibility lookup, historical point-in-time verification, accumulator balance tracking with soft reservations, and both JSON and EDI 270/271 batch processing formats.",
+      "details": "The API runs at https://api.clearviewhealth.internal/eligibility/v2 with OAuth 2.0 authentication and rate limits of 500 req/sec for real-time endpoints and 10 req/min for batch processing (max 5000 records per batch). Core endpoints include GET /eligibility/{memberId} for current eligibility, GET /eligibility/{memberId}/asof/{date} for point-in-time lookups supporting up to 2 years historical data, GET /eligibility/{memberId}/accumulators for benefit balance tracking with soft reservations, and POST /eligibility/batch for bulk processing. The API handles member status verification, plan assignment lookups, deductible and out-of-pocket maximum tracking, coordination of benefits data, and maintains soft reservations during concurrent claim adjudication to prevent over-application of benefits. Known issues include accumulator reservation cleanup requiring a 6-hour batch job (CLV-4521) and partial batch results under heavy load (CLV-4890).",
+      "status": "active",
+      "tags": [
+        "internal",
+        "real-time",
+        "batch-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway calls GET /eligibility/{memberId} at intake for fast eligibility verification"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine calls point-in-time and accumulator endpoints during adjudication"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service verifies member coverage before processing authorization requests"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal displays benefit balances to members using includeAccumulators=true"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "API returns member eligibility data including status, plan assignment, and relationship details"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "API returns accumulator data with limits, met amounts, and soft reservations"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "benefit-plan",
+          "target_entity_name": "Benefit Plan",
+          "reasoning": "API returns plan_id and plan_name as part of eligibility response"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a named API with specific endpoints, authentication, and integration patterns documented"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "soft-reservation-created-event",
+      "name": "Soft Reservation Created Event",
+      "description": "Event flow when the Eligibility Service creates temporary benefit amount holds during claim adjudication",
+      "overview": "Generated when the Rules Engine requests accumulator data during claim adjudication, creating temporary reservations to prevent over-application of benefits during concurrent processing. These reservations include claim ID, reserved amount, target accumulator, and timestamp for cleanup tracking.",
+      "details": "The event occurs when GET /eligibility/{memberId}/accumulators is called during active claim adjudication, creating soft reservations that appear in the pending_reservations array. Each reservation includes claim_id (e.g., CLM-20250814-002847), reserved_amount, target accumulator type (individual_deductible, family_deductible, individual_oop_max, family_oop_max), and reserved_at timestamp. Reservations prevent concurrent claims from double-applying against the same benefit limits. The system has a known issue (CLV-4521) where reservations aren't cleaned up if the Rules Engine crashes, requiring a 6-hour batch job to expire reservations older than 4 hours.",
+      "status": "active",
+      "tags": [
+        "accumulator-management",
+        "concurrent-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service creates and manages soft reservations"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine triggers reservation creation during claim adjudication"
+        },
+        {
+          "relationship_type": "carries",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Event carries accumulator reservation data including amounts and types"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "This appears to be an event flow based on the soft reservation mechanism described"
+      ],
+      "reasoning": "The soft reservation mechanism described implies an event-driven flow for managing concurrent access to benefit accumulators"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "soft-reservation-released-event",
+      "name": "Soft Reservation Released Event",
+      "description": "Event flow when temporary benefit reservations are released after claim finalization or denial",
+      "overview": "Triggered when claims are finalized or denied, releasing temporary accumulator reservations to make benefit amounts available for other claims. Also occurs during batch cleanup of expired reservations from crashed adjudication processes.",
+      "details": "The event fires when the Rules Engine completes claim adjudication (whether approved or denied) or when the 6-hour batch cleanup job expires reservations older than 4 hours from crashed processes. The event removes pending_reservations entries from the accumulator endpoint response and makes the reserved amounts available for subsequent claims. This is critical for preventing benefit exhaustion from stuck reservations due to system failures, addressing the known issue CLV-4521 where Rules Engine crashes leave orphaned reservations.",
+      "status": "active",
+      "tags": [
+        "accumulator-management",
+        "cleanup"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service releases reservations after claim completion or timeout"
+        },
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine completion or crash triggers reservation release"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "This appears to be an implied event flow for reservation cleanup"
+      ],
+      "reasoning": "The reservation cleanup mechanism implies an event flow for releasing locked benefit amounts"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-4890",
+      "name": "CLV-4890",
+      "description": "JIRA ticket tracking batch endpoint partial results issue under heavy load",
+      "overview": "Known issue where the POST /eligibility/batch endpoint occasionally returns partial results during high traffic periods, requiring retry of failed records. The response includes an errors count greater than zero when this occurs.",
+      "details": "This issue affects the batch eligibility verification endpoint when processing large volumes of requests, causing some records in a batch to fail processing while others succeed. The API response indicates the problem via the errors field being >0, and the recommended workaround is to retry failed records individually using the real-time endpoints. This suggests potential resource contention or timeout issues in the batch processing pipeline during peak load periods.",
+      "status": "active",
+      "tags": [
+        "known-issue",
+        "batch-processing",
+        "performance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "relates_to",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "Issue affects the batch endpoint of the Eligibility API"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a business jargon term referencing a specific JIRA ticket identifier"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "eligibility-response",
+      "name": "Eligibility Response",
+      "description": "Data structure returned by eligibility endpoints containing member status, plan details, and optional accumulator/COB data",
+      "overview": "Standardized response format used across all eligibility endpoints, containing member_id, status (active/terminated), plan assignment details, effective/termination dates, subscriber relationship, and optional accumulators and coordination of benefits data based on request parameters.",
+      "details": "The response model includes core fields: member_id (CLV-XXXXXXXXX format), status enum, plan_id, plan_name, effective_date, termination_date (null if active), subscriber_id, and relationship. Optional sections include accumulators object with individual/family deductible and OOP max limits/met/remaining amounts, and cob field for coordination of benefits data. The accumulators section also includes pending_reservations array showing active soft reservations with claim_id, reserved_amount, accumulator type, and reserved_at timestamp. Error responses follow a consistent format with error code and message fields.",
+      "status": "active",
+      "tags": [
+        "api-contract",
+        "response-model"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "This is the primary response format for eligibility API endpoints"
+        },
+        {
+          "relationship_type": "contains",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "Response includes member identification and relationship data"
+        },
+        {
+          "relationship_type": "contains",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Response optionally includes accumulator balance information"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined data structure with specific fields and formats documented"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "batch-eligibility-request",
+      "name": "Batch Eligibility Request",
+      "description": "Data structure for submitting bulk eligibility verification requests in JSON or EDI 270 format",
+      "overview": "Input format for the POST /eligibility/batch endpoint supporting both JSON array format with member_id/date_of_service pairs and standard EDI 270 transactions. Limited to 5000 records per batch with asynchronous processing and status polling.",
+      "details": "JSON format contains a requests array with objects having member_id and date_of_service fields. EDI 270 format follows standard healthcare transaction format for eligibility inquiries. Responses include batch_id for tracking, results array with eligibility data, processed count, and errors count. EDI submissions receive EDI 271 response format. Batch processing is asynchronous requiring polling of GET /eligibility/batch/{batchId}/status endpoint. The 5000 record limit is enforced with BATCH_SIZE_EXCEEDED error for violations.",
+      "status": "active",
+      "tags": [
+        "batch-processing",
+        "edi-format"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "This is the request format for the batch eligibility endpoint"
+        },
+        {
+          "relationship_type": "maps_to",
+          "target_entity_id": "edi-270-271",
+          "target_entity_name": "EDI 270/271",
+          "reasoning": "Batch requests can be submitted in EDI 270 format"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly documented data structure with specific format requirements"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "point-in-time-eligibility-rules",
+      "name": "Point-in-Time Eligibility Rules",
+      "description": "Business rules governing historical eligibility lookups with 2-year retrospective limit and date validation",
+      "overview": "Rules Engine uses point-in-time eligibility verification during claim adjudication to evaluate member coverage as of the claim's date of service. The system supports lookups up to 2 years in the past but rejects future dates with validation errors.",
+      "details": "The /eligibility/{memberId}/asof/{date} endpoint implements these rules: dates must be in YYYY-MM-DD format, cannot be in the future (returns 400 error), and cannot be more than 2 years in the past (DATE_OUT_OF_RANGE error). This supports retroactive claim processing scenarios where claims are submitted after the date of service. The Rules Engine specifically uses this for adjudication to ensure it evaluates coverage based on when services were rendered, not when the claim was received. The 2-year limit likely aligns with typical claim submission timely filing requirements and data retention policies.",
+      "status": "active",
+      "tags": [
+        "date-validation",
+        "retroactive-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "These rules are implemented in the point-in-time eligibility endpoint"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine relies on these rules for historical eligibility verification during adjudication"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "These are clearly defined business rules with specific validation logic and constraints"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "api-rate-limiting-rules",
+      "name": "API Rate Limiting Rules",
+      "description": "Rate limiting policies enforcing 500 req/sec for real-time endpoints and 10 req/min for batch processing",
+      "overview": "Differential rate limiting strategy protecting the Eligibility API from overload while accommodating different usage patterns. Real-time endpoints support high-frequency individual lookups while batch endpoints have stricter limits due to higher processing costs.",
+      "details": "Real-time endpoints (GET /eligibility/{memberId}, /asof/{date}, /accumulators) allow 500 requests per second per client, supporting the high-volume needs of Claims Gateway and Rules Engine during peak processing. The batch endpoint (POST /eligibility/batch) is limited to 10 requests per minute with maximum 5000 records per batch, reflecting the higher resource cost of bulk processing. Rate limit violations return RATE_LIMIT_EXCEEDED error with backoff retry recommendations. This tiered approach balances system protection with operational requirements, recognizing that batch processing trades frequency for volume efficiency.",
+      "status": "active",
+      "tags": [
+        "performance",
+        "system-protection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "Rate limiting is implemented at the API gateway level"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "These are explicit rate limiting rules with specific numeric thresholds documented"
+    },
+    {
+      "entity_type": "process",
+      "id": "accumulator-reservation-cleanup",
+      "name": "Accumulator Reservation Cleanup",
+      "description": "Batch process running every 6 hours to expire orphaned soft reservations from crashed adjudication processes",
+      "overview": "Automated cleanup job addressing CLV-4521 issue where Rules Engine crashes leave persistent soft reservations that block benefit utilization. The process identifies reservations older than 4 hours and releases them to restore benefit availability.",
+      "details": "This batch job runs on a 6-hour schedule to scan for soft reservations with reserved_at timestamps older than 4 hours, indicating likely orphaned reservations from crashed or hung adjudication processes. When found, these reservations are removed from the pending_reservations array and the reserved amounts are returned to available benefit balances. The 4-hour threshold provides sufficient time for normal claim adjudication while preventing indefinite benefit lockup. This addresses a critical operational issue where system failures could permanently exhaust member benefits without processing actual claims. The process likely includes monitoring and alerting for high volumes of expired reservations indicating systemic adjudication problems.",
+      "status": "active",
+      "tags": [
+        "batch-job",
+        "system-recovery",
+        "benefit-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team owns the Eligibility Service where this cleanup runs"
+        },
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "clv-4521",
+          "target_entity_name": "CLV-4521",
+          "reasoning": "This process was implemented as workaround for the known reservation cleanup issue"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "soft-reservation-released-event",
+          "target_entity_name": "Soft Reservation Released Event",
+          "reasoning": "Cleanup process releases expired reservations generating release events"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "This appears to be a batch process based on the documented cleanup mechanism"
+      ],
+      "reasoning": "The 6-hour cleanup job described is clearly a defined business process with specific timing and purpose"
+    },
+    {
+      "entity_type": "process",
+      "id": "websocket-eligibility-feed-development",
+      "name": "WebSocket Eligibility Feed Development",
+      "description": "Planned real-time WebSocket eligibility feed for Member Portal scheduled for Q1 2026",
+      "overview": "Future enhancement to provide real-time eligibility updates to Member Portal via WebSocket connections, replacing polling-based refresh patterns. Currently in development with Q1 2026 target delivery date.",
+      "details": "This planned feature will enable push-based eligibility updates to member-facing applications, likely providing real-time notifications for benefit balance changes, plan status updates, and accumulator modifications as they occur during claims processing. The WebSocket feed would complement the existing REST API by eliminating the need for periodic polling to refresh member benefit displays. The Q1 2026 timeline suggests active development planning, though implementation details are not yet documented. This represents an evolution toward more responsive member experience and reduced API load from frequent polling.",
+      "status": "planned",
+      "tags": [
+        "real-time",
+        "member-experience",
+        "future-enhancement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "WebSocket feed is specifically designed for Member Portal real-time updates"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team likely owns this development as they own Member Portal"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "This likely provides real-time notifications based on the WebSocket technology choice"
+      ],
+      "reasoning": "This is clearly a planned process/project with specific timeline and technology approach mentioned"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "clearinghouse-partners",
+      "name": "Clearinghouse Partners",
+      "description": "Healthcare clearinghouses submitting EDI 270/271 eligibility verification transactions via batch processing",
+      "overview": "External healthcare intermediaries that facilitate eligibility verification transactions between providers and Clearview Health Plans using standard EDI 270/271 format. These partners primarily use the batch eligibility endpoint for bulk member verification.",
+      "details": "Clearinghouses serve as intermediaries in the healthcare transaction ecosystem, aggregating eligibility inquiries from multiple providers and submitting them as batches to health plans. They consume the POST /eligibility/batch endpoint using EDI 270 request format and receive EDI 271 responses, following standard healthcare transaction protocols. These partners handle the technical complexity of EDI formatting and transmission, allowing smaller providers to access eligibility verification without implementing EDI capabilities directly. The batch processing pattern fits their business model of aggregating multiple inquiries for efficient processing. Rate limiting of 10 req/min accommodates their batch-oriented workflow while preventing system overload.",
+      "status": "active",
+      "tags": [
+        "healthcare-intermediary",
+        "edi-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "consumes",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "Clearinghouses use the batch eligibility endpoint for EDI 270/271 processing"
+        },
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "edi-270-271",
+          "target_entity_name": "EDI 270/271",
+          "reasoning": "Integration uses standard EDI eligibility transaction format"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Document explicitly mentions clearinghouses as primary users of EDI 270/271 batch format"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "iam-service",
+      "name": "IAM Service",
+      "description": "Identity and Access Management service providing OAuth 2.0 token authentication for API access",
+      "overview": "Authentication service at https://auth.clearviewhealth.internal/oauth/token that issues Bearer tokens for API access. Supports client credentials grant type with configurable scopes for service-to-service authentication.",
+      "details": "The IAM service implements OAuth 2.0 client credentials flow for API authentication, requiring client_id, client_secret, grant_type (client_credentials), and scope parameters. For Eligibility API access, clients request 'eligibility.read' scope to obtain Bearer tokens. The service appears to be Clearview's central authentication infrastructure serving multiple internal APIs, following standard OAuth 2.0 patterns for service-to-service authentication. Token management, expiration, and refresh policies are not documented but would be critical for production operations.",
+      "status": "active",
+      "tags": [
+        "authentication",
+        "oauth2",
+        "infrastructure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-api-v2",
+          "target_entity_name": "Eligibility API v2",
+          "reasoning": "Eligibility API requires tokens from IAM service for authentication"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway needs authentication tokens to call Eligibility API"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine requires authentication to access eligibility endpoints"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a software component providing authentication services with specific endpoint and protocol documented"
+    }
+  ],
+  "questions": [
+    "What is the actual uptime SLA for the Eligibility API and how does it impact claims processing when the service is unavailable?",
+    "How are OAuth 2.0 tokens managed in terms of expiration and refresh - what happens when a long-running batch process token expires mid-operation?",
+    "What specific monitoring and alerting exists around the 6-hour accumulator cleanup job - how does the team know if cleanup volume indicates systemic problems?",
+    "Are there any caching layers in front of the Eligibility API to reduce database load, and how is cache invalidation handled for real-time eligibility changes?",
+    "What is the actual root cause of CLV-4890 batch partial failures under load - is it database timeouts, memory issues, or something else?",
+    "How does the point-in-time eligibility lookup handle mid-year plan changes or retroactive enrollment adjustments?",
+    "What happens to soft reservations if the Eligibility Service itself crashes or restarts during claim processing?",
+    "How does the WebSocket eligibility feed planned for Q1 2026 relate to the existing accumulator cleanup and reservation management?"
+  ],
+  "new_jargon": [
+    "CLV-4890"
+  ],
+  "decision_log": [
+    {
+      "subject": "Eligibility API v2",
+      "decision": "Reused existing eligibility-api-v2 entity",
+      "reasoning": "The seed context mentioned Eligibility Check API but this document provides the full technical specification, so I'm enriching the existing entity rather than creating a new one"
+    },
+    {
+      "subject": "Soft reservation events",
+      "decision": "Created two separate business-event entities for creation and release",
+      "reasoning": "The soft reservation mechanism implies distinct event flows for creating and releasing reservations, each with different triggers and purposes"
+    },
+    {
+      "subject": "CLV-4890 ticket",
+      "decision": "Classified as jargon-business entity",
+      "reasoning": "Following the pattern of other JIRA tickets like CLV-4521, this represents domain-specific terminology for tracking issues"
+    },
+    {
+      "subject": "API response models",
+      "decision": "Created separate data-model entities for request/response structures",
+      "reasoning": "These are distinct data structures with specific schemas that other systems depend on, deserving their own entities"
+    },
+    {
+      "subject": "Rate limiting rules",
+      "decision": "Classified as domain-logic rather than software-component",
+      "reasoning": "These are business rules about system behavior and usage policies, not infrastructure components"
+    },
+    {
+      "subject": "WebSocket feed development",
+      "decision": "Classified as planned process",
+      "reasoning": "This is a development initiative with timeline and scope, more than just a future system component"
+    },
+    {
+      "subject": "IAM Service",
+      "decision": "Created as software-component entity",
+      "reasoning": "This is infrastructure software providing authentication services, not domain-specific business logic"
+    }
+  ]
+}

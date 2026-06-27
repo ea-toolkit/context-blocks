@@ -1,0 +1,21 @@
+---
+/**
+ * Coverage bar — stacked horizontal bar showing CLEAN/INCOMPLETE/MISSING proportions.
+ */
+interface Props {
+  clean: number;
+  incomplete: number;
+  missing: number;
+}
+
+const { clean, incomplete, missing } = Astro.props;
+const total = clean + incomplete + missing;
+const cleanPct = total > 0 ? (clean / total) * 100 : 0;
+const incompletePct = total > 0 ? (incomplete / total) * 100 : 0;
+const missingPct = total > 0 ? (missing / total) * 100 : 0;
+---
+<div class="coverage-bar" title={`${Math.round(cleanPct)}% clean, ${Math.round(incompletePct)}% incomplete, ${Math.round(missingPct)}% missing`}>
+  {cleanPct > 0 && <div class="coverage-bar__segment--clean" style={`width: ${cleanPct}%`}></div>}
+  {incompletePct > 0 && <div class="coverage-bar__segment--incomplete" style={`width: ${incompletePct}%`}></div>}
+  {missingPct > 0 && <div class="coverage-bar__segment--missing" style={`width: ${missingPct}%`}></div>}
+</div>

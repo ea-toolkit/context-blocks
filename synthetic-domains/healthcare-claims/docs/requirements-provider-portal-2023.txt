@@ -1,0 +1,106 @@
+Provider Self-Service Portal — Requirements
+Draft v0.3 — 2023-11-15
+Author: James Whitfield
+
+STATUS: This requirements doc was started in 2023 but the project was deprioritized in favor of the Rules Engine migration. Keeping it here for reference when we pick it back up. Some requirements may be outdated.
+
+---
+
+1. OVERVIEW
+
+Provider Network team currently handles all provider data updates manually. Providers email or fax changes (address, phone, credentialing docs, etc.) and our team enters them into the Provider Directory. This doesn't scale — we have 14K+ providers and the manual process takes 3-5 business days per update.
+
+The proposal is a self-service portal where providers can:
+  - Update their demographic information
+  - Upload credentialing and re-credentialing documents
+  - View their network participation status per plan
+  - View their fee schedule rates (read-only)
+  - View their payment history and download ERA 835 remittance advice
+  - Submit prior authorization requests (stretch goal)
+
+
+2. PERSONAS
+
+  Provider Office Manager — the person at the provider's office who handles admin. This is our primary user. They manage credentials, update practice info, check payment status.
+
+  Provider (physician) — occasionally logs in to check their own credential status or review network participation. Low usage.
+
+  Clearview Provider Relations Rep — internal user who reviews and approves provider-submitted changes. Acts as a gatekeeper for sensitive changes (NPI, TIN, network status).
+
+  Credentialing Specialist — internal user who reviews credentialing document submissions and manages the re-credentialing workflow.
+
+
+3. FUNCTIONAL REQUIREMENTS
+
+3.1 Provider Profile Management
+  - Provider can update: address, phone, fax, email, office hours, accepting-new-patients flag
+  - Provider can update practice locations (add, remove, edit)
+  - Provider CANNOT update: NPI, TIN, specialty, credentials (these require manual review)
+  - Changes to address/phone go through an approval queue (Provider Relations reviews within 2 business days)
+  - Approved changes are pushed to Provider Directory in real-time
+
+3.2 Credentialing Document Upload
+  - Provider can upload: medical license, DEA certificate, malpractice insurance, board certification, CME records
+  - File types: PDF, JPG, PNG. Max 10MB per file.
+  - Uploaded docs are stored in a secure document management system (TBD which one)
+  - Credentialing Specialist is notified when new docs are uploaded
+  - Provider can see their credentialing status: ACTIVE, PENDING, EXPIRED, REVIEW_REQUIRED
+  - System should alert providers 90 days before credential expiration (per NCQA requirements — recredentialing every 3 years)
+
+3.3 Network Status
+  - Provider can view their network participation status for each Clearview plan
+  - Read-only. Network status changes go through the contracting process.
+  - Show effective dates and termination dates
+
+3.4 Fee Schedule Viewer
+  - Provider can view their contracted rates for procedure codes
+  - Read-only. Rate changes go through contract negotiation.
+  - Filterable by procedure code, modifier, facility/non-facility
+  - NOTE: some providers have expressed interest in fee schedule comparison tools (compare their rates to regional averages). Compliance flagged this as potentially sensitive. TBD.
+
+3.5 Payment History
+  - Provider can view payment history (EFT, check, virtual card)
+  - Download ERA 835 remittance advice as PDF or EDI
+  - Filter by date range, claim ID, payment status
+  - Show voided/reissued payments with linkage
+  - This data comes from the Payment Engine
+
+3.6 Prior Auth Submission (stretch)
+  - Providers can submit auth requests through the portal instead of fax
+  - This would integrate with the Pre-Auth Service
+  - Deprioritized for v1
+
+4. NON-FUNCTIONAL REQUIREMENTS
+
+  - Authentication: FIDO2/WebAuthn for provider login (phishing-resistant). Alternatively, SAML SSO for large provider groups.
+  - Authorization: role-based. Office managers see financial data. Physicians see clinical data. Credentialing specialists see credentialing data.
+  - HIPAA: no patient/member data exposed through this portal. Provider data only.
+  - Availability: 99.9% uptime during business hours (6 AM - 10 PM ET)
+  - Performance: page load <2 seconds, search results <3 seconds
+
+5. TECHNICAL NOTES (from initial design discussion)
+
+  - Frontend: React (reuse Member Portal tech stack)
+  - Backend: could be a new BFF that talks to Provider Directory, Payment Engine, Pre-Auth Service
+  - Or: extend the existing Provider Directory API with provider-facing endpoints
+  - James prefers a separate BFF to avoid mixing internal and external API concerns in Provider Directory
+  - Authentication service TBD — we don't have a provider-facing auth system today
+
+6. OPEN QUESTIONS
+
+  - [ ] Which document management system for credentialing uploads? (Nadia suggested GCS + a metadata service)
+  - [ ] How to handle large provider groups with hundreds of providers? Bulk upload? CSV import?
+  - [ ] Do we build notification preferences (email vs. portal alerts)?
+  - [ ] Cost estimate needed before re-prioritization (was supposed to be Q2 2024, now TBD)
+  - [ ] James mentioned wanting to integrate the CAQH ProView database for pulling provider credentialing data. Is this feasible? CAQH is the industry standard for provider data exchange.
+
+7. TIMELINE (OBSOLETE)
+
+  Original timeline:
+    Q1 2024 — design + prototype
+    Q2 2024 — build v1 (profile management + credentialing)
+    Q3 2024 — launch v1, build v2 (payment history + fee schedules)
+    Q4 2024 — launch v2
+
+  Actual: project paused in Dec 2023, no restart date set.
+  Update (Oct 2025): this is now tentatively on the Q1 2026 roadmap. James is re-validating requirements.

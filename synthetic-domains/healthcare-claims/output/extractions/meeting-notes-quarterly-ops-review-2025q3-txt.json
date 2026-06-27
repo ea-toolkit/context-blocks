@@ -1,0 +1,673 @@
+{
+  "source_document": "meeting-notes-quarterly-ops-review-2025q3.txt",
+  "document_summary": "Q3 2025 quarterly operations review for Claims Operations team covering metrics (81.3% auto-adjudication rate, 2.4M claims processed), team updates on rules engine migration, member portal redesign, capitation payment exploration, and infrastructure improvements including PgBouncer migration completion.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "quarterly-ops-review",
+      "name": "Quarterly Operations Review",
+      "description": "Quarterly meeting to review operational metrics and team updates across Claims Operations",
+      "overview": "Standard quarterly review process where teams present performance metrics, discuss progress on key initiatives, and align on upcoming priorities. Attended by leadership from Claims Ops, Member Services, Provider Network, and Fraud Detection teams.",
+      "details": "Structured quarterly meeting format covering claims processing metrics (volume, auto-adjudication rates, processing times, denial rates, payment accuracy), fraud detection performance, team updates on major initiatives, incident reviews, and priority setting for the upcoming quarter. The Q3 2025 review showed 2.4M claims processed with 81.3% auto-adjudication rate, ongoing rules engine migration challenges, and preparation for open enrollment period.",
+      "status": "active",
+      "tags": [
+        "governance",
+        "operations"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Marcus Reeves from Claims Operations runs the meeting and presents metrics"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "marcus-reeves",
+          "target_entity_name": "Marcus Reeves",
+          "reasoning": "Runs the meeting and presents overall metrics"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Provides updates on rules engine migration progress"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business process with defined structure, participants, and purpose"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "q3-2025-performance-metrics",
+      "name": "Q3 2025 Performance Metrics",
+      "description": "Operational performance targets and achievements for Claims Operations in Q3 2025",
+      "overview": "Set of key performance indicators tracking claims processing efficiency, accuracy, and throughput. Shows 81.3% auto-adjudication rate against 85% target, 4.2 second average processing time, and 99.7% payment accuracy.",
+      "details": "Claims volume reached 2.4M (up 8% from Q2) split between Professional (2.0M), Institutional (350K), and Pharmacy (50K on legacy system). Auto-adjudication rate of 81.3% remains below 85% target due to incomplete rules migration from HealthLogic. Average processing time improved from 5.1 to 4.2 seconds due to synchronous fraud scoring. Denial rate of 12.4% with top reasons being member eligibility issues (3.2%), missing authorizations (2.8%), duplicates (2.1%), non-covered services (1.9%), and timely filing limits (1.4%). Payment accuracy at 99.7% with fraud holds affecting 0.05% of volume (1,247 claims).",
+      "status": "active",
+      "tags": [
+        "metrics",
+        "performance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Auto-adjudication rate directly depends on rules engine performance"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud holds and processing time improvements from fraud detection optimization"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific quantitative business rules and targets that govern system performance evaluation"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "capitation",
+      "name": "Capitation",
+      "description": "Per-member-per-month (PMPM) payment model for providers regardless of services rendered",
+      "overview": "Alternative payment model where providers receive fixed monthly payments per enrolled member rather than fee-for-service payments. Currently not supported by Clearview's Payment Engine but requested by larger provider groups in contract negotiations.",
+      "details": "Flat per-member-per-month (PMPM) payment structure that contrasts with Clearview's current fee-for-service only model. Large multi-specialty provider groups are requesting capitated contracts during negotiations. Implementation would require significant changes to the Payment Engine architecture. Provider Network team and larger provider groups have been advocating for this capability, leading to plans for a Q1 2026 design proposal to scope the effort.",
+      "status": "active",
+      "tags": [
+        "payment-model",
+        "provider-contracts"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "contrasts_with",
+          "target_entity_id": "fee-for-service",
+          "target_entity_name": "Fee-for-Service",
+          "reasoning": "Opposite payment models - capitation vs fee-for-service"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business terminology with specific definition and context provided in the document"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "fee-for-service",
+      "name": "Fee-for-Service",
+      "description": "Payment model where providers are paid for each service or procedure performed",
+      "overview": "Clearview's current payment model where providers receive payment based on services rendered rather than flat monthly amounts. Contrasts with capitation model being requested by provider groups.",
+      "details": "The existing payment model used by Clearview's Payment Engine where providers are compensated for each individual service, procedure, or claim processed. This model ties payment directly to utilization and services provided, unlike capitation which provides fixed monthly payments regardless of services rendered. All current provider contracts operate under this model.",
+      "status": "active",
+      "tags": [
+        "payment-model",
+        "current-state"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Current payment model implemented by the Payment Engine"
+        },
+        {
+          "relationship_type": "contrasts_with",
+          "target_entity_id": "capitation",
+          "target_entity_name": "Capitation",
+          "reasoning": "Opposite payment models - fee-for-service vs capitation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Implied business term mentioned as contrast to capitation in payment model discussion"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "pmpm",
+      "name": "PMPM",
+      "description": "Per-Member-Per-Month - pricing metric used in capitation payment models",
+      "overview": "Healthcare industry acronym for Per-Member-Per-Month, representing the fixed monthly payment amount per enrolled member in capitation contracts. Standard metric for capitated payment arrangements.",
+      "details": "Industry-standard acronym meaning Per-Member-Per-Month, used to express the fixed monthly payment rate in capitation contracts. Represents the amount a provider receives each month for each enrolled member regardless of services provided to that member. Key metric for capitation payment models that Clearview is considering supporting.",
+      "status": "active",
+      "tags": [
+        "payment-model",
+        "acronym"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "capitation",
+          "target_entity_name": "Capitation",
+          "reasoning": "PMPM is the fundamental pricing unit for capitation payment models"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business acronym with explicit definition provided in context of capitation discussion"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "formulary",
+      "name": "Formulary",
+      "description": "List of covered prescription drugs per health plan",
+      "overview": "Health plan-specific list defining which prescription medications are covered under different benefit plans. Currently managed by the legacy pharmacy system and not integrated with Clearview's main platform.",
+      "details": "The comprehensive list of prescription drugs covered under each health plan's pharmacy benefits. Each plan may have different formularies with varying coverage levels, copays, and restrictions. Currently managed entirely within the legacy pharmacy system (PharmaCore) and represents a significant integration challenge when pharmacy claims are migrated to Clearview's main processing pipeline. The lack of integration means formulary data is not available to the main claims processing system.",
+      "status": "active",
+      "tags": [
+        "pharmacy",
+        "legacy-system"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "pharmacore",
+          "target_entity_name": "PharmaCore",
+          "reasoning": "Currently managed by the legacy pharmacy system"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business term with definition provided and context about integration challenges"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "drg-grouper",
+      "name": "DRG Grouper",
+      "description": "System logic that assigns Diagnosis Related Group codes to institutional claims",
+      "overview": "Complex algorithmic logic that categorizes inpatient hospital stays into Diagnosis Related Groups (DRGs) for payment purposes. Represents some of the most complex rules in the migration from HealthLogic to the new rules engine.",
+      "details": "Sophisticated medical coding and payment logic that analyzes institutional claims (hospital inpatient stays) and assigns them to appropriate Diagnosis Related Group (DRG) categories. DRGs are used to determine payment amounts for hospital services based on diagnosis, procedures, patient characteristics, and discharge status. The DRG grouper logic includes complex edge cases that are among the most challenging rules to migrate from the HealthLogic system to Clearview's new rules engine.",
+      "status": "active",
+      "tags": [
+        "medical-coding",
+        "institutional-claims",
+        "complex-rules"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "DRG grouper logic is part of the rules being migrated to the new rules engine"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Domain-specific term mentioned in context of complex rules migration challenges"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "multi-claim-bundling",
+      "name": "Multi-Claim Bundling",
+      "description": "Logic for grouping related claims together for coordinated adjudication and payment",
+      "overview": "Complex business rules that identify and group related claims that should be processed together rather than independently. Part of the challenging rules being migrated from HealthLogic system.",
+      "details": "Sophisticated adjudication logic that identifies claims that should be grouped and processed together for accurate payment determination. This includes scenarios like multiple claims from the same episode of care, related surgical procedures, or claims that need coordinated benefit application. These bundling rules are among the complex logic being migrated from HealthLogic and contribute to the difficulty in achieving the 85% auto-adjudication target.",
+      "status": "active",
+      "tags": [
+        "adjudication",
+        "complex-rules"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Multi-claim bundling is part of the complex rules being migrated to the new rules engine"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "This includes scenarios like multiple claims from the same episode of care, related surgical procedures, or claims that need coordinated benefit application"
+      ],
+      "reasoning": "Business term mentioned as one of the complex rules categories in migration context"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "xgboost",
+      "name": "XGBoost",
+      "description": "Machine learning framework used for Clearview's fraud detection models",
+      "overview": "Gradient boosting machine learning framework used by Fraud Detection team for building predictive models. Latest model deployment reduced false positive rates from 6.3% to 5.8%.",
+      "details": "Advanced machine learning framework (Extreme Gradient Boosting) used by Clearview's Fraud Detection team to build and deploy fraud scoring models. The new XGBoost model was deployed in production during Q3 2025, achieving improved performance with false positive rates dropping from 6.3% to 5.8%. This represents a more sophisticated approach to fraud detection than previous models.",
+      "status": "active",
+      "tags": [
+        "machine-learning",
+        "fraud-detection"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "XGBoost framework is used by the Fraud Detection system for model building"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific technical framework mentioned with performance metrics and deployment context"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "provider-referral-network-analysis",
+      "name": "Provider Referral Network Analysis",
+      "description": "Fraud detection model feature to identify coordinated billing patterns between referring providers",
+      "overview": "Advanced fraud detection capability being developed to identify potential fraud rings by analyzing referral patterns between providers who exclusively refer to each other. Aims to detect coordinated fraudulent billing schemes.",
+      "details": "Sophisticated fraud detection feature under development that analyzes provider referral networks to identify suspicious patterns indicating potential fraud rings. The model looks for providers who refer exclusively to each other, which could indicate coordinated billing schemes rather than legitimate medical referrals based on patient needs and geographic convenience. This represents an evolution from individual claim scoring to network-based fraud pattern detection.",
+      "status": "active",
+      "tags": [
+        "fraud-detection",
+        "network-analysis",
+        "in-development"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "This analysis capability is being developed within the Fraud Detection system"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Specific fraud detection algorithm/logic being developed with clear business purpose"
+    },
+    {
+      "entity_type": "process",
+      "id": "open-enrollment-prep",
+      "name": "Open Enrollment Preparation",
+      "description": "Annual preparation process for member open enrollment period starting November 1",
+      "overview": "Comprehensive preparation process for the annual open enrollment period when members can change health plans and benefits. Involves system scaling, portal updates, and eligibility service readiness.",
+      "details": "Annual operational preparation for open enrollment period starting November 1, 2025. Includes Member Portal redesign with new claims status page and improved benefit balance display launching in November, Eligibility Service scaling plan to handle enrollment spike, and coordination across teams to ensure system readiness for increased member activity and plan changes. Dana Okafor leads this effort for Member Services team.",
+      "status": "active",
+      "tags": [
+        "annual",
+        "member-services",
+        "preparation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Dana Okafor from Member Services leads open enrollment preparation"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal redesign is part of open enrollment preparation"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service scaling is part of preparation for enrollment spike"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business process with defined timeline, ownership, and components"
+    },
+    {
+      "entity_type": "process",
+      "id": "member-portal-redesign",
+      "name": "Member Portal Redesign",
+      "description": "November 2025 launch of redesigned Member Portal with improved claims status and benefit balance features",
+      "overview": "Major redesign of the Member Portal launching in November 2025 as part of open enrollment preparation. Features new claims status page and improved benefit balance display for better member experience.",
+      "details": "Comprehensive redesign of the Member Portal scheduled for November 2025 launch, timed to coincide with open enrollment period. Key improvements include a new claims status page that provides better visibility into claim processing status and an improved benefit balance display that makes it easier for members to understand their deductible progress, out-of-pocket maximums, and remaining benefits. This redesign is part of the broader open enrollment preparation effort.",
+      "status": "active",
+      "tags": [
+        "member-services",
+        "portal-improvement",
+        "november-2025"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team owns the Member Portal redesign project"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "This redesign process directly modifies the Member Portal system"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "open-enrollment-prep",
+          "target_entity_name": "Open Enrollment Preparation",
+          "reasoning": "Portal redesign is launched as part of open enrollment preparation"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined project with timeline, scope, and business purpose"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-auto-detection-project",
+      "name": "COB Auto-Detection Project",
+      "description": "Project to automatically detect coordination of benefits scenarios, pushed to Q1 2026",
+      "overview": "Project to develop automated detection of coordination of benefits situations when members have coverage from multiple payers. Currently in design phase but pushed from Q4 2025 to Q1 2026.",
+      "details": "Project aimed at automatically identifying coordination of benefits (COB) scenarios where members have health coverage from multiple insurance sources (e.g., spouse's employer plan, Medicare, etc.). Automatic detection would improve claim processing efficiency and reduce manual review requirements. The project was originally planned for Q4 2025 but has been pushed to Q1 2026, currently still in the design phase under Member Services team ownership.",
+      "status": "active",
+      "tags": [
+        "member-services",
+        "automation",
+        "delayed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team owns the COB auto-detection project"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "cob",
+          "target_entity_name": "COB",
+          "reasoning": "Project focuses on automating coordination of benefits detection"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified project with timeline changes and ownership, though details are limited"
+    },
+    {
+      "entity_type": "process",
+      "id": "provider-portal-design",
+      "name": "Provider Portal Design",
+      "description": "Early design phase project for self-service provider credential updates portal",
+      "overview": "New provider-facing portal in early design phase to enable providers to self-service credential updates rather than requiring manual Provider Network team intervention.",
+      "details": "Provider-facing portal project in early design phase that would allow providers to update their own credentials, demographics, and other directory information through self-service rather than requiring Provider Network team manual processing. This would reduce administrative burden on the Provider Network team and provide faster updates for providers. Currently in early design phase with no committed timeline.",
+      "status": "active",
+      "tags": [
+        "provider-network",
+        "self-service",
+        "early-design"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "Provider Network team owns the provider portal design project"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider portal would enable updates to provider directory information"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Project mentioned with clear purpose but limited detail due to early phase"
+    },
+    {
+      "entity_type": "process",
+      "id": "pharmacy-claims-integration-scoping",
+      "name": "Pharmacy Claims Integration Scoping",
+      "description": "Q4 2025 priority to scope feasibility of bringing pharmacy claims onto main processing pipeline",
+      "overview": "Early feasibility analysis for migrating pharmacy claims from legacy PharmaCore system to Clearview's main claims processing pipeline. Identified as Q4 2025 priority with formulary integration as key challenge.",
+      "details": "Scoping project to assess the feasibility and requirements for migrating pharmacy claims processing from the legacy PharmaCore system to Clearview's main claims processing pipeline. Currently 50K pharmacy claims per quarter are processed separately on the legacy system. Key integration challenges include formulary management, which is not integrated with the main platform at all. The lack of formulary integration is expected to be a significant problem when attempting to bring pharmacy claims onto the main pipeline.",
+      "status": "active",
+      "tags": [
+        "pharmacy",
+        "migration",
+        "scoping"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "pharmacore",
+          "target_entity_name": "PharmaCore",
+          "reasoning": "Scoping the migration of pharmacy claims currently processed by PharmaCore"
+        },
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "formulary",
+          "target_entity_name": "Formulary",
+          "reasoning": "Formulary integration identified as key challenge for pharmacy claims migration"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clear scoping project with identified challenges and business rationale"
+    },
+    {
+      "entity_type": "persona",
+      "id": "kenji-watanabe",
+      "name": "Kenji Watanabe",
+      "description": "Senior engineer joining Claims Operations November 1, 2025 to focus on rules engine migration",
+      "overview": "New senior engineer hire starting November 1, 2025 coming from another health plan. Will focus specifically on the rules engine migration from HealthLogic to accelerate progress toward 85% auto-adjudication target.",
+      "details": "Senior engineer joining Claims Operations team on November 1, 2025, hired specifically to accelerate the rules engine migration project. Brings health plan industry experience from previous role at another health plan. Primary focus will be on porting the remaining complex rules from HealthLogic system, including COB logic, multi-claim bundling, and DRG grouper edge cases. This hire is intended to help reach the 85% auto-adjudication target by Q1 2026.",
+      "status": "active",
+      "tags": [
+        "new-hire",
+        "claims-operations"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Kenji is joining the Claims Operations team"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified new team member with specific role and timeline"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "rules-engine-connectivity-incident-aug-15",
+      "name": "Rules Engine Connectivity Incident (August 15)",
+      "description": "SEV-1 incident caused by VPN tunnel failure to HealthLogic data center affecting claims processing",
+      "overview": "45-minute SEV-1 incident on August 15, 2025 when VPN tunnel to HealthLogic's data center failed, disrupting rules engine connectivity and claims processing. External issue that reinforces need to migrate away from HealthLogic.",
+      "details": "Severity-1 incident lasting 45 minutes on August 15, 2025 when the VPN tunnel between Clearview and HealthLogic's data center experienced a flap, causing connectivity issues with the Rules Engine. While the root cause was external to Clearview (HealthLogic's infrastructure issue), it disrupted claims processing and highlighted the dependency risk of using an external vendor system. This incident provides additional justification for the ongoing migration away from HealthLogic to an internal rules engine solution.",
+      "status": "active",
+      "tags": [
+        "sev-1",
+        "external-dependency",
+        "august-2025"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "The connectivity issue directly impacted rules engine functionality"
+        },
+        {
+          "relationship_type": "caused_by",
+          "target_entity_id": "healthlogic-systems",
+          "target_entity_name": "HealthLogic Systems",
+          "reasoning": "VPN tunnel failure was on HealthLogic's side, external to Clearview"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific incident with clear timeline, impact, and cause described"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "medconnect-encoding-issue",
+      "name": "MedConnect Encoding Issue",
+      "description": "SEV-2 incident when MedConnect Exchange changed character sets in EDI 837I batches without notification",
+      "overview": "SEV-2 incident during Q3 2025 when MedConnect Exchange changed character encoding in institutional claim batches without notifying Clearview, causing processing failures.",
+      "details": "Severity-2 incident during Q3 2025 when MedConnect Exchange, one of Clearview's EDI clearinghouse partners, switched character sets in their EDI 837 Institutional claim batches without providing advance notification to Clearview. This caused processing failures in the claims intake pipeline until the encoding issue was identified and resolved. The incident highlights the dependency on external clearinghouse partners and the need for better change communication protocols.",
+      "status": "active",
+      "tags": [
+        "sev-2",
+        "external-party",
+        "edi-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "caused_by",
+          "target_entity_id": "medconnect-exchange",
+          "target_entity_name": "MedConnect Exchange",
+          "reasoning": "MedConnect Exchange changed character sets causing the processing issue"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Encoding issue likely affected claims intake processing in the gateway"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clear incident description with external cause and impact on claim processing"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "accumulator-cleanup-job-failures",
+      "name": "Accumulator Cleanup Job Failures",
+      "description": "Two SEV-2 incidents in Q3 2025 when accumulator reservation cleanup job failed due to Cloud SQL maintenance conflicts",
+      "overview": "Two separate SEV-2 incidents during Q3 2025 when the accumulator reservation cleanup job failed due to conflicts with Cloud SQL maintenance windows. Indicates need for better job scheduling coordination.",
+      "details": "Two SEV-2 incidents occurred during Q3 2025 when the scheduled accumulator reservation cleanup job failed to execute properly due to timing conflicts with Cloud SQL database maintenance windows. The accumulator cleanup job is responsible for releasing expired soft reservations in the Eligibility Service after the 6-hour cleanup cycle. These failures suggest inadequate coordination between scheduled maintenance and critical batch job timing.",
+      "status": "active",
+      "tags": [
+        "sev-2",
+        "batch-job",
+        "maintenance-conflict"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Accumulator cleanup job is part of Eligibility Service operations"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "Job failures were caused by Cloud SQL maintenance window conflicts"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Specific operational incident with clear cause and system impact"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "era-835-settlement-confirmation",
+      "name": "ERA 835 Settlement Confirmation",
+      "description": "Payment reconciliation improvement where ERA 835 generation is delayed until settlement confirmation",
+      "overview": "Process improvement deployed during Q3 2025 where Electronic Remittance Advice (ERA 835) generation is held until payment settlement is confirmed, improving payment reconciliation accuracy.",
+      "details": "Payment reconciliation enhancement where the generation of ERA 835 (Electronic Remittance Advice) documents is delayed until settlement confirmation is received from banking partners. This prevents the generation of remittance advice for payments that may fail to settle, improving accuracy and reducing reconciliation discrepancies. The improvement was deployed as part of ongoing payment process optimization efforts.",
+      "status": "active",
+      "tags": [
+        "payment-reconciliation",
+        "improvement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "ERA 835 settlement confirmation logic is implemented in the Payment Engine"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "This logic specifically governs ERA 835 generation timing"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Specific process improvement with clear business logic and timing rules"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "siu-investigation-targets",
+      "name": "SIU Investigation Targets",
+      "description": "Performance target requiring 95% of fraud holds to be investigated within 10 business days",
+      "overview": "Service level agreement requiring Special Investigation Unit to investigate 95% of fraud-held claims within 10 business days. Q3 2025 performance was 89% due to staffing shortages.",
+      "details": "Performance target and service level agreement requiring the Special Investigation Unit (SIU) to investigate 95% of fraud-held claims within 10 business days of the hold being placed. In Q3 2025, actual performance was 89% (investigating 89% of 1,247 fraud-held claims within target), falling short due to SIU staffing shortages when two investigators left in August without replacement. The shortfall creates risk of investigation backlog growth.",
+      "status": "active",
+      "tags": [
+        "sla",
+        "fraud-investigation",
+        "understaffed"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "SIU investigation targets apply to fraud holds generated by Fraud Detection system"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear performance target with quantitative metrics and current performance status"
+    }
+  ],
+  "questions": [
+    "What specific technical capabilities will Kenji Watanabe bring from his previous health plan experience that will help accelerate the rules migration?",
+    "Are there formal SLAs or penalties with HealthLogic for the VPN connectivity issues, and how does this factor into the migration timeline?",
+    "What is the current staffing plan for replacing the two SIU investigators who left in August - is this blocking the fraud investigation performance improvement?",
+    "How does the Provider Network team coordinate fee schedule updates with the Actuarial team's analysis process?",
+    "What are the specific integration points between formulary data and the main claims processing pipeline that make pharmacy migration challenging?",
+    "Is there a formal process for coordinating Cloud SQL maintenance windows with critical batch job schedules to prevent future accumulator cleanup failures?",
+    "What criteria determine whether a provider group qualifies for capitation contracts versus fee-for-service arrangements?",
+    "How does the 'aberrant billing patterns' detection in post-payment analysis differ from the pre-payment fraud scoring models?"
+  ],
+  "new_jargon": [
+    "capitation",
+    "PMPM",
+    "formulary",
+    "DRG grouper",
+    "multi-claim bundling",
+    "XGBoost"
+  ],
+  "decision_log": [
+    {
+      "subject": "Quarterly Operations Review",
+      "decision": "classified as process entity",
+      "reasoning": "Structured business process with defined participants, agenda, and recurring schedule that coordinates team activities and decision-making"
+    },
+    {
+      "subject": "Q3 2025 Performance Metrics",
+      "decision": "classified as domain-logic entity",
+      "reasoning": "Quantitative business rules and targets that govern how system performance is evaluated and measured, not just data points"
+    },
+    {
+      "subject": "Capitation vs Fee-for-Service",
+      "decision": "created separate jargon-business entities for each",
+      "reasoning": "Two distinct business concepts that contrast with each other - capitation as new concept being considered, fee-for-service as existing model"
+    },
+    {
+      "subject": "Provider Referral Network Analysis",
+      "decision": "classified as domain-logic entity",
+      "reasoning": "Algorithmic business logic for fraud detection that will be executed by the system, not just a general capability"
+    },
+    {
+      "subject": "Various projects and processes",
+      "decision": "classified as process entities",
+      "reasoning": "Open enrollment prep, member portal redesign, COB auto-detection, etc. are all business processes with defined objectives and timelines"
+    },
+    {
+      "subject": "Kenji Watanabe",
+      "decision": "classified as persona entity",
+      "reasoning": "New team member with specific role and responsibilities, fits persona definition as user who interacts with the domain"
+    },
+    {
+      "subject": "Incidents and failures",
+      "decision": "classified as business-event entities",
+      "reasoning": "Specific operational events that occurred in the domain with business impact and system interactions"
+    },
+    {
+      "subject": "ERA 835 Settlement Confirmation and SIU Investigation Targets",
+      "decision": "classified as domain-logic entities",
+      "reasoning": "Specific business rules that govern system behavior - timing rules for ERA generation and performance targets for investigations"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+2022-09-19
+Post-Mortem: Eligibility Service Complete Outage
+
+Postmortem owner: Dana Okafor
+Incident: INC-2022-0094
+Severity: SEV-1
+Duration: 3 hours 47 minutes
+
+Executive summary:
+On September 17, 2022, the Eligibility Service experienced a complete outage lasting nearly 4 hours due to a database migration that locked the members table. All claims processing was impacted because the Claims Gateway and Rules Engine both depend on the Eligibility Service for coverage verification and accumulator queries. Additionally, the Member Portal was unable to display benefit information.
+
+Timeline (all times ET):
+
+  09:12 — Tom Nguyen (engineer, Eligibility Service team) deploys a database migration to add index on members table for a new query pattern. The migration runs ALTER TABLE members ADD INDEX... which acquires a table-level lock on the members table.
+
+  09:14 — Eligibility Service queries start timing out. The table lock blocks all reads on the members table.
+
+  09:18 — Claims Gateway starts returning 503 errors. It can't verify eligibility, so it can't process claims. Claims begin queueing.
+
+  09:23 — Datadog alert fires: Eligibility Service error rate >50%.
+
+  09:25 — Tom sees the alert, realizes the migration is the cause. Tries to cancel the migration but it's partway through index creation.
+
+  09:30 — Tom escalates to Dana Okafor. Dana joins the incident call.
+
+  09:35 — Dana tries to kill the migration query directly via pg_terminate_backend(). The query is terminated but the table lock isn't fully released — there are dependent transactions waiting.
+
+  09:42 — Dana decides to restart the database instance. Initiates Cloud SQL restart.
+
+  09:55 — Database comes back up. Eligibility Service starts serving requests again.
+
+  09:58 — Claims Gateway resumes processing. But there's a backlog of ~18,000 claims that queued during the outage.
+
+  10:15 — Backlog processing begins. Claims are processing but slowly due to the high volume hitting all services simultaneously.
+
+  11:40 — Backlog fully cleared. Normal processing resumed.
+
+  12:59 — Incident closed after monitoring shows stable metrics for 1 hour.
+
+Root cause:
+The database migration added an index on a large table (members — ~800K rows) using a standard CREATE INDEX operation, which acquires a full table lock in PostgreSQL. The migration should have used CREATE INDEX CONCURRENTLY, which builds the index without blocking reads.
+
+Tom was not aware of the CONCURRENTLY option. The migration was not reviewed by a senior engineer before deployment. At the time, we didn't have a requirement for DBA review on schema changes.
+
+Impact:
+  - Eligibility Service down for 46 minutes (09:14 - 09:55)
+  - Claims processing down for ~40 minutes, degraded for ~2 hours after
+  - ~18,000 claims delayed
+  - Member Portal benefit balance unavailable for 46 minutes
+  - 3 provider groups called to report submission failures
+  - No data loss
+
+Could have been prevented:
+  1. The migration should have used CREATE INDEX CONCURRENTLY
+  2. Schema changes should require DBA or senior engineer review
+  3. Large DDL operations should be run during off-hours (the migration was deployed at 9 AM)
+  4. The migration should have been tested against a prod-sized dataset in staging first
+
+Follow-up actions:
+  1. INC-2022-0094-A1: Add DBA review requirement for all schema changes — COMPLETED
+  2. INC-2022-0094-A2: Document PostgreSQL migration best practices (CONCURRENTLY, off-hours, etc.) — COMPLETED
+  3. INC-2022-0094-A3: Add pre-deploy check in CI that warns about non-concurrent index creation — COMPLETED
+  4. INC-2022-0094-A4: Add circuit breaker between Claims Gateway and Eligibility Service — NOT STARTED
+     (Note: this same action item has been on the backlog since 2022. It's been deprioritized every quarter. It almost bit us again in the March 2024 incident.)
+
+Lessons learned:
+  - We need guardrails for database operations. Relying on individual engineer knowledge isn't enough.
+  - The lack of circuit breakers between services continues to be a risk. When one service goes down, the cascading failure pattern repeats.
+  - The 18K claim backlog took longer to clear than expected because the Rules Engine's HealthLogic Adjudicator has a throughput ceiling we can't easily increase. (Yet another reason to build our own.)
+
+Note added 2023-02: Tom Nguyen left the company in January 2023. The migration best practices doc he wrote is still in the wiki somewhere but I can't find the link. If anyone knows where it is, please update this page.
+
+Note added 2024-01: The circuit breaker action item (INC-2022-0094-A4) was reopened as CLV-3904 after the March 2024 gateway outage. Still not started as of this note.

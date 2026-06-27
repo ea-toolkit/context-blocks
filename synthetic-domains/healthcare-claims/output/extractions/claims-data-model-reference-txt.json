@@ -1,0 +1,721 @@
+{
+  "source_document": "claims-data-model-reference.txt",
+  "document_summary": "Comprehensive data model reference for Clearview Health Plans claims platform, defining schemas and relationships for core entities including claims, members, providers, benefit plans, payments, fee schedules, authorizations, and accumulators across all platform services.",
+  "entities": [
+    {
+      "entity_type": "data-model",
+      "id": "claim",
+      "name": "Claim",
+      "description": "The central data entity representing a healthcare service claim submitted for payment processing",
+      "overview": "The core data model that everything in the claims platform revolves around, storing claim header information, submission details, and adjudication results. Claims flow through multiple status states from RECEIVED through PAID/DENIED/PENDED, with associated line items and diagnoses as child entities.",
+      "details": "Stored in the Claims Gateway DB with format CLM-YYYYMMDD-NNNNNN. Contains submission metadata (type: EDI_837P/I, JSON, OCR), service details (date_of_service, facility_type, place_of_service), provider identifiers (NPI, TIN), member linkage, financial amounts (total_billed), and processing state (status, disposition, denial/pend reasons). Includes fraud scoring (0.000-1.000 scale) and optional pre-authorization reference. Status progression: RECEIVED → VALIDATED → ELIGIBLE → ADJUDICATED → PAID/DENIED/PENDED → REJECTED. Child tables include claim_lines (procedure codes, modifiers, amounts) and claim_diagnoses (ICD-10-CM codes with sequence).",
+      "status": "active",
+      "tags": [
+        "core-entity",
+        "transactional"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "persisted_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims table is stored in Claims Gateway DB"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "Claims reference members via member_id foreign key"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Claims reference providers via provider_npi"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "authorization",
+          "target_entity_name": "Authorization",
+          "reasoning": "Claims can reference pre-authorizations via auth_id"
+        },
+        {
+          "relationship_type": "processed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Claims are adjudicated by the Rules Engine which sets disposition and amounts"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined as the central data entity with detailed schema and relationships documented"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "member",
+      "name": "Member",
+      "description": "Data model representing health plan members and their enrollment information",
+      "overview": "Core member entity stored in Eligibility Service containing demographic information, enrollment status, and benefit plan assignment. Supports subscriber-dependent relationships where one subscriber can have multiple dependents, with historical enrollment tracking for point-in-time coverage validation.",
+      "details": "Format CLV-XXXXXXXXX, stored in Eligibility Service. Contains demographics (name, DOB, gender, address), enrollment details (plan_id, effective/termination dates, enrollment_status: ACTIVE/TERMINATED/COBRA/PENDING), and relationships (subscriber_id for dependents). SSN is stored as SHA-256 hash only. COBRA members have different premium structure but same benefits. Historical enrollment records maintained in member_enrollment_history table with period_start/period_end for retroactive claim processing. HMO plans include PCP assignment via pcp_npi field.",
+      "status": "active",
+      "tags": [
+        "core-entity",
+        "pii",
+        "eligibility"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Members table is stored and managed by Eligibility Service"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "benefit-plan",
+          "target_entity_name": "Benefit Plan",
+          "reasoning": "Members are assigned to benefit plans via plan_id"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Members have benefit accumulators tracking deductible and OOP progress"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Well-defined data model with clear schema, ownership, and relationships documented"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "provider",
+      "name": "Provider",
+      "description": "Data model representing healthcare providers with credentials and network participation",
+      "overview": "Provider master data stored in Provider Directory, keyed by NPI with credentialing information, specialty codes, and network participation status. Supports both individual and organizational providers with location management and contract-based fee schedules.",
+      "details": "National Provider Identifier (NPI) as primary key, stored in Provider Directory. Contains provider type (1=Individual, 2=Organization), demographics/org name, specialty taxonomy codes, credentials (MD, DO, NP, PA), licensing information with expiration tracking. Credentialing status (ACTIVE/PENDING/EXPIRED/REVOKED) with 3-year NCQA re-credentialing cycle. Network participation tracked per plan via provider_network_status table (IN_NETWORK/OUT_OF_NETWORK/PENDING) with effective dates. Multiple locations supported via provider_locations table. Fee schedules linked via contract_id for allowed amount calculations during adjudication.",
+      "status": "active",
+      "tags": [
+        "master-data",
+        "credentialing",
+        "network"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider data is stored and managed by Provider Directory system"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "fee-schedule",
+          "target_entity_name": "Fee Schedule",
+          "reasoning": "Providers have contracted fee schedules via contract_id"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine queries provider data for network status and allowed amounts"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Comprehensive provider data model with clear schema and multi-table relationships"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "benefit-plan",
+      "name": "Benefit Plan",
+      "description": "Data model defining member benefit plan configurations and coverage parameters",
+      "overview": "Plan configuration data stored in Eligibility Service defining deductibles, copays, coinsurance rates, and coverage rules. Plans are identified by format TIER-TYPE-YEAR (e.g., GOLD-PPO-2025) with different parameters for in-network vs out-of-network services, including prescription drug tiers.",
+      "details": "Stored in benefit_plans table in Eligibility Service. Contains plan identification (plan_id format TIER-TYPE-YEAR, plan_type: PPO/HMO/EPO/POS), financial parameters (individual/family deductibles and OOP max, copays for PCP/specialist/ER visits, in-network and OON coinsurance rates), prescription drug coverage (tier 1-3 copays, tier 4 coinsurance for specialty drugs). Additional configuration includes auth-required service lists (quarterly updates), covered service lists with exclusions, age/sex-specific rules, and COB rules for dual coverage. Rules Engine loads plan config at adjudication start with 15-minute cache TTL for configuration changes.",
+      "status": "active",
+      "tags": [
+        "configuration",
+        "benefits",
+        "cached"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Benefit plans are stored and managed in Eligibility Service"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine loads benefit plan configuration for adjudication with 15-minute cache"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "auth-required-service-lists",
+          "target_entity_name": "Auth-Required Service Lists",
+          "reasoning": "Plans include references to auth-required service lists maintained quarterly"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [
+        "Rules Engine loads plan configuration at the start of adjudication"
+      ],
+      "reasoning": "Detailed benefit plan configuration with specific schema and caching behavior documented"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "payment",
+      "name": "Payment",
+      "description": "Data model representing provider and member payments with void/reissue tracking",
+      "overview": "Payment records stored in Payment Engine supporting provider EFT batching and member reimbursements. Includes payment lifecycle tracking from SCHEDULED through SETTLED, with comprehensive void/reissue workflow support and fraud hold capabilities.",
+      "details": "Stored in payments table in Payment Engine. Payment types include PROVIDER and MEMBER_REIMB with methods EFT/CHECK/VCARD. Batching by TIN and payment cycle (YYYY-WNN format). Status progression: SCHEDULED → PROCESSED → SETTLED → VOIDED/HELD. Void/reissue fields added 2025-06: void_reason, linked_payment_id, void_type (REPROCESS/FRAUD/MANUAL/RECOUP). Payment-to-claim linkage via payment_claims join table supporting line-level detail. Minimum payment threshold of $5 (configurable). ERA 835 remittance advice generated for provider payments. Hold reasons include fraud and compliance holds.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "batched",
+        "reconciliation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment data is stored and managed by Payment Engine"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Payments link to claims via payment_claims join table"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "Provider payments generate ERA 835 remittance advice"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Complete payment data model with clear evolution timeline and comprehensive void/reissue support"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "fee-schedule",
+      "name": "Fee Schedule",
+      "description": "Data model defining contracted allowed amounts for procedure codes by provider contract",
+      "overview": "Contract-specific fee schedules stored in Provider Directory that define allowed amounts for CPT/HCPCS procedure codes. Used by Rules Engine during adjudication to calculate the maximum amount payable for each service, with fallback to standard fee schedule for missing codes.",
+      "details": "Stored in fee_schedules table in Provider Directory, keyed by contract_id + procedure_code + modifier + effective_date. Contains allowed_amount for the contracted rate, facility_flag for different facility vs non-facility rates, and date ranges for temporal validity. Rules Engine lookup chain: provider NPI → contract_id → fee_schedule → procedure_code → allowed_amount. Fallback to Clearview standard fee schedule (actuarial team, updated annually) when no contracted rate exists. OON providers use 'usual and customary' rates derived from Medicare RBRVS with geographic adjustment factors.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "contracts",
+        "lookup-table"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Fee schedules are stored in Provider Directory system"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine queries fee schedules during adjudication for allowed amount calculation"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Fee schedules are linked to providers via contract_id"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Well-defined fee schedule model with clear lookup process and fallback mechanisms"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "authorization",
+      "name": "Authorization",
+      "description": "Data model for prior authorization requests and approvals with validity tracking",
+      "overview": "Pre-authorization records stored in Pre-Auth Service with format AUTH-YYYYMMDD-NNNNNN. Tracks authorization requests, determinations (approved/denied/pended), and validity periods with unit consumption tracking as claims are processed against approved authorizations.",
+      "details": "Stored in authorizations table in Pre-Auth Service. Contains member and provider linkage, service categories (IMAGING/SURGERY/SPECIALTY_DRUG), arrays of approved procedure and diagnosis codes, determination status (APPROVED/DENIED/PENDED_CLINICAL), and validity periods (90 days standard, 60 for surgical). Auto-approval indicated by determined_by='auto-approve'. Unit tracking with units_approved and units_used, status transitions to EXHAUSTED when fully utilized. Authorization status: ACTIVE/EXPIRED/CANCELLED/EXHAUSTED. Claims reference authorizations via auth_id for validation during adjudication.",
+      "status": "active",
+      "tags": [
+        "authorization",
+        "clinical",
+        "time-limited"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Authorization data is stored and managed by Pre-Auth Service"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "Authorizations are linked to members via member_id"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Authorizations reference requesting providers via provider_npi"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Complete authorization data model with clear lifecycle and unit consumption tracking"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "accumulator",
+      "name": "Accumulator",
+      "description": "Data model tracking member benefit utilization including deductibles and out-of-pocket maximums",
+      "overview": "Benefit accumulator records stored in Eligibility Service that track member progress toward annual limits like deductibles and out-of-pocket maximums. Includes soft reservation system to prevent race conditions during concurrent claim adjudication.",
+      "details": "Stored in accumulators table in Eligibility Service, keyed by member_id + plan_year + accumulator_type. Types include IND_DEDUCTIBLE, FAM_DEDUCTIBLE, IND_OOP_MAX, FAM_OOP_MAX. Tracks limit_amount (from benefit plan), met_amount (applied so far), and computed remaining amount. Soft reservation system via accumulator_reservations table prevents double-counting during concurrent processing - reservations expire after 4 hours and are cleaned up every 6 hours by batch job. Known workaround for Rules Engine crash scenarios (JIRA CLV-4521).",
+      "status": "active",
+      "tags": [
+        "financial",
+        "concurrency",
+        "batch-cleanup"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Accumulator data is stored and managed by Eligibility Service"
+        },
+        {
+          "relationship_type": "links_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "Accumulators track benefit utilization for specific members"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine updates accumulators during adjudication and uses reservation system"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Comprehensive accumulator model with soft reservation system and known technical debt documented"
+    },
+    {
+      "entity_type": "persona",
+      "id": "leo-chen",
+      "name": "Leo Chen",
+      "description": "Document author and data model maintainer for claims platform",
+      "overview": "Technical team member responsible for maintaining the claims data model reference documentation. Updated the document in October 2025 with payment reconciliation fields and accumulator reservation table additions.",
+      "details": "Document author who has made multiple updates to the claims data model reference over 2025, including adding payment reconciliation fields (void_reason, linked_payment_id, void_type) and the accumulator reservation table in the most recent update. Also added fee schedule and authorization model sections in July 2025. Appears to be a technical contributor focused on data modeling and system integration aspects.",
+      "status": "active",
+      "tags": [
+        "technical",
+        "documentation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "maintains",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Leo Chen authored and maintains the data model documentation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear document authorship but limited detail about role beyond documentation maintenance"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-4521",
+      "name": "CLV-4521",
+      "description": "JIRA ticket tracking accumulator reservation cleanup workaround for Rules Engine crashes",
+      "overview": "Known technical debt issue where accumulator reservations need manual cleanup when the Rules Engine crashes mid-adjudication. Currently handled by batch job cleanup every 6 hours for reservations older than 4 hours.",
+      "details": "JIRA ticket documenting a workaround in the accumulator reservation system. When the Rules Engine crashes during claim adjudication, soft reservations on member benefit accumulators may not be properly released, potentially causing incorrect benefit calculations. The current solution is a batch cleanup job that expires reservations older than 4 hours, running every 6 hours. This represents known technical debt in the concurrency control system.",
+      "status": "active",
+      "tags": [
+        "technical-debt",
+        "concurrency",
+        "known-issue"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "This issue specifically relates to the accumulator reservation cleanup process"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Issue occurs when Rules Engine crashes during adjudication"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear reference to specific JIRA ticket with context about the technical issue"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "usual-and-customary",
+      "name": "Usual and Customary",
+      "description": "Pricing methodology for out-of-network providers based on Medicare RBRVS data",
+      "overview": "Rate calculation method used for out-of-network providers who don't have contracted fee schedules. Derived from Medicare Resource-Based Relative Value Scale (RBRVS) data with geographic adjustment factors to determine reasonable payment amounts.",
+      "details": "Alternative to contracted fee schedules used when providers are out-of-network and no negotiated rates exist. The calculation uses Medicare RBRVS (Resource-Based Relative Value Scale) as the foundation, then applies geographic adjustment factors to account for regional cost variations. This provides a standardized method for determining 'reasonable' payment amounts for services when no contract exists, helping prevent both underpayment and overpayment scenarios.",
+      "status": "active",
+      "tags": [
+        "oon",
+        "pricing",
+        "medicare-based"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine applies usual and customary rates for OON providers during adjudication"
+        },
+        {
+          "relationship_type": "alternative_to",
+          "target_entity_id": "fee-schedule",
+          "target_entity_name": "Fee Schedule",
+          "reasoning": "Used when no contracted fee schedule exists for OON providers"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined pricing concept with clear use case and methodology"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "rbrvs",
+      "name": "RBRVS",
+      "description": "Resource-Based Relative Value Scale - Medicare's physician payment methodology",
+      "overview": "Medicare's standardized system for determining physician payment amounts based on the relative value of different medical services. Used as the foundation for calculating usual and customary rates for out-of-network providers.",
+      "details": "Resource-Based Relative Value Scale is Medicare's methodology for physician payments that assigns relative values to medical procedures based on physician work, practice expense, and malpractice costs. In the Clearview context, RBRVS data serves as the baseline for calculating usual and customary rates when no contracted fee schedule exists for out-of-network providers. Geographic adjustment factors are applied to the RBRVS rates to account for regional cost differences.",
+      "status": "active",
+      "tags": [
+        "medicare",
+        "pricing",
+        "healthcare-standard"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "usual-and-customary",
+          "target_entity_name": "Usual and Customary",
+          "reasoning": "RBRVS data is the foundation for usual and customary rate calculations"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Standard healthcare industry term with clear definition and usage context"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "ncqa",
+      "name": "NCQA",
+      "description": "National Committee for Quality Assurance - healthcare accreditation organization",
+      "overview": "Healthcare quality organization that sets standards for provider credentialing cycles. Referenced in the context of the 3-year provider re-credentialing requirement that drives credential expiry tracking in the Provider Directory.",
+      "details": "National Committee for Quality Assurance is a healthcare accreditation organization that establishes standards for healthcare quality and provider credentialing. In the Clearview system, NCQA standards drive the 3-year re-credentialing cycle requirement that necessitates tracking credential expiry dates and credentialing status (ACTIVE/PENDING/EXPIRED/REVOKED) in the provider data model.",
+      "status": "active",
+      "tags": [
+        "regulatory",
+        "credentialing",
+        "quality"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "governs",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "NCQA standards require 3-year provider re-credentialing cycles tracked in provider data"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Well-established healthcare regulatory body with clear impact on credentialing processes"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "carc-rarc",
+      "name": "CARC/RARC",
+      "description": "Claim Adjustment Reason Code / Remittance Advice Remark Code - standard denial reason codes",
+      "overview": "Industry-standard codes used to communicate claim denial reasons to providers. CARC codes indicate financial adjustments while RARC codes provide additional explanatory remarks for claim processing decisions.",
+      "details": "Standardized code sets used in healthcare claims processing to communicate denial and adjustment reasons. CARC (Claim Adjustment Reason Code) indicates why a financial adjustment was made to a claim line, while RARC (Remittance Advice Remark Code) provides additional explanatory information. These codes are stored in the denial_reason field of the claim data model and are used in ERA 835 remittance advice to inform providers why claims were denied or adjusted.",
+      "status": "active",
+      "tags": [
+        "healthcare-standards",
+        "denial-codes",
+        "communication"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "CARC/RARC codes are stored in the denial_reason field of claims"
+        },
+        {
+          "relationship_type": "communicated_via",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "These codes are included in ERA 835 remittance advice to providers"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Standard healthcare industry codes with clear usage context documented"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "facility-flag",
+      "name": "Facility Flag",
+      "description": "Indicator for different payment rates between facility and non-facility service locations",
+      "overview": "Boolean indicator in fee schedules that determines whether a procedure is performed in a facility (hospital, ASC) versus non-facility (physician office) setting. Different settings have different allowed amounts due to varying overhead costs.",
+      "details": "Payment differentiation mechanism in fee schedules where the same procedure code can have different allowed amounts depending on whether it's performed in a facility versus non-facility setting. Facility settings (hospitals, ambulatory surgery centers) typically have lower physician payment rates because the facility bills separately for overhead costs, while non-facility settings (physician offices) include overhead in the physician payment. This flag in the fee_schedules table enables the Rules Engine to apply the correct allowed amount based on the place of service.",
+      "status": "active",
+      "tags": [
+        "pricing",
+        "place-of-service",
+        "overhead"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "fee-schedule",
+          "target_entity_name": "Fee Schedule",
+          "reasoning": "Facility flag is a field in the fee schedules table for rate differentiation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business concept with specific implementation details provided"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "place-of-service-codes",
+      "name": "Place of Service Codes",
+      "description": "CMS standardized codes indicating where healthcare services were performed",
+      "overview": "Standardized two-digit codes maintained by CMS that specify the location where healthcare services were rendered. Used in claims processing to determine appropriate payment rates and coverage rules based on service setting.",
+      "details": "CMS-maintained codes stored in the place_of_service field of claims data model. Examples include office visits, inpatient hospital, outpatient hospital, emergency room, and skilled nursing facilities. These codes influence payment calculations (facility vs non-facility rates), coverage determinations, and may affect member cost-sharing amounts. The codes are essential for proper adjudication as the same procedure may have different coverage rules depending on where it was performed.",
+      "status": "active",
+      "tags": [
+        "cms-standard",
+        "location-based",
+        "payment-impact"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Place of service codes are stored in claims for payment and coverage determination"
+        },
+        {
+          "relationship_type": "influences",
+          "target_entity_id": "fee-schedule",
+          "target_entity_name": "Fee Schedule",
+          "reasoning": "Place of service affects facility vs non-facility payment rates in fee schedules"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Standard healthcare reference data with clear usage and impact on payment processing"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "facility-type-codes",
+      "name": "Facility Type Codes",
+      "description": "Coded values identifying the type of healthcare facility where services were rendered",
+      "overview": "Standardized codes used to classify healthcare facilities in claims processing. Examples include office (11), inpatient hospital (21), outpatient hospital (22), emergency room (23), and skilled nursing facility (31).",
+      "details": "Facility classification codes stored in the facility_type field of the claims data model. These codes help determine appropriate payment methodologies, coverage rules, and member cost-sharing requirements. For example, emergency room visits may have different copay structures, and inpatient services may be subject to different authorization requirements. The codes work in conjunction with place of service codes to provide complete context about the service setting.",
+      "status": "active",
+      "tags": [
+        "facility-classification",
+        "payment-rules",
+        "coverage-impact"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Facility type codes are stored in claims to classify service settings"
+        },
+        {
+          "relationship_type": "influences",
+          "target_entity_id": "benefit-plan",
+          "target_entity_name": "Benefit Plan",
+          "reasoning": "Different facility types may have different copay and coverage rules in benefit plans"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Well-defined reference data with specific examples and clear impact on payment processing"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "cpt-modifier-codes",
+      "name": "CPT Modifier Codes",
+      "description": "Two-character codes that provide additional information about procedures to affect payment",
+      "overview": "American Medical Association maintained codes that modify procedure codes to indicate special circumstances, multiple procedures, or service variations. Examples include modifier 25 for significant evaluation and management services and modifier 59 for distinct procedures.",
+      "details": "Two-character alphanumeric codes stored in modifier_1 and modifier_2 fields of claim_lines table. These modifiers can significantly impact payment by indicating circumstances like bilateral procedures, multiple surgeries, or services provided at different anatomical sites. Common modifiers include 25 (significant, separately identifiable E&M service), 59 (distinct procedural service), and various anatomical modifiers. Fee schedules may have different allowed amounts for modified procedures, and some modifiers affect whether procedures can be billed together.",
+      "status": "active",
+      "tags": [
+        "ama-standard",
+        "procedure-modification",
+        "payment-impact"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "CPT modifiers are stored in claim line items to modify procedure payment"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "fee-schedule",
+          "target_entity_name": "Fee Schedule",
+          "reasoning": "Fee schedules may have different rates for modified procedures"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Standard medical coding with clear examples and payment impact documented"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "icd-10-cm-codes",
+      "name": "ICD-10-CM Codes",
+      "description": "International Classification of Diseases diagnosis codes used in US healthcare claims",
+      "overview": "World Health Organization maintained diagnosis coding system adapted for clinical modification in the United States. Used to indicate medical conditions and justify medical necessity for procedures and services.",
+      "details": "Alphanumeric codes up to 8 characters stored in the claim_diagnoses table with sequence indicators (1=primary, 2-12=secondary). These codes establish medical necessity for procedures and are required for proper claim adjudication. ICD-10-CM codes are also used in prior authorization requests to support service approval decisions. For institutional claims, present-on-admission indicators (Y/N/U/W) track whether conditions existed at admission time, which affects hospital quality metrics and payment adjustments.",
+      "status": "active",
+      "tags": [
+        "who-standard",
+        "medical-necessity",
+        "diagnosis"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "ICD-10-CM codes are stored in claim diagnoses to establish medical necessity"
+        },
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "authorization",
+          "target_entity_name": "Authorization",
+          "reasoning": "Diagnosis codes are included in authorization requests to support approvals"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Standard medical coding system with clear usage context and present-on-admission indicators explained"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "specialty-taxonomy-codes",
+      "name": "Specialty Taxonomy Codes",
+      "description": "Healthcare provider specialty classification codes maintained by NUCC",
+      "overview": "National Uniform Claim Committee (NUCC) maintained codes that classify healthcare provider specialties and subspecialties. Used for provider credentialing, network management, and claims processing validation.",
+      "details": "Standardized 10-character codes stored in the specialty_code field of the provider data model. These codes define provider specialties (e.g., family medicine, cardiology, orthopedic surgery) and are used for network adequacy reporting, provider directory searches, and validating that services are performed by appropriately specialized providers. The codes include primary specialty assignments and may influence referral requirements in HMO plans or specialty copay structures in benefit plans.",
+      "status": "active",
+      "tags": [
+        "nucc-standard",
+        "provider-classification",
+        "network-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Specialty codes classify provider types in the provider data model"
+        },
+        {
+          "relationship_type": "influences",
+          "target_entity_id": "benefit-plan",
+          "target_entity_name": "Benefit Plan",
+          "reasoning": "Provider specialty may affect copay structures and referral requirements"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Standard provider classification system with clear usage context"
+    }
+  ],
+  "questions": [
+    "What is the specific format and validation rules for the claim_id generation (CLM-YYYYMMDD-NNNNNN) - is NNNNNN sequential per day or globally unique?",
+    "The document mentions 'design session' for adding void_reason fields in 2025-06 - what specific requirements drove this payment reconciliation rework?",
+    "What are the specific business rules for the minimum payment threshold of $5 - does this apply to all payment types or just provider payments?",
+    "How does the 15-minute cache TTL for benefit plan configuration interact with real-time adjudication - what happens if plan changes occur during processing?",
+    "What is the relationship between the actuarial team's 'Clearview standard fee schedule' and the contracted fee schedules - who maintains the standard schedule?",
+    "The accumulator reservation cleanup 'every 6 hours' for reservations 'older than 4 hours' seems like a 2-hour gap - is this intentional buffer time?",
+    "What triggers the transition from ADJUDICATED status to PAID/DENIED/PENDED status in the claim lifecycle - is this automatic or manual?",
+    "How are family-level accumulators (FAM_DEDUCTIBLE, FAM_OOP_MAX) calculated across multiple family members - is this aggregated in real-time?"
+  ],
+  "new_jargon": [
+    "usual-and-customary",
+    "rbrvs",
+    "ncqa",
+    "carc-rarc",
+    "facility-flag"
+  ],
+  "decision_log": [
+    {
+      "subject": "Claim entity",
+      "decision": "reused existing entity ID 'claim' but classified as data-model type",
+      "reasoning": "This document provides the complete data schema for claims, which is the data-model representation rather than the system that processes them"
+    },
+    {
+      "subject": "Member entity",
+      "decision": "created new data-model entity rather than reusing existing entities",
+      "reasoning": "While member concepts exist in previous entities, this document provides the complete data schema which warrants a separate data-model entity"
+    },
+    {
+      "subject": "Leo Chen",
+      "decision": "created new persona entity",
+      "reasoning": "Document author who has made multiple updates - represents a technical contributor role not previously captured"
+    },
+    {
+      "subject": "CLV-4521",
+      "decision": "classified as jargon-business rather than decision",
+      "reasoning": "This is a reference to an ongoing technical issue rather than a one-time architectural decision"
+    },
+    {
+      "subject": "Fee Schedule",
+      "decision": "created new data-model entity",
+      "reasoning": "This represents the data structure and business logic for fee calculations, not just reference data values"
+    },
+    {
+      "subject": "Place of Service Codes vs Facility Type Codes",
+      "decision": "created separate reference-data entities",
+      "reasoning": "These are distinct code sets with different purposes - place of service is CMS standard, facility type appears to be internal classification"
+    },
+    {
+      "subject": "CPT modifiers vs ICD-10 codes",
+      "decision": "created separate reference-data entities for each code type",
+      "reasoning": "These are distinct coding systems with different purposes - procedural vs diagnostic coding"
+    },
+    {
+      "subject": "Accumulator reservations table",
+      "decision": "included as part of accumulator data-model rather than separate entity",
+      "reasoning": "The reservations table is an implementation detail of the accumulator concurrency control, not a separate business concept"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+Claims Submission API — v1 (DEPRECATED)
+
+====================================================
+ THIS API VERSION IS DEPRECATED AS OF 2024-06-01
+ Use v2: https://api.clearviewhealth.internal/claims/v2
+ v1 will be decommissioned on 2025-06-01
+====================================================
+
+Base URL: https://api.clearviewhealth.internal/claims/v1
+
+NOTE: v1 was the original claims submission API built in 2020 when we first stood up the Claims Gateway as a microservice (it was part of the monolith before that). v2 was released in 2024 with better error handling, Avro schema support, and the batch size limits added after the connection pool incident.
+
+v1 issues that led to v2:
+  - No batch size limit (the /claims/batch endpoint accepted unlimited batch sizes — this caused the March 2024 outage)
+  - Error responses were inconsistent (sometimes JSON, sometimes plain text, sometimes HTTP status only)
+  - No correlation ID support
+  - The claim status model in v1 has fewer statuses (RECEIVED, PROCESSING, COMPLETED, REJECTED) — v2 has the full lifecycle (RECEIVED, VALIDATED, ELIGIBLE, ADJUDICATED, PAID, DENIED, PENDED, REJECTED)
+  - v1 doesn't support the fraud score field in responses (fraud scoring was added later)
+
+Who still uses v1:
+  As of 2025-01, two clearinghouses are still on v1:
+  - DirectSubmit (small volume, ~2% of total). They said they'd migrate by Q2 2025. Last I checked they haven't.
+  - One provider group that submits directly via REST instead of through a clearinghouse. James was supposed to reach out to them.
+
+If you're building a new integration, DO NOT use v1. If you find code that references v1, please update it to v2 and file a PR.
+
+
+== v1 Endpoints (for reference only) ==
+
+POST /claims
+  Submit a single claim.
+  Content-Type: application/json or application/edi-x12
+  Response: { "claim_id": "...", "status": "RECEIVED" }
+  Note: v1 returns 200 for everything that was accepted, even if validation fails later (async validation). v2 does synchronous validation and returns 400 for validation failures.
+
+POST /claims/batch
+  Submit a batch of claims.
+  Content-Type: application/edi-x12
+  Response: { "batch_id": "...", "count": N }
+  Note: NO BATCH SIZE LIMIT in v1. This is the endpoint that caused the 2024 outage. v2 caps at 2,000 per batch.
+
+GET /claims/{id}
+  Get claim status.
+  Response: { "claim_id": "...", "status": "PROCESSING|COMPLETED|REJECTED", "submitted_at": "..." }
+  Note: v1 status model is simplified. "PROCESSING" covers everything between intake and final disposition. v2 returns the current lifecycle stage.
+
+GET /claims/{id}/eob
+  Get EOB for a processed claim.
+  Response: PDF document or JSON representation
+  Note: same in v2, no changes needed here.
+
+
+== Migration Guide (v1 → v2) ==
+
+See the wiki page: "Claims API v1 to v2 Migration" (I think Nadia wrote this? it's somewhere in the Claims Ops Confluence space)
+
+Key changes:
+  1. URL: /claims/v1/ → /claims/v2/
+  2. Authentication: same (OAuth 2.0 Bearer)
+  3. Batch endpoint: add batch_size check, max 2000
+  4. Error handling: v2 always returns JSON error responses with error code, message, and correlation_id
+  5. Status model: map v1 statuses to v2 statuses
+     RECEIVED → RECEIVED (same)
+     PROCESSING → check actual status (VALIDATED, ELIGIBLE, ADJUDICATED, PENDED)
+     COMPLETED → PAID or DENIED (check disposition field)
+     REJECTED → REJECTED (same)
+  6. New fields in v2 responses: fraud_score, disposition, denial_reason, pend_reason, correlation_id
+
+If you're a clearinghouse migrating: the EDI format is unchanged. The only changes are in the REST response format and the batch size limit.
+
+
+== Decommission Plan ==
+
+Target date: 2025-06-01 (may slip — depends on DirectSubmit migrating)
+
+Steps:
+  1. [DONE] Sent deprecation notice to all v1 consumers (2024-06-01)
+  2. [DONE] Added deprecation header to v1 responses: Sunset: 2025-06-01
+  3. [IN PROGRESS] Chase remaining v1 consumers to migrate
+  4. [PENDING] Add request logging to identify any undiscovered v1 consumers
+  5. [PENDING] Route v1 traffic to v2 with a compatibility shim (so we can turn off v1 code)
+  6. [PENDING] Decommission v1 code path
+
+Contact: Priya Anand for API questions, James Whitfield for provider/clearinghouse outreach

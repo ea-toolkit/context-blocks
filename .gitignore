@@ -1,0 +1,50 @@
+node_modules/
+dist/
+.env
+.firebase/
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Output (real pipeline output — gitignored)
+output/
+
+# Exception: synthetic domain output IS committed (safe, public data)
+!synthetic-domains/**/output/
+
+# Generated exports (can be recreated from entities)
+**/obsidian-vault/
+**/domain-kb.md
+
+# Private data (real domain data — never commit)
+.private/
+test-data/
+
+# Builder tooling (not consumer-facing)
+.claude/
+CLAUDE.md
+
+# Legacy v1 artifacts (untracked)
+cb-v1/
+connectors/
+
+# Experiment scripts (not consumer-facing)
+experiments/
+tools/
+test_api_isolation.py
+
+# Viewer
+viewer/node_modules/
+viewer/dist/
+viewer/.astro/

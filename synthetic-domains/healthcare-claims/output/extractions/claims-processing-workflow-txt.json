@@ -1,0 +1,1003 @@
+{
+  "source_document": "claims-processing-workflow.txt",
+  "document_summary": "End-to-end claims processing workflow at Clearview Health Plans covering claim submission through EDI/API/OCR channels, validation, eligibility verification, fraud screening, pre-authorization checks, adjudication, payment processing, and exception flows including appeals and coordination of benefits.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "claims-processing-workflow",
+      "name": "Claims Processing Workflow",
+      "description": "Complete end-to-end workflow for processing health insurance claims from submission to payment",
+      "overview": "The comprehensive 9-step workflow that processes claims from initial submission through validation, fraud screening, adjudication, and payment. Handles three submission channels (EDI 837, REST API, paper/OCR) with an 85% auto-adjudication rate target.",
+      "details": "The workflow consists of: 1) Claim submission via EDI 837 (85%), REST API (10%), or paper/OCR (5%) channels, 2) Format and duplicate validation with 90-day lookback, 3) Eligibility verification using date of service, 4) Pre-payment fraud scoring with 0.82 threshold for SIU holds, 5) Pre-authorization checks against quarterly-updated service lists, 6) Rules engine adjudication producing PAY/DENY/PEND dispositions, 7) Payment processing with $5 minimum threshold and ERA 835 generation, 8) Post-payment fraud analysis and accumulator updates, and 9) Appeals process with Level 1 internal and Level 2 external review options. Exception flows handle retroactive enrollment changes (60 days back), COB scenarios, and provider network status changes using date-of-service rules.",
+      "status": "active",
+      "tags": [
+        "core-business-process",
+        "end-to-end"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway handles initial claim intake and routing"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team owns the overall workflow"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "eob",
+          "target_entity_name": "EOB",
+          "reasoning": "Every processed claim generates an EOB for the member"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a business process with defined sequential steps and exception flows"
+    },
+    {
+      "entity_type": "process",
+      "id": "professional-claims-processing",
+      "name": "Professional Claims Processing",
+      "description": "Real-time processing of 837P professional claims with 30-second SLA",
+      "overview": "Processing flow for professional claims submitted via EDI 837P format (CMS-1500 equivalent). These claims are processed in real-time with a 30-second SLA at intake due to their simpler structure and higher volume.",
+      "details": "Professional claims use the EDI 837P format and represent the majority of claims volume. Unlike institutional claims, they are processed immediately upon receipt rather than in batches. The 30-second SLA applies at the intake level through the Claims Gateway. These claims typically involve office visits, procedures, and other outpatient services that don't require the complex billing structures of institutional claims.",
+      "status": "active",
+      "tags": [
+        "real-time-processing",
+        "high-volume"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "edi-837-professional",
+          "target_entity_name": "EDI 837 Professional",
+          "reasoning": "Professional claims use the 837P format"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway processes professional claims with 30-second SLA"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct processing variant with specific timing and format requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "institutional-claims-batch-processing",
+      "name": "Institutional Claims Batch Processing",
+      "description": "Batch processing of 837I institutional claims in 4-hour windows",
+      "overview": "Processing flow for institutional claims submitted via EDI 837I format (UB-04 equivalent). These claims are processed in 4-hour batch windows rather than real-time due to their complexity and lower volume.",
+      "details": "Institutional claims use the EDI 837I format and are more complex than professional claims, typically involving hospital stays, facility services, and other inpatient care. Due to this complexity and lower volume compared to professional claims, they are processed in batches every 4 hours rather than real-time. This batching allows for more thorough processing of the complex billing structures typical of institutional claims.",
+      "status": "active",
+      "tags": [
+        "batch-processing",
+        "complex-claims"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "edi-837-institutional",
+          "target_entity_name": "EDI 837 Institutional",
+          "reasoning": "Institutional claims use the 837I format"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway processes institutional claims in 4-hour batches"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct batch processing variant for institutional claims"
+    },
+    {
+      "entity_type": "process",
+      "id": "ocr-pipeline-processing",
+      "name": "OCR Pipeline Processing",
+      "description": "Paper claims processing through OCR with 94% accuracy and manual fallback",
+      "overview": "Processing pipeline for paper claims that uses OCR technology to extract claim data. Achieves 94% accuracy with failed OCR cases routed to manual data entry queue.",
+      "details": "Paper claims represent ~5% of total volume and go through an OCR (Optical Character Recognition) pipeline to convert physical documents into digital claim data. The OCR system achieves approximately 94% accuracy, meaning 6% of paper claims cannot be parsed automatically and must be routed to a manual data entry queue for human processing. This is the slowest of the three submission channels due to the physical handling and potential manual intervention required.",
+      "status": "active",
+      "tags": [
+        "manual-processing",
+        "low-volume",
+        "accuracy-limited"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "claims-processing-workflow",
+          "target_entity_name": "Claims Processing Workflow",
+          "reasoning": "OCR processing is one of the three submission channels"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway handles OCR-processed claims"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct processing pipeline with specific accuracy metrics and fallback procedures"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "duplicate-detection-logic",
+      "name": "Duplicate Detection Logic",
+      "description": "Composite key matching logic to identify duplicate claims within 90-day window",
+      "overview": "Business rule that prevents duplicate claim processing by checking composite keys of member ID, provider NPI, date of service, and procedure codes. Uses a 90-day lookback window to identify exact and near-duplicates.",
+      "details": "The duplicate detection algorithm uses a composite key consisting of: member ID + provider NPI + date of service + procedure codes. Claims are checked against this composite key for matches within the last 90 days. Exact duplicates (identical composite keys) are rejected immediately with no further processing. Near-duplicates (matching composite key but different billed amounts for the same service) are flagged and routed to manual review rather than automatic rejection, as these may represent legitimate corrections or appeals.",
+      "status": "active",
+      "tags": [
+        "validation-rule",
+        "fraud-prevention"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway enforces duplicate detection during validation"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "duplicate-detection-process",
+          "target_entity_name": "Duplicate Detection Process",
+          "reasoning": "This logic implements the duplicate detection process"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is algorithmic business logic with specific rules for duplicate identification"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "eligibility-date-of-service-rule",
+      "name": "Eligibility Date of Service Rule",
+      "description": "Business rule requiring eligibility verification against date of service, not submission date",
+      "overview": "Critical business rule that validates member eligibility based on when the service was rendered, not when the claim was submitted. This protects against coverage gaps and ensures proper benefit application.",
+      "details": "The eligibility verification process must use the date of service from the claim, not the submission date, to determine member coverage status. This rule is essential because claims may be submitted days or weeks after the service was provided, and the member's coverage status could have changed in the interim. For example, a claim submitted 30 days after service must verify the member had active coverage on the original service date. This rule ensures accurate benefit determination and prevents inappropriate denials for services rendered during valid coverage periods.",
+      "status": "active",
+      "tags": [
+        "eligibility-rule",
+        "temporal-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service applies this rule during verification"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "This rule applies to all claim eligibility checks"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a fundamental business rule that governs eligibility verification timing"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "fraud-scoring-thresholds",
+      "name": "Fraud Scoring Thresholds",
+      "description": "Three-tier fraud scoring system with thresholds at 0.65 and 0.82 for different processing paths",
+      "overview": "Risk-based claim routing logic that uses ML fraud scores to determine processing paths. Claims scoring above 0.82 are held for SIU review, scores 0.65-0.82 are flagged for post-payment analysis, and scores below 0.65 proceed normally.",
+      "details": "The fraud detection system returns scores between 0 and 1, with three distinct processing paths: CLEAR (<0.65) allows normal processing with no additional scrutiny. FLAG (0.65-0.82) allows normal adjudication but tags the claim for post-payment pattern analysis to identify broader fraud schemes. HOLD (>0.82) immediately stops processing and routes to the Special Investigations Unit (SIU) for manual review - these claims cannot proceed to adjudication until SIU clearance. The model evaluates billing patterns, member history, procedure/diagnosis combinations, geographic anomalies, and other fraud indicators, with monthly retraining to adapt to new fraud patterns.",
+      "status": "active",
+      "tags": [
+        "fraud-prevention",
+        "ml-scoring",
+        "risk-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection system applies these threshold rules"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "siu-review-process",
+          "target_entity_name": "SIU Review Process",
+          "reasoning": "Scores above 0.82 trigger SIU review"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "These are specific algorithmic thresholds that determine claim routing"
+    },
+    {
+      "entity_type": "process",
+      "id": "siu-review-process",
+      "name": "SIU Review Process",
+      "description": "Special Investigations Unit manual review process for high-risk fraud claims",
+      "overview": "Manual review workflow for claims scoring above 0.82 fraud threshold. SIU investigators must clear or formally investigate before claims can proceed to adjudication.",
+      "details": "When claims score above the 0.82 fraud threshold, they are automatically held and routed to the Special Investigations Unit (SIU) for manual review. These claims cannot proceed to adjudication until SIU takes action. SIU investigators can either: 1) Clear the claim for normal processing if the high score was a false positive, or 2) Open a formal fraud investigation if suspicious activity is confirmed. This process acts as a critical control point to prevent payment of potentially fraudulent claims before they enter the adjudication pipeline.",
+      "status": "active",
+      "tags": [
+        "manual-review",
+        "fraud-investigation",
+        "control-point"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "fraud-scoring-thresholds",
+          "target_entity_name": "Fraud Scoring Thresholds",
+          "reasoning": "High fraud scores above 0.82 trigger SIU review"
+        },
+        {
+          "relationship_type": "blocks",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Claims under SIU review cannot proceed to adjudication"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct manual review process with specific triggers and outcomes"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "pre-authorization-requirements",
+      "name": "Pre-Authorization Requirements",
+      "description": "Service-specific authorization rules maintained per benefit plan and updated quarterly",
+      "overview": "Business rules determining which services require prior authorization before claims can be processed. Requirements vary by benefit plan and are updated quarterly to reflect changing medical policies.",
+      "details": "The pre-authorization system maintains service lists that specify which procedures or treatments require prior approval before claims processing. These lists are benefit-plan-specific, meaning different insurance products may have different authorization requirements. The lists are updated quarterly to reflect changes in medical policy, cost management strategies, and regulatory requirements. Services typically requiring authorization include surgeries, certain imaging procedures, specialty drugs, and high-cost treatments, while routine services like office visits rarely require authorization. Claims for auth-required services are denied at intake if no valid authorization exists.",
+      "status": "active",
+      "tags": [
+        "medical-policy",
+        "cost-control",
+        "quarterly-updates"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service enforces these requirements"
+        },
+        {
+          "relationship_type": "derives_from",
+          "target_entity_id": "auth-required-service-lists",
+          "target_entity_name": "Auth-Required Service Lists",
+          "reasoning": "Requirements are based on quarterly-updated service lists"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "benefit-plan",
+          "target_entity_name": "Benefit Plan",
+          "reasoning": "Requirements vary by benefit plan"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "These are business rules that govern authorization requirements"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "cost-sharing-calculation-rules",
+      "name": "Cost-Sharing Calculation Rules",
+      "description": "Algorithm for calculating member cost-sharing based on allowed amounts, not billed amounts",
+      "overview": "Financial calculation logic that determines member responsibility (deductible, copay, coinsurance) using contracted allowed amounts rather than provider-billed amounts. This protects members from excessive provider billing.",
+      "details": "Cost-sharing calculations (deductible, copay, coinsurance) are always calculated against the allowed amount, never the billed amount. The allowed amount is determined by: 1) Provider contract/fee schedule rates for in-network providers, 2) Usual and customary rates for out-of-network providers, or 3) Clearview standard schedules maintained by the actuarial team when no other rate applies. This rule protects members from balance billing and ensures predictable out-of-pocket costs regardless of what providers choose to bill. For example, if a provider bills $200 but the allowed amount is $120, member coinsurance of 20% would be calculated as $24 (20% of $120), not $40 (20% of $200).",
+      "status": "active",
+      "tags": [
+        "financial-calculation",
+        "member-protection",
+        "contract-enforcement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine calculates cost-sharing using these rules"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "allowed-amount-calculation",
+          "target_entity_name": "Allowed Amount Calculation",
+          "reasoning": "Cost-sharing depends on allowed amount determination"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "These rules determine member financial responsibility"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is core financial calculation logic with specific algorithmic rules"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "adjudication-disposition-rules",
+      "name": "Adjudication Disposition Rules",
+      "description": "Logic determining PAY/DENY/PEND outcomes from rules engine evaluation",
+      "overview": "Decision logic that evaluates benefit rules, provider contracts, medical policies, and accumulators to produce one of three claim dispositions. Target is 85% auto-adjudication rate.",
+      "details": "The rules engine evaluates multiple factors to determine claim disposition: PAY disposition when service is covered, provider is contracted/rates available, medical policies are met, and member has remaining benefits. DENY disposition when service is excluded, provider requirements aren't met, medical necessity isn't established, or member lacks coverage/benefits. PEND disposition when manual review is needed for complex scenarios, missing information, or edge cases the automated rules can't resolve. The current auto-adjudication rate is 81% against an 85% target, with the gap primarily due to incomplete rule migration from the vendor system replacement project. Pended claims go to claims adjudicator queue for manual determination.",
+      "status": "active",
+      "tags": [
+        "decision-logic",
+        "automation-target",
+        "vendor-migration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine implements these disposition rules"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "claim-adjudicated-event",
+          "target_entity_name": "Claim Adjudicated Event",
+          "reasoning": "Disposition determination produces adjudicated events"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is the core decision logic that determines claim outcomes"
+    },
+    {
+      "entity_type": "process",
+      "id": "eob-generation-process",
+      "name": "EOB Generation Process",
+      "description": "Automated generation of Explanation of Benefits documents for all processed claims",
+      "overview": "Process that creates EOB documents for every processed claim, showing services rendered, amounts billed, amounts allowed, plan payment, and member responsibility. EOBs are available digitally before physical mail delivery.",
+      "details": "Every processed claim, regardless of disposition (PAY, DENY, or PEND after manual review), generates an Explanation of Benefits (EOB) document for the member. The EOB shows: services rendered, amounts billed by the provider, amounts allowed under the plan, plan payment amount, and member responsibility. EOBs are made available digitally in the Member Portal before physical mail delivery, allowing members faster access to their claim information. For denied claims, the EOB includes denial reason codes and explanations. This process ensures transparency and regulatory compliance for all claim adjudication decisions.",
+      "status": "active",
+      "tags": [
+        "member-communication",
+        "regulatory-compliance",
+        "digital-first"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "claims-processing-workflow",
+          "target_entity_name": "Claims Processing Workflow",
+          "reasoning": "EOB generation is triggered by claim processing completion"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "eob",
+          "target_entity_name": "EOB",
+          "reasoning": "This process creates EOB documents"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "EOBs are delivered digitally through Member Portal"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct process that generates member communications"
+    },
+    {
+      "entity_type": "process",
+      "id": "provider-payment-batching",
+      "name": "Provider Payment Batching",
+      "description": "Batching of provider payments by TIN per payment cycle with $5 minimum threshold",
+      "overview": "Payment processing workflow that groups approved claims by provider Tax ID Number (TIN) for efficient payment cycles. Implements $5 minimum payment threshold with holdover for amounts below threshold.",
+      "details": "Provider payments are batched by provider TIN (Tax Identification Number) within each payment cycle to consolidate multiple claims into single payments. Payment methods include EFT (preferred), check, and virtual card options. A $5 minimum payment threshold is enforced - amounts below this threshold are held and accumulated until the minimum is reached in subsequent cycles. Each payment batch generates an ERA 835 remittance advice document that details all claims included in the payment, allowing providers to reconcile their accounts receivable. This batching approach reduces transaction costs and administrative overhead while providing clear payment documentation.",
+      "status": "active",
+      "tags": [
+        "financial-processing",
+        "batch-optimization",
+        "cost-control"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine executes the batching process"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "Batching process generates ERA 835 remittance advice"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-threshold-rules",
+          "target_entity_name": "Payment Threshold Rules",
+          "reasoning": "Process enforces the $5 minimum payment threshold"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct financial processing workflow with specific batching and threshold rules"
+    },
+    {
+      "entity_type": "process",
+      "id": "member-reimbursement-process",
+      "name": "Member Reimbursement Process",
+      "description": "Processing of member reimbursements for out-of-network claims within 10 business days",
+      "overview": "Workflow for reimbursing members who paid providers upfront for out-of-network services. Processes payments within 10 business days via check or direct deposit.",
+      "details": "For out-of-network (OON) claims where members paid providers upfront, the reimbursement process calculates the member's covered amount based on usual and customary rates and benefit plan terms. Reimbursements are processed within 10 business days of claim adjudication. Payment methods include check (default) or direct deposit if the member has set up ACH in the Member Portal. This process ensures members receive timely reimbursement for covered services they initially paid out-of-pocket, maintaining good member satisfaction for OON care scenarios.",
+      "status": "active",
+      "tags": [
+        "member-service",
+        "oon-processing",
+        "timely-payment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine processes member reimbursements"
+        },
+        {
+          "relationship_type": "serves",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "Process reimburses members for OON services"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Members can set up direct deposit through portal"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is a specific payment processing workflow for member reimbursements"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "recoupment-distribution-rules",
+      "name": "Recoupment Distribution Rules",
+      "description": "Logic for spreading large recoupments exceeding 50% of payment across multiple cycles",
+      "overview": "Financial protection rule that prevents excessive recoupment impact on provider cash flow by spreading large recoupments across multiple payment cycles when they exceed 50% of a single payment.",
+      "details": "When a provider overpayment requires recoupment, the system evaluates the recoupment amount against the provider's regular payment amounts. If the recoupment exceeds 50% of a typical payment cycle amount, the recoupment is automatically spread across multiple payment cycles to minimize cash flow impact on the provider. This rule balances Clearview's need to recover overpayments with maintaining positive provider relationships by avoiding sudden large payment reductions that could create financial hardship for provider practices.",
+      "status": "active",
+      "tags": [
+        "provider-relations",
+        "financial-protection",
+        "cash-flow-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine applies recoupment distribution rules"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "void-reissue-workflow",
+          "target_entity_name": "Void/Reissue Workflow",
+          "reasoning": "Recoupment is part of the void/reissue process"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is financial logic that governs recoupment processing"
+    },
+    {
+      "entity_type": "process",
+      "id": "post-payment-fraud-analysis",
+      "name": "Post-Payment Fraud Analysis",
+      "description": "Analysis of flagged claims and provider patterns after payment to identify fraud schemes",
+      "overview": "Post-payment review process that analyzes claims flagged during pre-payment screening (score 0.65-0.82) and evaluates historical patterns across providers to identify potential fraud schemes requiring investigation.",
+      "details": "After payment processing, claims that scored between 0.65-0.82 during pre-payment fraud screening are subjected to additional analysis. This post-payment review examines historical patterns across all of the provider's claims to identify suspicious trends that may not be apparent in individual claim reviews. The analysis looks for patterns like unusual billing frequencies, inappropriate procedure/diagnosis combinations, geographic anomalies, or other indicators that suggest systematic fraud rather than isolated incidents. When suspicious patterns are confirmed, SIU is alerted to consider opening a formal fraud investigation. This two-stage approach (pre-payment scoring plus post-payment pattern analysis) provides comprehensive fraud detection while allowing most legitimate claims to process without delay.",
+      "status": "active",
+      "tags": [
+        "fraud-detection",
+        "pattern-analysis",
+        "post-payment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "fraud-scoring-thresholds",
+          "target_entity_name": "Fraud Scoring Thresholds",
+          "reasoning": "Claims scoring 0.65-0.82 trigger post-payment analysis"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection system performs post-payment analysis"
+        },
+        {
+          "relationship_type": "may_trigger",
+          "target_entity_id": "siu-review-process",
+          "target_entity_name": "SIU Review Process",
+          "reasoning": "Suspicious patterns may result in SIU alerts"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "may_trigger"
+      ],
+      "reasoning": "This is a distinct analysis process that occurs after payment"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-appeals-process",
+      "name": "Claims Appeals Process",
+      "description": "Two-level appeals process for denied or underpaid claims with internal and external review",
+      "overview": "Formal appeals workflow allowing members and providers to challenge denied or underpaid claims through Level 1 internal review and Level 2 external review by Independent Review Organizations.",
+      "details": "The appeals process provides two levels of review for disputed claim decisions. Level 1 is internal appeal handled by Claims Operations, reviewed by senior claims adjudicators with decisions required within 30 days (72 hours for urgent/pre-service appeals). If the internal appeal is upheld and the member remains unsatisfied, they can request Level 2 external review by an Independent Review Organization (IRO). The IRO provides an independent clinical and administrative review, and their decision is binding on Clearview. Appeals are tracked in a separate workflow system but reference the original claim_id to maintain audit trails and ensure proper case management.",
+      "status": "active",
+      "tags": [
+        "member-rights",
+        "regulatory-compliance",
+        "external-review"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations handles Level 1 internal appeals"
+        },
+        {
+          "relationship_type": "references",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Appeals reference original claim_id"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a formal regulatory-required process with specific timelines and review levels"
+    },
+    {
+      "entity_type": "process",
+      "id": "retroactive-enrollment-reprocessing",
+      "name": "Retroactive Enrollment Reprocessing",
+      "description": "Automatic reprocessing of claims when retroactive enrollment changes occur within 60-day window",
+      "overview": "Exception workflow that automatically reprocesses affected claims when Member Services processes retroactive enrollment changes up to 60 days back, potentially changing claim dispositions.",
+      "details": "When Member Services processes a retroactive enrollment change (coverage corrections, plan changes, or eligibility adjustments up to 60 days in the past), the Eligibility Service automatically triggers reprocessing of any claims from the affected date range. This reprocessing can result in previously denied claims being approved (if member gains coverage) or previously approved claims being denied (if coverage is removed). The 60-day window balances administrative practicality with member protection, allowing reasonable time for enrollment corrections while preventing indefinite claim liability exposure.",
+      "status": "active",
+      "tags": [
+        "exception-handling",
+        "retroactive-processing",
+        "enrollment-correction"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service triggers automatic reprocessing"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services processes retroactive enrollment changes"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Process can change existing claim dispositions"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a specific exception workflow with defined triggers and timeframes"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "coordination-of-benefits-logic",
+      "name": "Coordination of Benefits Logic",
+      "description": "Business rules for determining payer order and calculating secondary payer responsibility",
+      "overview": "Complex logic for handling dual coverage scenarios where members have multiple insurance policies. Determines primary/secondary payer order and calculates Clearview's liability as remaining balance after primary payer.",
+      "details": "When a member has dual coverage from multiple insurance payers, COB logic determines the order of payment responsibility. Clearview evaluates whether it is the primary or secondary payer based on standard industry rules (birthday rule for dependent children, active vs. retired coverage, etc.). If Clearview is the secondary payer, claims adjudication is suspended until the primary payer's Explanation of Benefits (EOB) is received showing their payment amount. Clearview's member responsibility is then calculated as the remaining balance after the primary payer's contribution, subject to Clearview's own benefit limits. This ensures members don't receive duplicate payments while maximizing their total coverage benefits.",
+      "status": "active",
+      "tags": [
+        "dual-coverage",
+        "industry-standards",
+        "complex-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine implements COB determination logic"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "eob",
+          "target_entity_name": "EOB",
+          "reasoning": "COB logic requires primary payer EOB for secondary processing"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "COB logic applies to members with dual coverage"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is complex business logic governing dual coverage scenarios"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "provider-network-date-of-service-rule",
+      "name": "Provider Network Date of Service Rule",
+      "description": "Rule applying provider network status as of service date, not processing date",
+      "overview": "Business rule that protects both members and providers by applying the provider's network status and contract terms that were effective on the date of service, regardless of when the claim is processed.",
+      "details": "When a provider's network status changes (joins or leaves the network, contract modifications), the rules engine evaluates network status based on the date of service, not the claim processing date. This rule protects both parties: members receive the benefit level they were entitled to when the service was rendered, and providers receive payment under the contract terms that were in effect when they provided the service. For example, if a provider left the network on March 15th but provided services on March 10th, those services are still processed under in-network terms and rates. This prevents retroactive application of network changes that could unfairly impact either members or providers.",
+      "status": "active",
+      "tags": [
+        "provider-protection",
+        "member-protection",
+        "temporal-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine applies network status based on service date"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Network status determination requires Provider Directory data"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "Rule determines how provider network changes are applied"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a temporal business rule that governs network status application"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "claims-adjudicator-queue",
+      "name": "Claims Adjudicator Queue",
+      "description": "Work queue for manual review of pended claims by senior claims staff",
+      "overview": "Work management system where claims requiring manual review (PEND disposition) are queued for evaluation by experienced claims adjudicators who can make final pay/deny determinations.",
+      "details": "When the automated rules engine cannot determine a clear PAY or DENY disposition for a claim, it assigns a PEND status and routes the claim to the claims adjudicator queue. This queue is staffed by senior claims personnel who have the expertise and authority to review complex scenarios, interpret edge cases in benefit language, evaluate medical necessity, and make final adjudication decisions. The manual review process ensures that claims too complex for automated processing still receive appropriate evaluation rather than automatic denial.",
+      "status": "active",
+      "tags": [
+        "manual-review",
+        "work-management",
+        "complex-claims"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "fed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine routes pended claims to this queue"
+        },
+        {
+          "relationship_type": "staffed_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations staff work the adjudicator queue"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a specific business term for the manual review work queue"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "manual-data-entry-queue",
+      "name": "Manual Data Entry Queue",
+      "description": "Work queue for paper claims that failed OCR processing and require human data entry",
+      "overview": "Work queue containing the ~6% of paper claims that OCR cannot accurately parse, requiring manual transcription by data entry personnel to convert to digital claim format.",
+      "details": "Paper claims that fail OCR processing (approximately 6% of the 5% paper volume) are routed to the manual data entry queue where trained personnel manually transcribe the claim information into the digital system. This queue represents the slowest processing path but ensures that even poorly-legible or complex paper claims can still be processed. The queue requires specialized staff who can accurately interpret handwritten forms, medical coding, and provider documentation to create valid digital claim records.",
+      "status": "active",
+      "tags": [
+        "manual-processing",
+        "data-entry",
+        "paper-claims"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "fed_by",
+          "target_entity_id": "ocr-pipeline-processing",
+          "target_entity_name": "OCR Pipeline Processing",
+          "reasoning": "OCR failures are routed to manual data entry"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "claims-processing-workflow",
+          "target_entity_name": "Claims Processing Workflow",
+          "reasoning": "Manual data entry is part of the paper claims channel"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is a specific business term for the manual data entry work queue"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "usual-and-customary-rate",
+      "name": "Usual and Customary Rate",
+      "description": "Pricing methodology for out-of-network providers based on regional market rates",
+      "overview": "Rate determination method used for out-of-network providers when no contracted fee schedule exists. Based on typical charges for similar services in the same geographic area.",
+      "details": "When processing claims from out-of-network providers, the usual and customary (U&C) rate serves as the allowed amount for benefit calculations. This rate represents what providers in the same geographic area typically charge for similar services, providing a fair market-based reference point. U&C rates protect members from excessive out-of-network charges while ensuring reasonable provider compensation. The rate is used instead of contracted fee schedules (which don't exist for non-contracted providers) to determine the baseline for member cost-sharing calculations.",
+      "status": "active",
+      "tags": [
+        "oon-pricing",
+        "market-rates",
+        "geographic-based"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "cost-sharing-calculation-rules",
+          "target_entity_name": "Cost-Sharing Calculation Rules",
+          "reasoning": "U&C rates are used for OON cost-sharing calculations"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "provider",
+          "target_entity_name": "Provider",
+          "reasoning": "U&C rates apply to out-of-network providers"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is specific pricing methodology terminology for OON scenarios"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clearview-standard-schedules",
+      "name": "Clearview Standard Schedules",
+      "description": "Internal fee schedules maintained by actuarial team for services without contracted rates",
+      "overview": "Fallback pricing schedules developed and maintained by Clearview's actuarial team for services where neither contracted rates nor usual-and-customary rates are available.",
+      "details": "Clearview standard schedules represent internal pricing tables maintained by the actuarial team to handle edge cases where neither provider contract rates nor usual-and-customary rates are available for determining allowed amounts. These schedules ensure that every claim can receive appropriate pricing for benefit calculation purposes. The actuarial team's involvement suggests these schedules are based on statistical analysis and risk management principles rather than arbitrary pricing decisions.",
+      "status": "active",
+      "tags": [
+        "internal-pricing",
+        "actuarial-maintained",
+        "fallback-rates"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "maintained_by",
+          "target_entity_id": "actuarial-team",
+          "target_entity_name": "Actuarial Team",
+          "reasoning": "Actuarial team maintains these standard schedules"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "allowed-amount-calculation",
+          "target_entity_name": "Allowed Amount Calculation",
+          "reasoning": "Standard schedules are used when other rates aren't available"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is specific internal pricing terminology"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "independent-review-organization",
+      "name": "Independent Review Organization",
+      "description": "External organization providing binding Level 2 appeals review",
+      "overview": "Third-party medical review organization that provides independent evaluation of disputed claim decisions in Level 2 appeals, with binding authority over Clearview's coverage determinations.",
+      "details": "Independent Review Organizations (IROs) are external entities that provide Level 2 appeals review when members remain unsatisfied after internal appeal decisions. IROs conduct independent clinical and administrative reviews of disputed cases, bringing objectivity to coverage determinations. Their decisions are binding on Clearview, providing members with an external recourse mechanism for coverage disputes. This external review process is typically required by state insurance regulations to ensure fair resolution of claim disputes.",
+      "status": "active",
+      "tags": [
+        "external-review",
+        "binding-decision",
+        "regulatory-compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "claims-appeals-process",
+          "target_entity_name": "Claims Appeals Process",
+          "reasoning": "IROs provide Level 2 external review in appeals process"
+        },
+        {
+          "relationship_type": "regulates",
+          "target_entity_id": "clearview-health-plans",
+          "target_entity_name": "Clearview Health Plans",
+          "reasoning": "IRO decisions are binding on Clearview"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is specific terminology for external appeals review organizations"
+    },
+    {
+      "entity_type": "team",
+      "id": "actuarial-team",
+      "name": "Actuarial Team",
+      "description": "Team responsible for maintaining Clearview standard fee schedules and risk analysis",
+      "overview": "Specialized team that develops and maintains internal pricing schedules and performs statistical risk analysis to support claims processing and benefit design.",
+      "details": "The actuarial team maintains Clearview standard schedules used as fallback pricing when contracted rates or usual-and-customary rates aren't available. This team applies statistical analysis, risk management principles, and actuarial science to develop appropriate pricing tables. Their involvement in fee schedule maintenance suggests they also support broader financial and risk management functions for the organization.",
+      "status": "active",
+      "tags": [
+        "statistical-analysis",
+        "pricing-authority",
+        "risk-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "maintains",
+          "target_entity_id": "clearview-standard-schedules",
+          "target_entity_name": "Clearview Standard Schedules",
+          "reasoning": "Actuarial team maintains the standard fee schedules"
+        },
+        {
+          "relationship_type": "supports",
+          "target_entity_id": "allowed-amount-calculation",
+          "target_entity_name": "Allowed Amount Calculation",
+          "reasoning": "Actuarial work supports pricing determinations"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "This is a distinct organizational team with specific responsibilities mentioned in the document"
+    },
+    {
+      "entity_type": "persona",
+      "id": "tariq-hassan",
+      "name": "Tariq Hassan",
+      "description": "Fraud Detection team member available for fraud model questions",
+      "overview": "Subject matter expert on fraud detection models and algorithms, available to answer questions about fraud scoring, model training, and detection patterns.",
+      "details": "Tariq Hassan is identified as the go-to person for questions about fraud detection models, including the ML scoring algorithms, monthly retraining processes, and fraud pattern analysis. As a member of the Fraud Detection team, Tariq likely has deep expertise in the technical aspects of fraud scoring, threshold calibration, and model performance optimization.",
+      "status": "active",
+      "tags": [
+        "fraud-expert",
+        "model-specialist",
+        "technical-contact"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "member_of",
+          "target_entity_id": "fraud-detection-team",
+          "target_entity_name": "Fraud Detection Team",
+          "reasoning": "Document identifies Tariq as being on the Fraud Detection team"
+        },
+        {
+          "relationship_type": "expert_on",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Tariq is the contact for fraud model questions"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This person is specifically named as a subject matter expert contact"
+    },
+    {
+      "entity_type": "team",
+      "id": "fraud-detection-team",
+      "name": "Fraud Detection Team",
+      "description": "Team responsible for fraud detection models and pattern analysis",
+      "overview": "Specialized team that develops and maintains fraud detection algorithms, manages model retraining cycles, and performs post-payment fraud analysis.",
+      "details": "The fraud detection team manages the ML models that score claims for fraud risk, handles the monthly retraining cycles to adapt to new fraud patterns, and conducts post-payment analysis of flagged claims. Team member Tariq Hassan serves as a subject matter expert for fraud model questions. The team is responsible for both pre-payment scoring (which can hold claims for SIU review) and post-payment pattern analysis that identifies broader fraud schemes.",
+      "status": "active",
+      "tags": [
+        "ml-models",
+        "fraud-prevention",
+        "pattern-analysis"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owns",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Team owns the fraud detection system and models"
+        },
+        {
+          "relationship_type": "includes",
+          "target_entity_id": "tariq-hassan",
+          "target_entity_name": "Tariq Hassan",
+          "reasoning": "Tariq Hassan is identified as a team member"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Team is implied by the reference to Tariq Hassan being on the 'Fraud Detection team'"
+    }
+  ],
+  "questions": [
+    "What specific criteria determine when a claim gets a PEND disposition versus PAY/DENY? The document mentions 'complex scenarios' and 'edge cases' but doesn't detail what triggers manual review.",
+    "What is the exact process for IRO selection and how long does Level 2 external review typically take?",
+    "How does the system handle claims that are submitted very close to the 90-day duplicate detection window - are there edge cases where legitimate resubmissions get flagged?",
+    "What happens to claims that are held for SIU review but never get cleared or investigated - is there a maximum hold time?",
+    "How are the quarterly updates to auth-required service lists coordinated across different benefit plans, and who makes the decisions about what services to add or remove?",
+    "What specific 'signals' does the fraud ML model evaluate beyond the general categories mentioned (billing patterns, member history, etc.)?",
+    "How does the system handle scenarios where a member's eligibility status is itself disputed or unclear on the date of service?",
+    "What is the process for updating usual-and-customary rates, and how frequently are they refreshed?",
+    "Are there different processing SLAs for the three claim channels beyond the 30-second professional claim intake mentioned?",
+    "What constitutes 'urgent/pre-service appeals' that get the 72-hour turnaround versus the standard 30-day timeline?"
+  ],
+  "new_jargon": [
+    "Claims adjudicator queue",
+    "Manual data entry queue",
+    "Usual and customary rate",
+    "Clearview standard schedules",
+    "Independent Review Organization",
+    "Level 1/Level 2 appeals"
+  ],
+  "decision_log": [
+    {
+      "subject": "Claims Processing Workflow",
+      "decision": "Created comprehensive process entity covering the full end-to-end workflow",
+      "reasoning": "Document describes a complete business process with 9 distinct steps plus exception flows - this deserves a top-level process entity with relationships to component sub-processes"
+    },
+    {
+      "subject": "Professional vs Institutional Claims Processing",
+      "decision": "Created separate process entities for each",
+      "reasoning": "These have fundamentally different processing patterns (real-time vs batch, different SLAs, different complexity) and use different EDI formats - they're distinct processes not variants of one process"
+    },
+    {
+      "subject": "OCR Pipeline Processing",
+      "decision": "Created dedicated process entity",
+      "reasoning": "OCR processing has unique characteristics (94% accuracy, manual fallback queue) that make it distinct from the other submission channels"
+    },
+    {
+      "subject": "Fraud Scoring Thresholds",
+      "decision": "Classified as domain-logic rather than reference-data",
+      "reasoning": "These are algorithmic rules that execute at runtime to make routing decisions, not static lookup values - fits domain-logic better"
+    },
+    {
+      "subject": "SIU Review Process",
+      "decision": "Created separate process entity",
+      "reasoning": "SIU review has specific triggers, actors, and outcomes that warrant its own process entity rather than being part of fraud detection"
+    },
+    {
+      "subject": "Cost-sharing calculation based on allowed amounts",
+      "decision": "Created domain-logic entity",
+      "reasoning": "This is a critical financial calculation rule that protects members - it's algorithmic logic that executes during adjudication"
+    },
+    {
+      "subject": "Appeals Process",
+      "decision": "Created single process entity covering both levels",
+      "reasoning": "While there are two levels, they're part of a single appeals workflow with escalation - splitting would obscure the relationship"
+    },
+    {
+      "subject": "Tariq Hassan and Fraud Detection Team",
+      "decision": "Created both persona and team entities",
+      "reasoning": "Tariq is named as an individual expert contact, and the document implies a distinct fraud detection team that owns the models - both warrant entities"
+    },
+    {
+      "subject": "Various business rules as domain-logic",
+      "decision": "Extracted multiple domain-logic entities for distinct rules",
+      "reasoning": "The document reveals many specific algorithmic rules (duplicate detection composite keys, eligibility date rules, etc.) that execute during processing - each distinct rule gets its own entity"
+    },
+    {
+      "subject": "Reusing existing entity IDs",
+      "decision": "Reused IDs like 'claim', 'eob', 'member' etc. where document adds information",
+      "reasoning": "These concepts were mentioned in seed context but this document provides much richer detail about their role in the workflow - enriching existing entities rather than creating duplicates"
+    }
+  ]
+}

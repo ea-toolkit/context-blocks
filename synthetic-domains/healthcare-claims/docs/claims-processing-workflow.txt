@@ -1,0 +1,243 @@
+Claims Processing Workflow
+Last updated: 2025-10-02
+
+This document describes the end-to-end claims processing workflow at Clearview Health Plans. It covers the happy path plus the major exception flows. If you're looking for system-level detail, see the Architecture Overview page.
+
+
+1. CLAIM SUBMISSION
+===================
+
+Claims enter the system through the Claims Gateway. Three channels:
+
+a) EDI 837 — the dominant channel (~85% of volume)
+   Clearinghouses submit batches of claims in EDI 837 format. Professional claims use the 837P (CMS-1500 equivalent). Institutional claims use the 837I (UB-04 equivalent).
+
+   Professional claims are processed real-time with a 30-second SLA at intake. Institutional claims are batched — we process them in 4-hour windows because they're more complex and the volume is lower.
+
+b) REST API (JSON) — ~10% of volume
+   Our Member Portal uses this for out-of-network claim submissions. Members upload receipts, fill in service details, and the portal submits via the Claims Submission API. Some provider systems also use this directly.
+
+c) Paper/OCR — ~5% of volume
+   Paper claims go through our OCR pipeline. Accuracy is around 94% — the 6% that OCR can't parse get routed to the manual data entry queue. This is the slowest channel.
+
+Every claim regardless of channel gets assigned a unique claim_id at intake.
+
+
+2. VALIDATION
+=============
+
+The gateway runs validation before anything else touches the claim:
+
+Format validation:
+  - Required fields present (member ID, provider NPI, date of service, at least one procedure code, at least one diagnosis code)
+  - Date formats correct
+  - Code formats valid (CPT/HCPCS for procedures, ICD-10 for diagnosis)
+  - Amounts are numeric and non-negative
+
+Duplicate detection:
+  - Composite key check: member ID + provider NPI + date of service + procedure codes
+  - If a match is found within the last 90 days, the claim is flagged as a potential duplicate
+  - Exact duplicates are rejected immediately
+  - Near-duplicates (e.g., different billed amount for same service) are routed to manual review
+
+If validation fails, the claim gets a REJECTED status and an error response is returned to the submitter. No further processing.
+
+
+3. ELIGIBILITY VERIFICATION
+============================
+
+Before routing to adjudication, the gateway calls the Eligibility Service to verify the member has active coverage.
+
+The check uses the date of service, not the submission date. This matters — a claim might be submitted 30 days after the service was rendered. We need to confirm the member was covered on the date they received care.
+
+What the eligibility check returns:
+  - Member enrollment status (active, terminated, COBRA, etc.)
+  - Benefit plan assignment
+  - Primary/secondary payer information (for COB scenarios)
+  - Any coverage restrictions or limitations
+
+If the member isn't eligible: claim is denied at intake with a "member not eligible on date of service" denial code. The member and provider are notified.
+
+If the member has dual coverage: the COB (Coordination of Benefits) logic kicks in. Clearview determines if we're the primary or secondary payer. If we're secondary, we wait for the primary payer's EOB before adjudicating.
+
+
+4. FRAUD SCREENING
+==================
+
+All validated claims go through the Fraud Detection system for pre-payment scoring.
+
+The ML model returns a score between 0 and 1:
+
+  Score >0.82 → HOLD
+    Claim is automatically held and routed to the Special Investigations Unit (SIU). It does NOT proceed to adjudication until SIU clears it or opens a formal investigation.
+
+  Score 0.65–0.82 → FLAG
+    Claim proceeds to adjudication normally but is tagged for post-payment review. The post-payment analysis will look at this claim as part of broader pattern detection.
+
+  Score <0.65 → CLEAR
+    Normal processing. No action.
+
+The fraud model looks at a bunch of signals — billing patterns for the provider, historical claims for the member, procedure/diagnosis combinations, geographic anomalies, etc. It's retrained monthly.
+
+
+5. PRE-AUTHORIZATION CHECK
+==========================
+
+For services that require prior authorization (the auth-required service list is maintained per benefit plan, updated quarterly), the gateway checks the Pre-Auth Service.
+
+If auth exists and is approved:
+  - Auth approval code is attached to the claim
+  - Claim proceeds to adjudication
+
+If auth exists but is denied:
+  - Claim is denied at intake
+  - Denial reason references the auth denial
+
+If no auth exists for a service that requires one:
+  - Claim is denied at intake with "authorization required" denial code
+  - Provider is notified they need to submit a prior auth request
+
+If auth is pending clinical review:
+  - Claim is pended, waiting for auth determination
+  - Once auth is decided, the claim is automatically released for processing
+
+Note: not all services require auth. The auth-required list varies by benefit plan. Routine office visits, for example, almost never require auth. Surgeries, certain imaging, specialty drugs — those usually do.
+
+
+6. ADJUDICATION
+===============
+
+This is the core of claims processing. The Rules Engine evaluates the claim against:
+
+a) Benefit plan rules
+   - Is this service covered under the member's plan?
+   - What cost-sharing applies? (deductible, copay, coinsurance)
+   - Has the member hit their out-of-pocket maximum?
+   - Are there any exclusions or limitations?
+
+b) Provider contract / fee schedule
+   - What's the allowed amount for this procedure code from this provider?
+   - IMPORTANT: cost-sharing is calculated against the allowed amount, not the billed amount
+   - If the provider is out-of-network, the "usual and customary" rate is used instead
+
+c) Medical policy edits
+   - Clinical rules (e.g., "procedure X requires diagnosis Y")
+   - Bundling rules (e.g., "these two procedures can't be billed separately")
+   - Age/sex edits (e.g., "this procedure only applies to patients over 50")
+
+d) Accumulators
+   - How much of the deductible has the member already met?
+   - Has the member hit the OOP max?
+   - The Eligibility Service tracks these with soft reservations to handle concurrent claims
+
+The rules engine queries the Eligibility Service for accumulator data, the Provider Directory for fee schedules and network status, and the Pre-Auth Service for auth decision codes.
+
+Adjudication produces one of three dispositions:
+
+PAY — claim is approved
+  - Plan liability and member responsibility are calculated
+  - Claim is routed to the Payment Engine
+
+DENY — claim is denied
+  - Denial reason code is attached
+  - EOB is generated explaining the denial
+  - Member and provider are notified
+
+PEND — claim needs manual review
+  - Pend reason code is attached
+  - Claim is routed to the claims adjudicator queue
+  - A claims adjudicator reviews and makes a manual determination
+
+Our auto-adjudication rate target is 85% — meaning 85% of claims should be processed without manual intervention. Current rate is around 81%. The gap is mostly due to the rules engine vendor migration (some rules aren't fully ported yet).
+
+
+7. PAYMENT
+==========
+
+For claims with PAY disposition, the Payment Engine handles financial processing.
+
+Provider payments:
+  - Batched by provider TIN (Tax ID Number) per payment cycle
+  - Payment methods: EFT (preferred), check, virtual card
+  - ERA 835 remittance advice generated for each payment
+  - Minimum payment threshold: $5 — amounts below are held until the threshold is met
+
+Member reimbursements:
+  - For OON claims where the member paid upfront
+  - Processed within 10 business days
+  - Payment via check or direct deposit (if member set up ACH in the portal)
+
+EOB generation:
+  - Every processed claim generates an EOB for the member
+  - Available digitally in the Member Portal before physical mail delivery
+  - Shows: services rendered, amounts billed, amounts allowed, plan payment, member responsibility
+
+Void/reissue:
+  - When a payment was incorrect (e.g., claim was reprocessed and the amount changed)
+  - Original payment is voided, new payment is issued
+  - If the provider was overpaid, a recoupment is initiated
+  - Recoupments exceeding 50% of a payment are spread across multiple cycles
+
+
+8. POST-PAYMENT
+===============
+
+After payment, several things happen:
+
+Post-payment fraud analysis:
+  - Claims flagged during pre-payment screening (score 0.65–0.82) are analyzed
+  - Historical patterns across the provider's claims are reviewed
+  - If suspicious patterns are found, SIU is alerted
+
+Provider audit:
+  - Periodic audits of high-volume or high-cost providers
+  - Fraud Detection generates audit candidates based on outlier analysis
+
+Accumulator updates:
+  - The Eligibility Service updates member accumulators (deductible, OOP max) with finalized amounts
+  - Soft reservations from step 6 are replaced with firm accumulator entries
+
+Reporting:
+  - Claims data feeds into operational and financial reporting
+  - Key metrics: auto-adjudication rate, average processing time, denial rate, payment accuracy
+
+
+9. APPEALS
+==========
+
+Members or providers can appeal denied claims or underpaid claims.
+
+Level 1 — Internal appeal
+  - Submitted to Claims Operations
+  - Reviewed by a senior claims adjudicator
+  - Decision within 30 days (72 hours for urgent/pre-service appeals)
+
+Level 2 — External review
+  - If internal appeal is upheld, member can request external review
+  - Independent Review Organization (IRO) reviews the case
+  - IRO decision is binding
+
+Appeals are tracked in a separate workflow but reference the original claim_id.
+
+
+== EXCEPTION FLOWS ==
+
+Retroactive enrollment changes:
+  If Member Services processes a retroactive enrollment change (up to 60 days back), the Eligibility Service triggers automatic reprocessing of any claims from the affected date range. This can result in previously denied claims being approved, or previously approved claims being denied.
+
+Coordination of Benefits (COB):
+  When a member has dual coverage, we need to determine payer order. If Clearview is secondary, we don't adjudicate until we have the primary payer's EOB showing what they paid. The member responsibility from Clearview's adjudication is calculated as the remaining balance after the primary payer's payment.
+
+Provider network status changes:
+  If a provider's network status changes mid-claim, the rules engine evaluates network status as of the date of service, not the processing date. This protects both the member and the provider — the contract in effect when the service was rendered is what applies.
+
+
+== CONTACTS ==
+
+Questions about the workflow:
+  - Claims pipeline: Marcus Reeves (Claims Ops lead) or Priya Anand (engineering lead)
+  - Eligibility / enrollment: Dana Okafor (Member Services lead)
+  - Provider data issues: James Whitfield (Provider Network lead)
+  - Fraud model questions: Tariq Hassan (Fraud Detection team)
+
+Process diagram: https://lucidchart.com/clearview/claims-workflow-v2 (VPN required)

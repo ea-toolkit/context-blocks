@@ -1,0 +1,66 @@
+Design Session — COB Auto-Detection
+2025-08-28
+Attendees: Dana Okafor, Priya Anand, Nadia Volkov
+
+Kicked off by Dana. Background: Coordination of Benefits (COB) is when a member has coverage from two or more payers. We need to know who's primary vs secondary to adjudicate correctly. Currently we rely on members self-reporting their other coverage, which... doesn't work great.
+
+---
+
+Dana: the problem. COB data is stale for probably 30-40% of members who have other coverage. The questionnaire on the portal has a 40% completion rate. The annual verification letters get a 35% response rate. When we don't know about other coverage and we're actually secondary, we overpay. Compliance estimated $4-6M in annual overpayment due to incorrect payer order.
+
+Priya: so what's the proposal?
+
+Dana: COB auto-detection. We look at signals in the claims data itself to infer whether a member might have other coverage, and flag those members for verification.
+
+Signals Dana's team has identified:
+  1. Claim submission patterns — if we're getting claims for a member but the billed amounts are unusually low (provider might be billing the other payer first and sending us the remainder)
+  2. Service gaps — member has a pattern of regular claims that suddenly stops. Could mean they're now using the other payer.
+  3. Pharmacy cross-reference — if the member's pharmacy claims show a different insurance as primary (pharmacy benefits are often carved out)
+  4. Medicare eligibility turning 65 — if a member turns 65, they're likely on Medicare. We should automatically check.
+  5. Spouse employment changes — harder to detect, but large employers in our service area sometimes share enrollment data
+
+Priya: #1 and #4 seem most tractable. #2 is noisy. #3 would work if we could access pharmacy data, which is on the legacy system. #5 is a pipe dream.
+
+Dana: agreed. I want to start with #1 and #4.
+
+For signal #1 (low billed amounts):
+  - Nadia: we'd need to define "unusually low" per procedure code. The billed amount distribution varies a lot by procedure.
+  - Dana: right, we'd compare against the 25th percentile of billed amounts for that procedure code in our historical data. Below 25th percentile and the member doesn't have COB on file → flag for review.
+  - Priya: this would run as a batch analysis, right? Not real-time.
+  - Dana: yes, weekly batch. Generates a list of members to contact.
+
+For signal #4 (Medicare at 65):
+  - Dana: simpler. We have date_of_birth. When a member turns 65, we send a COB verification notice proactively.
+  - Nadia: we should also check CMS's Medicare Beneficiary identifier (MBI) lookup. We can query CMS to check if a member is enrolled in Medicare.
+  - Dana: good idea. Is that API access?
+  - Nadia: it's the HETS (Health care Eligibility Transaction System). We already use it for some things — I think the eligibility team does 270/271 transactions with them.
+  - Dana: check with the eligibility team on whether we have HETS access for COB lookups specifically.
+
+Architecture discussion:
+  - New COB detection service or module within Eligibility Service?
+  - Priya: I'd keep it within the Eligibility Service. It's fundamentally about member coverage data.
+  - Dana: OK but the batch analysis (signal #1) needs claims data from the Claims Gateway side.
+  - Priya: so the batch analysis pulls from both. Claims data (billed amounts, procedure codes) from the reporting database, member data from the Eligibility Service.
+  - Nadia: sounds like a reporting pipeline job more than a service feature.
+  - Good point. The detection logic runs in the batch pipeline, outputs a list of member IDs flagged for COB review, and the Eligibility Service picks up those flags for the verification workflow.
+
+The verification workflow itself:
+  1. Member flagged for COB review
+  2. Outreach: email + portal notification asking member to confirm other coverage
+  3. If member confirms: update COB record, trigger reprocessing of recent claims where we may have overpaid
+  4. If member doesn't respond within 30 days: send physical letter
+  5. If still no response: flag for manual review by Member Services rep
+
+Priya: the reprocessing in step 3 could be expensive. If we discover we were paying as primary but we're actually secondary, we'd need to recalculate every claim and potentially recoup from providers.
+
+Dana: yes, and we'd need to handle the timing carefully. We can't just claw back payments — there are regulatory limits on how far back we can recoup. Usually 12-18 months depending on the state.
+
+No decisions made — this is still in design. Pushed to Q1 2026 per the quarterly review.
+
+Action items:
+  [ ] Dana — draft the COB detection specification, focusing on signals #1 and #4
+  [ ] Nadia — check with eligibility team on HETS access for COB lookups
+  [ ] Priya — estimate effort for the batch analysis pipeline
+  [ ] Dana — get Compliance input on the member notification workflow and recoupment limits
+
+TBD: follow-up session once Dana has the spec

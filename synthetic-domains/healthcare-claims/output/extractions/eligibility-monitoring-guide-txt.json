@@ -1,0 +1,880 @@
+{
+  "source_document": "eligibility-monitoring-guide.txt",
+  "document_summary": "Operational monitoring guide for the Eligibility Service covering key metrics, open enrollment scaling, accumulator management, enrollment data feeds, coordination of benefits (COB) handling, and escalation contacts.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "eligibility-service-monitoring",
+      "name": "Eligibility Service Monitoring",
+      "description": "Daily operational monitoring process for Eligibility Service metrics and health indicators",
+      "overview": "Member Services engineers monitor key Eligibility Service metrics daily including query rates, accumulator updates, retroactive reprocessing triggers, and cache hit rates. Peak query rate should be ~2,500 req/sec during 10 AM - 3 PM ET business hours.",
+      "details": "Monitoring covers four key metrics via Datadog dashboard 'Eligibility Service — Production': Query rate (~2,500 req/sec peak, alert if <1,000 during peak indicating upstream Claims Gateway issues), accumulator update rate (should track adjudication volume, consumer lag if updates stop), retroactive reprocessing triggers (normal 5-15/day, investigate if >50), and point-in-time query cache hit rate (should be >85%, tune cache if drops). This is separate from Claims Ops broader pipeline monitoring.",
+      "status": "active",
+      "tags": [
+        "monitoring",
+        "operations",
+        "member-services"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Document states this is specifically for Member Services engineers"
+        },
+        {
+          "relationship_type": "monitors",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Process specifically monitors Eligibility Service operations"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Query rate drops indicate upstream Claims Gateway issues"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Uses Datadog dashboard for monitoring metrics"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear operational process with defined steps and responsibilities for monitoring"
+    },
+    {
+      "entity_type": "process",
+      "id": "open-enrollment-scaling",
+      "name": "Open Enrollment Scaling Process",
+      "description": "Preparation and scaling process for Eligibility Service during November-December open enrollment period",
+      "overview": "Open enrollment period (November through mid-December) requires significant scaling of Eligibility Service due to 10x enrollment update volume and 3-4x Member Portal traffic. Described as 'the Eligibility Service's Super Bowl'.",
+      "details": "Preparation includes: scaling up pods 2 weeks before (HPA min replicas 3→6), increasing database connection pool (100→200), pre-warming benefit plan config cache, coordinating Claims Ops throttling of batch processing, and relaxing alert thresholds. Changes include 10x enrollment updates, batch plan assignment processing, accumulator resets for plan changes, and 3-4x Member Portal traffic. Post-enrollment cleanup involves accumulator audit job, orphaned reservation checks, and restoring normal thresholds.",
+      "status": "active",
+      "tags": [
+        "scaling",
+        "open-enrollment",
+        "operations",
+        "seasonal"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Process scales the Eligibility Service specifically"
+        },
+        {
+          "relationship_type": "coordinates_with",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Requires coordination with Claims Ops for batch processing throttling"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal sees 3-4x traffic during open enrollment"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "accumulator-audit-job",
+          "target_entity_name": "Accumulator Audit Job",
+          "reasoning": "Post-enrollment cleanup runs accumulator audit job"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined seasonal process with specific preparation steps and metrics"
+    },
+    {
+      "entity_type": "process",
+      "id": "accumulator-audit-job",
+      "name": "Accumulator Audit Job",
+      "description": "Post-enrollment job that verifies accumulator resets were processed correctly for plan changes",
+      "overview": "Background job run after open enrollment to verify that all accumulator resets for members changing plans were processed correctly. Part of post-enrollment cleanup procedures.",
+      "details": "Runs as part of post-enrollment cleanup to audit accumulator state after the high-volume open enrollment period. Verifies that accumulator resets (new plan year = accumulators reset to zero) were correctly applied for all members who changed plans during open enrollment. Helps ensure data integrity after the complex enrollment transition period.",
+      "status": "active",
+      "tags": [
+        "audit",
+        "post-enrollment",
+        "accumulators"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "validates",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Job validates accumulator reset processing"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "open-enrollment-scaling",
+          "target_entity_name": "Open Enrollment Scaling Process",
+          "reasoning": "Part of post-enrollment cleanup procedures"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "This appears to be a background job based on context, though the document doesn't explicitly state the implementation details"
+      ],
+      "reasoning": "Referenced as a specific job with clear purpose, though implementation details are not provided"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "accumulator-types-logic",
+      "name": "Accumulator Types Logic",
+      "description": "Business rules defining four accumulator types for tracking member deductible and out-of-pocket progress",
+      "overview": "Defines four accumulator types that track deductible and out-of-pocket maximum progress per member per plan year. Each type has specific meaning for individual vs family coverage levels.",
+      "details": "Four accumulator types: IND_DEDUCTIBLE (individual deductible), FAM_DEDUCTIBLE (family deductible), IND_OOP_MAX (individual out-of-pocket maximum), FAM_OOP_MAX (family out-of-pocket maximum). These track member progress toward meeting their deductible and out-of-pocket maximum thresholds per plan year, enabling proper cost-sharing calculations during claim adjudication.",
+      "status": "active",
+      "tags": [
+        "accumulators",
+        "benefit-calculation",
+        "member-tracking"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Defines the types and structure of accumulator data"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules engine uses accumulator types for adjudication decisions"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business rule definitions with specific enumerated values and purposes"
+    },
+    {
+      "entity_type": "process",
+      "id": "accumulator-reconciliation-job",
+      "name": "Accumulator Reconciliation Job",
+      "description": "Monthly batch job that corrects accumulator drift by recalculating from adjudicated claims",
+      "overview": "Scheduled job that runs on the 1st of each month at 04:00 UTC to fix accumulator drift issues. Recalculates accumulator amounts from actual adjudicated claim payments and corrects any discrepancies.",
+      "details": "Addresses accumulator drift where accumulator amounts can drift from actual sum of claim payments due to concurrent processing. While soft reservation system prevents most drift, edge cases exist (e.g., claim voided after accumulator was updated). Job recalculates accumulators from the source of truth (adjudicated claims) and applies corrections. Scheduled monthly on 1st at 04:00 UTC.",
+      "status": "active",
+      "tags": [
+        "batch-job",
+        "reconciliation",
+        "accumulators",
+        "monthly"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "corrects",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Job corrects accumulator drift issues"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "claim",
+          "target_entity_name": "Claim",
+          "reasoning": "Recalculates from adjudicated claims as source of truth"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific scheduled job with clear timing and purpose described"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "accumulator-drift-event",
+      "name": "Accumulator Drift Event",
+      "description": "Data inconsistency event where accumulator amounts drift from actual claim payment totals",
+      "overview": "Occurs when accumulator amounts become inconsistent with the actual sum of claim payments due to concurrent processing edge cases. Most drift is prevented by soft reservation system, but some cases slip through.",
+      "details": "Accumulator drift happens due to concurrent processing where multiple claims might update accumulators simultaneously, or when claims are voided after accumulator updates have been applied. While the soft reservation system prevents most of this, edge cases exist. Detection typically comes from member complaints about incorrect charges. Resolution requires running the monthly accumulator reconciliation job or manual adjustment via admin API with Member Services lead approval.",
+      "status": "active",
+      "tags": [
+        "data-inconsistency",
+        "concurrency",
+        "accumulators"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Event causes accumulator data to become inconsistent"
+        },
+        {
+          "relationship_type": "resolved_by",
+          "target_entity_id": "accumulator-reconciliation-job",
+          "target_entity_name": "Accumulator Reconciliation Job",
+          "reasoning": "Monthly reconciliation job corrects drift"
+        },
+        {
+          "relationship_type": "prevented_by",
+          "target_entity_id": "soft-reservation-logic",
+          "target_entity_name": "Soft Reservation Logic",
+          "reasoning": "Soft reservation system prevents most drift cases"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-documented event with clear causes, impacts, and resolution mechanisms"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "double-applied-deductible-event",
+      "name": "Double Applied Deductible Event",
+      "description": "Error condition where two claims incorrectly both apply toward deductible independently",
+      "overview": "Occurs when soft reservation system fails and two claims processing concurrently both count toward the member's deductible, resulting in incorrect member cost calculations and member complaints.",
+      "details": "Happens when the soft reservation system fails, such as when the 6-hour cleanup job runs during active claim adjudication, allowing two claims to both apply toward the deductible independently instead of one reserving the amount while the other processes. Detection usually comes from member calls complaining about being charged too much. Investigation involves checking member accumulator history versus actual claim payments. Resolution requires manual adjustment via admin API with Member Services lead approval.",
+      "status": "active",
+      "tags": [
+        "error-condition",
+        "deductible",
+        "soft-reservations"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "caused_by",
+          "target_entity_id": "soft-reservation-logic",
+          "target_entity_name": "Soft Reservation Logic",
+          "reasoning": "Event occurs when soft reservation system fails"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Affects accumulator calculations for deductible tracking"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "member-escalation-process",
+          "target_entity_name": "Member Escalation Process",
+          "reasoning": "Members complain about incorrect charges, triggering escalations"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific error condition with clear cause and resolution described"
+    },
+    {
+      "entity_type": "process",
+      "id": "member-escalation-process",
+      "name": "Member Escalation Process",
+      "description": "Process for handling member complaints and escalations related to eligibility and accumulator issues",
+      "overview": "Process used when members complain about incorrect charges or benefit calculations. Often triggered by accumulator-related issues like double-applied deductibles or drift problems.",
+      "details": "Process activated when members call complaining about charges or benefit calculations that seem incorrect. Common triggers include accumulator drift (where member is charged more than expected due to data inconsistencies) and double-applied deductible scenarios. Investigation involves comparing member accumulator history against actual claim payments to identify discrepancies. Resolution may require manual adjustments via admin API with Member Services lead approval. Final escalation point is Member Services call center supervisor.",
+      "status": "active",
+      "tags": [
+        "member-service",
+        "escalation",
+        "complaints"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Process owned by Member Services team"
+        },
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "accumulator-drift-event",
+          "target_entity_name": "Accumulator Drift Event",
+          "reasoning": "Accumulator issues often trigger member complaints"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-services-call-center-supervisor",
+          "target_entity_name": "Member Services Call Center Supervisor",
+          "reasoning": "Call center supervisor handles final escalations"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "This appears to be a formal process based on the escalation contacts and approval requirements mentioned"
+      ],
+      "reasoning": "Implied process from the escalation procedures and approval requirements described"
+    },
+    {
+      "entity_type": "persona",
+      "id": "member-services-call-center-supervisor",
+      "name": "Member Services Call Center Supervisor",
+      "description": "Supervisor role handling final escalations for member complaints and eligibility issues",
+      "overview": "Supervisory role within the Member Services call center responsible for handling escalated member complaints, particularly those related to eligibility and accumulator calculation issues.",
+      "details": "Final escalation point for member escalations related to eligibility service issues. Handles complex member complaints that cannot be resolved by front-line call center staff, particularly those involving accumulator calculation disputes, benefit determination issues, and cases requiring manual intervention or adjustments.",
+      "status": "active",
+      "tags": [
+        "supervisor",
+        "member-service",
+        "escalation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Works within Member Services organization"
+        },
+        {
+          "relationship_type": "handles",
+          "target_entity_id": "member-escalation-process",
+          "target_entity_name": "Member Escalation Process",
+          "reasoning": "Final escalation point for member issues"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Specific role mentioned in contacts section for member escalations"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "accumulator-reset-logic",
+      "name": "Accumulator Reset Logic",
+      "description": "Business rules for resetting accumulators to zero at plan year boundaries",
+      "overview": "Defines when and how accumulators reset to zero - typically January 1st for standard plan years, or the plan's effective date for off-cycle plans. Includes logic for maintaining dual-year accumulators during transitions.",
+      "details": "Accumulators reset to zero on January 1 (or the plan's effective date for off-cycle plans) handled by batch job. Critical transition logic: claims processed in late December might hit accumulators that reset on Jan 1, but adjudication uses date_of_service not processing_date. December service processed in January correctly applies to December accumulator, requiring accumulators to exist for both years during transition period to handle timing edge cases.",
+      "status": "active",
+      "tags": [
+        "plan-year",
+        "accumulators",
+        "reset",
+        "transition"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Defines reset behavior for accumulator data"
+        },
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "plan-year-boundary-event",
+          "target_entity_name": "Plan Year Boundary Event",
+          "reasoning": "Reset logic triggers at plan year boundaries"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear business logic with specific timing rules and edge case handling"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "plan-year-boundary-event",
+      "name": "Plan Year Boundary Event",
+      "description": "Annual event marking transition from one plan year to the next, triggering accumulator resets",
+      "overview": "Occurs at plan year boundaries (typically January 1st, or plan effective date for off-cycle plans) when member benefit accumulators must reset to zero for the new plan year.",
+      "details": "Annual boundary event typically on January 1st, though off-cycle plans have different effective dates. Triggers accumulator reset batch job and creates complex timing scenarios where claims with December date_of_service but processed in January need access to both old and new year accumulators. Requires careful handling to ensure proper accumulator application during transition period.",
+      "status": "active",
+      "tags": [
+        "plan-year",
+        "annual",
+        "transition"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "accumulator-reset-logic",
+          "target_entity_name": "Accumulator Reset Logic",
+          "reasoning": "Event triggers accumulator reset business logic"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "Event causes accumulator values to reset"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined annual event with clear triggers and impacts described"
+    },
+    {
+      "entity_type": "process",
+      "id": "edi-834-batch-processing",
+      "name": "EDI 834 Batch Processing",
+      "description": "Nightly batch process for processing group enrollment updates from benefits administration system",
+      "overview": "Nightly automated process that picks up EDI 834 enrollment files from SFTP at ~02:00 UTC, validates and applies enrollment changes, with automatic reprocessing of affected claims for retroactive changes.",
+      "details": "Primary enrollment source from benefits administration system (managed by HR/Benefits team). Process flow: EDI 834 file lands on SFTP at ~02:00 UTC nightly, batch job picks up, validates, and applies enrollment changes. If change is retroactive (effective date in past), triggers automatic reprocessing of affected claims. Processing typically completes by 04:00 UTC. File size variations indicate potential issues - 10x normal size might be bulk correction, unexpectedly small might indicate upstream system problems.",
+      "status": "active",
+      "tags": [
+        "batch-processing",
+        "enrollment",
+        "nightly",
+        "edi"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "processes",
+          "target_entity_id": "edi-834",
+          "target_entity_name": "EDI 834",
+          "reasoning": "Process handles EDI 834 enrollment transactions"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Part of Member Services enrollment management responsibilities"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "retroactive-reprocessing",
+          "target_entity_name": "Retroactive Reprocessing",
+          "reasoning": "Triggers claim reprocessing for retroactive enrollment changes"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "benefits-administration-system",
+          "target_entity_name": "Benefits Administration System",
+          "reasoning": "Receives enrollment files from benefits administration system"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-documented batch process with specific timing and behavior described"
+    },
+    {
+      "entity_type": "system",
+      "id": "benefits-administration-system",
+      "name": "Benefits Administration System",
+      "description": "External HR/Benefits system that provides primary enrollment data to Clearview",
+      "overview": "Primary source of enrollment data managed by HR/Benefits team (not engineering). Provides enrollment updates through real-time API, nightly EDI 834 files, and open enrollment batch loads.",
+      "details": "External system owned by HR/Benefits team that serves as the authoritative source for member enrollment information. Provides three types of enrollment feeds: real-time API for individual enrollment changes, nightly batch EDI 834 files for group enrollment updates delivered via SFTP at ~02:00 UTC, and large batch loads during open enrollment periods (November-December). System is outside engineering control but critical dependency for Eligibility Service operations.",
+      "status": "active",
+      "tags": [
+        "external",
+        "enrollment",
+        "hr-benefits"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "provides_data_to",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Primary source of enrollment data for eligibility service"
+        },
+        {
+          "relationship_type": "exposes",
+          "target_entity_id": "enrollment-api",
+          "target_entity_name": "Enrollment API",
+          "reasoning": "Provides real-time enrollment API"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "edi-834",
+          "target_entity_name": "EDI 834",
+          "reasoning": "Generates nightly EDI 834 enrollment files"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "benefits-administration-team",
+          "target_entity_name": "Benefits Administration Team",
+          "reasoning": "Managed by HR/Benefits team, not engineering"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "External system clearly identified with specific integration patterns described"
+    },
+    {
+      "entity_type": "api",
+      "id": "enrollment-api",
+      "name": "Enrollment API",
+      "description": "Real-time API interface for individual enrollment changes from benefits administration system",
+      "overview": "Real-time API provided by the benefits administration system for processing individual member enrollment changes as they occur, separate from the nightly batch EDI 834 processing.",
+      "details": "One of three enrollment data feeds from the benefits administration system, handling individual enrollment changes in real-time rather than batch. Complements the nightly EDI 834 batch processing for group changes and open enrollment batch loads. Enables immediate enrollment updates for individual member changes without waiting for nightly batch processing.",
+      "status": "active",
+      "tags": [
+        "real-time",
+        "enrollment",
+        "individual-changes"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "benefits-administration-system",
+          "target_entity_name": "Benefits Administration System",
+          "reasoning": "API is provided by the benefits administration system"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility service consumes enrollment updates from this API"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "API mentioned as one of three enrollment feed mechanisms"
+    },
+    {
+      "entity_type": "team",
+      "id": "benefits-administration-team",
+      "name": "Benefits Administration Team",
+      "description": "HR/Benefits team responsible for managing enrollment data systems outside of engineering",
+      "overview": "Non-engineering team that manages the benefits administration system and enrollment data processing. Separate organizational unit from the engineering teams but critical dependency for eligibility operations.",
+      "details": "HR/Benefits team responsible for managing the benefits administration system that provides enrollment data to Clearview engineering systems. Contact point for enrollment data issues that originate from the upstream benefits administration system. Operates independently from engineering teams but provides critical dependency for Member Services and Eligibility Service operations.",
+      "status": "active",
+      "tags": [
+        "hr",
+        "benefits",
+        "non-engineering"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owns",
+          "target_entity_id": "benefits-administration-system",
+          "target_entity_name": "Benefits Administration System",
+          "reasoning": "Team manages the benefits administration system"
+        },
+        {
+          "relationship_type": "coordinates_with",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Coordinate on enrollment data issues"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Team clearly identified as owner of external enrollment system with distinct responsibilities"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "cob-payer-order-rules",
+      "name": "COB Payer Order Rules",
+      "description": "Business rules determining primary vs secondary payer order using birthday rule, active/retired rule, etc.",
+      "overview": "Standard coordination of benefits rules that determine which payer is primary versus secondary when a member has coverage from multiple health plans. Uses industry-standard birthday rule and active/retired status rules.",
+      "details": "Determines payer order (primary vs. secondary) using standard COB rules including birthday rule (older parent's plan is primary for dependent children) and active/retired rule (active employee's plan primary over retiree's plan). When Clearview is primary, claims adjudicate normally. When secondary, requires primary payer's EOB before adjudication, calculating remaining member balance up to Clearview's allowed amount.",
+      "status": "active",
+      "tags": [
+        "coordination-of-benefits",
+        "payer-order",
+        "birthday-rule"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "cob-data-model",
+          "target_entity_name": "COB Data Model",
+          "reasoning": "Rules determine payer_order field values in COB data"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules engine uses payer order for adjudication decisions"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Standard industry rules clearly described with specific examples"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "cob-data-model",
+      "name": "COB Data Model",
+      "description": "Data structure storing coordination of benefits information within member records",
+      "overview": "Data model embedded within member records that tracks coordination of benefits information including other coverage details, payer order, and effective dates for members with multiple health plan coverage.",
+      "details": "Stored within member record with fields: other_coverage (boolean flag), other_payer_id and other_payer_name (identifying secondary payer), payer_order (PRIMARY, SECONDARY, TERTIARY enumeration), other_payer_effective_date and other_payer_termination_date (coverage period tracking). Data often stale as members don't promptly report changes in other coverage, leading to overpayment risk when wrong COB data causes paying as primary when actually secondary.",
+      "status": "active",
+      "tags": [
+        "coordination-of-benefits",
+        "member-data",
+        "payer-tracking"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "member",
+          "target_entity_name": "Member",
+          "reasoning": "COB data is stored within member records"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "cob-payer-order-rules",
+          "target_entity_name": "COB Payer Order Rules",
+          "reasoning": "Payer order field values determined by COB rules"
+        },
+        {
+          "relationship_type": "updated_by",
+          "target_entity_id": "cob-questionnaire",
+          "target_entity_name": "COB Questionnaire",
+          "reasoning": "Questionnaire updates COB data in member records"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear data structure with specific fields and relationships described"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-questionnaire",
+      "name": "COB Questionnaire",
+      "description": "Member Portal questionnaire for collecting coordination of benefits information with ~40% completion rate",
+      "overview": "Online questionnaire on the Member Portal designed to collect coordination of benefits information from members about other health coverage. Has low completion rate of approximately 40%.",
+      "details": "Member-facing questionnaire available through the Member Portal to collect COB information about other health coverage. Critical for maintaining accurate payer order and preventing overpayments, but suffers from low member engagement with only ~40% completion rate. Many members ignore the questionnaire, leading to stale COB data and increased overpayment risk when Clearview pays as primary while actually being secondary payer.",
+      "status": "active",
+      "tags": [
+        "member-portal",
+        "questionnaire",
+        "coordination-of-benefits",
+        "low-engagement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosted_on",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Questionnaire is available through Member Portal"
+        },
+        {
+          "relationship_type": "updates",
+          "target_entity_id": "cob-data-model",
+          "target_entity_name": "COB Data Model",
+          "reasoning": "Questionnaire responses update COB data in member records"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Part of Member Portal owned by Member Services"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific questionnaire with completion metrics provided"
+    },
+    {
+      "entity_type": "process",
+      "id": "annual-cob-verification-letters",
+      "name": "Annual COB Verification Letters",
+      "description": "Annual mailed letters to verify coordination of benefits information for members with other coverage",
+      "overview": "Annual verification process where letters are mailed to all members with other_coverage = true to verify their coordination of benefits information. Has low response rate of approximately 35%.",
+      "details": "Proactive outreach process to maintain COB data accuracy by mailing verification letters annually to all members flagged as having other coverage (other_coverage = true). Intended to identify changes in other coverage that members haven't reported. Low response rate of ~35% indicates limited effectiveness, contributing to ongoing COB data staleness issues and overpayment risks.",
+      "status": "active",
+      "tags": [
+        "verification",
+        "coordination-of-benefits",
+        "annual",
+        "low-response"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "validates",
+          "target_entity_id": "cob-data-model",
+          "target_entity_name": "COB Data Model",
+          "reasoning": "Process verifies accuracy of COB data in member records"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Likely owned by Member Services as part of member outreach"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [
+        "Ownership by Member Services is assumed based on member outreach nature, but not explicitly stated"
+      ],
+      "reasoning": "Annual process with specific response rate metrics provided"
+    },
+    {
+      "entity_type": "process",
+      "id": "cob-auto-detection-project",
+      "name": "COB Auto-Detection Project",
+      "description": "Future system design project for automatically detecting coordination of benefits situations",
+      "overview": "Upcoming project to automatically detect COB situations rather than relying on member self-reporting through questionnaires and verification letters. Currently in design phase.",
+      "details": "Design project aimed at improving COB data accuracy by automatically detecting when members have other coverage, reducing reliance on low-response member questionnaires (~40% completion) and verification letters (~35% response). Still in design phase with documentation referenced as 'COB handling design session notes'. Intended to address ongoing COB data staleness and overpayment risks.",
+      "status": "active",
+      "tags": [
+        "future",
+        "design",
+        "automation",
+        "coordination-of-benefits"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "improves",
+          "target_entity_id": "cob-data-model",
+          "target_entity_name": "COB Data Model",
+          "reasoning": "Project aims to improve COB data accuracy through automation"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "cob-questionnaire",
+          "target_entity_name": "COB Questionnaire",
+          "reasoning": "Auto-detection would reduce reliance on manual questionnaires"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Project status and specific implementation details are unclear as it's referenced as still being in design phase"
+      ],
+      "reasoning": "Referenced as future project with design documentation, but current status unclear"
+    },
+    {
+      "entity_type": "team",
+      "id": "compliance-team",
+      "name": "Compliance Team",
+      "description": "Team responsible for COB policy questions and regulatory compliance matters",
+      "overview": "Specialized team that handles coordination of benefits policy questions and broader regulatory compliance issues for Clearview Health Plans operations.",
+      "details": "Subject matter experts for COB policy interpretation and regulatory compliance. Contact point for complex COB policy questions that arise during eligibility operations or member escalations. Separate from engineering teams but provides critical policy guidance for proper COB handling and compliance with healthcare regulations.",
+      "status": "active",
+      "tags": [
+        "compliance",
+        "policy",
+        "regulatory"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "advises_on",
+          "target_entity_id": "cob-payer-order-rules",
+          "target_entity_name": "COB Payer Order Rules",
+          "reasoning": "Provides policy guidance for COB rule implementation"
+        },
+        {
+          "relationship_type": "supports",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Provides policy support for COB-related member issues"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Team mentioned in contacts for COB policy questions"
+    },
+    {
+      "entity_type": "api",
+      "id": "admin-api",
+      "name": "Admin API",
+      "description": "Administrative API interface for manual adjustments requiring Member Services lead approval",
+      "overview": "Administrative API used for manual adjustments to member accounts and accumulator corrections. Requires Member Services lead approval for sensitive operations like accumulator adjustments.",
+      "details": "API interface used for administrative functions including manual accumulator adjustments when double-applied deductible or drift issues are detected. Operations require Member Services lead approval before execution, indicating elevated privilege level and audit requirements. Used to resolve complex member account issues that cannot be handled through normal automated processes.",
+      "status": "active",
+      "tags": [
+        "administrative",
+        "manual-adjustments",
+        "approval-required"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_for",
+          "target_entity_id": "member-escalation-process",
+          "target_entity_name": "Member Escalation Process",
+          "reasoning": "API used to resolve escalated member issues requiring manual adjustment"
+        },
+        {
+          "relationship_type": "modifies",
+          "target_entity_id": "accumulator",
+          "target_entity_name": "Accumulator",
+          "reasoning": "API can perform manual accumulator adjustments"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Requires Member Services lead approval for operations"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "API mentioned for manual adjustments with specific approval requirements"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "bulk-enrollment-correction-event",
+      "name": "Bulk Enrollment Correction Event",
+      "description": "Large-scale enrollment data correction resulting in high volume retroactive reprocessing triggers",
+      "overview": "Occurs when enrollment team processes large-scale corrections to enrollment data, resulting in significantly higher than normal retroactive reprocessing triggers (>50 vs normal 5-15 per day).",
+      "details": "Event characterized by EDI 834 files that are 10x normal size, indicating bulk enrollment corrections from the enrollment team. Results in >50 retroactive reprocessing triggers per day (vs normal 5-15), requiring investigation to confirm whether spike is expected bulk correction or potential system bug. These corrections are typically legitimate enrollment data fixes but create operational monitoring alerts due to volume.",
+      "status": "active",
+      "tags": [
+        "bulk-processing",
+        "enrollment-correction",
+        "high-volume"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "retroactive-reprocessing",
+          "target_entity_name": "Retroactive Reprocessing",
+          "reasoning": "Bulk corrections trigger many retroactive claim reprocessing jobs"
+        },
+        {
+          "relationship_type": "processed_by",
+          "target_entity_id": "edi-834-batch-processing",
+          "target_entity_name": "EDI 834 Batch Processing",
+          "reasoning": "Bulk corrections come through EDI 834 processing"
+        },
+        {
+          "relationship_type": "originated_by",
+          "target_entity_id": "benefits-administration-team",
+          "target_entity_name": "Benefits Administration Team",
+          "reasoning": "Enrollment team generates bulk corrections"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific event pattern with clear volume thresholds and investigation triggers"
+    }
+  ],
+  "questions": [
+    "What specific failure modes cause the soft reservation system to fail, leading to double-applied deductible scenarios?",
+    "How does the 6-hour cleanup job for soft reservations work, and why does it sometimes conflict with active adjudication?",
+    "What is the 'admin API' specifically - is this part of the Eligibility Service or a separate administrative system?",
+    "What are the current COB auto-detection design approach and timeline - is this a 2026 initiative?",
+    "How does the point-in-time query cache work, and what causes cache hit rate to drop below 85%?",
+    "What monitoring exists for the Benefits Administration Team's system availability and file delivery reliability?",
+    "How does accumulator reconciliation handle cases where claims have been voided or adjusted after the monthly reconciliation cutoff?",
+    "What approval workflow exists for the Member Services lead approval required for admin API operations?",
+    "How does the system handle accumulator transitions for members who change plans mid-year vs at plan year boundaries?",
+    "What are the 'COB handling design session notes' and where can they be accessed for understanding the auto-detection project?"
+  ],
+  "new_jargon": [
+    "Birthday rule",
+    "Active/retired rule",
+    "Point-in-time query cache",
+    "Other coverage flag",
+    "COB questionnaire"
+  ],
+  "decision_log": [
+    {
+      "subject": "Accumulator Types Logic",
+      "decision": "Classified as domain-logic rather than reference-data",
+      "reasoning": "These are business rules that define the calculation logic for accumulator tracking, not just code tables or enumerations"
+    },
+    {
+      "subject": "Member Services Call Center Supervisor",
+      "decision": "Created as new persona entity",
+      "reasoning": "Specific role mentioned in contacts section that wasn't in existing entities, represents distinct user type in the domain"
+    },
+    {
+      "subject": "Benefits Administration System",
+      "decision": "Created as new system entity rather than external-party",
+      "reasoning": "This is described as a software system that provides APIs and generates files, not just an organizational entity"
+    },
+    {
+      "subject": "COB Data Model",
+      "decision": "Created as separate data-model entity rather than extending Member",
+      "reasoning": "Has distinct structure with specific fields and behavior that warrants separate documentation, even though stored within member records"
+    },
+    {
+      "subject": "Open Enrollment Scaling",
+      "decision": "Classified as process rather than business-event",
+      "reasoning": "This is an operational procedure with defined preparation steps, not a singular event occurrence"
+    },
+    {
+      "subject": "Various job references",
+      "decision": "Created separate process entities for each named job",
+      "reasoning": "Each job has distinct purpose and scheduling - accumulator reconciliation, accumulator audit, 6-hour cleanup are different processes"
+    },
+    {
+      "subject": "Admin API",
+      "decision": "Created as api entity despite limited details",
+      "reasoning": "Specifically mentioned as interface for manual adjustments with approval requirements, represents distinct API endpoint"
+    }
+  ]
+}

@@ -1,0 +1,1395 @@
+{
+  "source_document": "architecture-overview.txt",
+  "document_summary": "Comprehensive architecture overview of Clearview Health Plans' claims processing platform, detailing eight primary systems, their interactions, data flows, tech stacks, and infrastructure. Written by Claims Operations engineering lead in November 2025.",
+  "entities": [
+    {
+      "entity_type": "api",
+      "id": "claims-submission-api",
+      "name": "Claims Submission API",
+      "description": "REST API exposed by Claims Gateway for claim submission and status retrieval",
+      "overview": "The Claims Submission API is the primary interface for submitting claims to the Claims Gateway. It accepts both single claims and batch submissions in EDI or JSON formats, and provides endpoints for checking claim status and retrieving EOBs.",
+      "details": "Endpoints include: POST /claims for single claim submission (EDI or JSON), POST /claims/batch for batch submissions (EDI 837 files), GET /claims/{id} for status and details, and GET /claims/{id}/eob for EOB retrieval. The API operates with a 30-second SLA for real-time EDI 837 Professional submissions and 4-hour batch processing windows for EDI 837 Institutional claims. JSON submissions are primarily used by the Member Portal for out-of-network claim submissions.",
+      "status": "active",
+      "tags": [
+        "rest-api",
+        "claims-processing",
+        "external-interface"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Document states the gateway exposes the Claims Submission API"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Used by Member Portal for OON claim submissions via JSON"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined API with specific endpoints and behaviors described in detail"
+    },
+    {
+      "entity_type": "api",
+      "id": "eligibility-check-api",
+      "name": "Eligibility Check API",
+      "description": "REST API exposed by Eligibility Service for member eligibility verification and accumulator queries",
+      "overview": "The Eligibility Check API provides real-time and point-in-time eligibility verification for members. It supports current eligibility lookups, historical as-of-date queries, benefit accumulator tracking, and batch EDI 270 processing.",
+      "details": "Endpoints include: GET /eligibility/{memberId} for current eligibility, GET /eligibility/{memberId}/asof/{date} for point-in-time lookups (critical for adjudication), GET /eligibility/{memberId}/accumulators for benefit balances, and POST /eligibility/batch for batch EDI 270 verification. The API handles soft reservations for accumulators to prevent over-application during concurrent claim processing.",
+      "status": "active",
+      "tags": [
+        "rest-api",
+        "eligibility",
+        "member-services"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Document states Eligibility Service exposes this API"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules engine queries eligibility and accumulators during adjudication"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Gateway routes claims to Eligibility Service for coverage verification"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined API with specific endpoints and integration patterns described"
+    },
+    {
+      "entity_type": "api",
+      "id": "payment-api",
+      "name": "Payment API",
+      "description": "REST API exposed by Payment Engine for payment history, remittance advice, and payment holds",
+      "overview": "The Payment API provides access to provider and member payment history, ERA 835 remittance advice generation, and fraud-related payment hold management. It serves both internal systems and external integrations for payment processing workflows.",
+      "details": "Endpoints include: GET /payments/provider/{tin} for provider payment history, GET /payments/member/{memberId} for member reimbursement history, GET /payments/{id}/remittance for ERA 835 remittance advice, POST /payments/hold for payment holds (used by fraud detection), and DELETE /payments/hold/{id} to release payment holds. The API supports the payment engine's business rules including minimum payment thresholds and recoupment spreading.",
+      "status": "active",
+      "tags": [
+        "rest-api",
+        "payments",
+        "claims-operations"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Document states Payment Engine exposes this API"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection uses payment hold endpoints to stop suspicious payments"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined API with specific endpoints and clear business context"
+    },
+    {
+      "entity_type": "platform",
+      "id": "gke-prod-claims-01",
+      "name": "GKE Production Cluster (prod-claims-01)",
+      "description": "Google Kubernetes Engine cluster hosting production claims processing workloads",
+      "overview": "The prod-claims-01 cluster is the primary production environment for all claims processing systems at Clearview Health Plans. It runs on Google Kubernetes Engine in the us-central1 region and hosts all eight core systems in the claims platform.",
+      "details": "Deployed in us-central1 region on Google Cloud Platform. Hosts Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, Pre-Auth Service, Eligibility Service, Member Portal, and Provider Directory. Paired with a separate nonprod-claims-01 cluster for development, staging, and QA environments. Uses Cloud SQL PostgreSQL 15 with HA failover for data persistence, Confluent Cloud Kafka for messaging, and HashiCorp Vault for secrets management.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "production",
+        "google-cloud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosted_by",
+          "target_entity_id": "clearview-health-plans",
+          "target_entity_name": "Clearview Health Plans",
+          "reasoning": "This is Clearview's production platform infrastructure"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway deployed on this GKE cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine runs on this cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine deployed on this cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection runs on this cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service deployed on this cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service runs on same cluster as gateway"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal deployed on this cluster"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory runs on this cluster"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as the production Kubernetes platform hosting all systems"
+    },
+    {
+      "entity_type": "platform",
+      "id": "gke-nonprod-claims-01",
+      "name": "GKE Non-Production Cluster (nonprod-claims-01)",
+      "description": "Google Kubernetes Engine cluster hosting development, staging, and QA environments",
+      "overview": "The nonprod-claims-01 cluster provides development, staging, and QA environments for the claims processing platform. It mirrors the production cluster architecture but serves pre-production workloads and testing.",
+      "details": "Deployed on Google Kubernetes Engine in the same us-central1 region as production. Hosts dev, staging, and QA instances of all claims processing systems. Provides isolated environments for development and testing before production deployment. Uses the same CI/CD pipeline (GitHub Actions → Artifact Registry → GKE) as production.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "non-production",
+        "testing",
+        "google-cloud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosted_by",
+          "target_entity_id": "clearview-health-plans",
+          "target_entity_name": "Clearview Health Plans",
+          "reasoning": "This is Clearview's non-production platform infrastructure"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Mentioned as the non-production counterpart to the production cluster"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "cloud-sql-postgresql",
+      "name": "Cloud SQL PostgreSQL",
+      "description": "Managed PostgreSQL 15 database service with high availability failover for claims data storage",
+      "overview": "Cloud SQL provides the primary data persistence layer for the claims processing platform. Running PostgreSQL 15 with high availability failover, it stores claim tracking data, member eligibility information, payment records, and other critical business data.",
+      "details": "Uses PostgreSQL version 15 with HA (high availability) failover configuration. Serves as the primary database for Claims Gateway claim tracking, Eligibility Service member data, Payment Engine financial records, and other systems. The HA setup ensures continuity during database failures. All systems in the platform depend on this managed database service for data persistence.",
+      "status": "active",
+      "tags": [
+        "database",
+        "postgresql",
+        "managed-service",
+        "high-availability"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway uses PostgreSQL for claim tracking"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service uses PostgreSQL for member data"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine uses PostgreSQL plus separate ledger DB"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection uses PostgreSQL for case management"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory uses PostgreSQL for provider data"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described as the primary database infrastructure used across multiple systems"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "confluent-cloud-kafka",
+      "name": "Confluent Cloud Kafka",
+      "description": "Managed Apache Kafka service for asynchronous message processing and system integration",
+      "overview": "Confluent Cloud provides the message broker infrastructure for asynchronous processing in the claims platform. It handles routing between systems, batch processing workflows, and decouples system interactions for improved reliability and scalability.",
+      "details": "Managed Kafka service from Confluent used for async processing throughout the platform. Claims Gateway uses Kafka for routing to batch processors, Payment Engine consumes adjudicated claims via Kafka, and other systems likely use it for event-driven communication. This messaging infrastructure enables the platform to handle high volumes of claims while maintaining system independence and resilience.",
+      "status": "active",
+      "tags": [
+        "message-broker",
+        "kafka",
+        "async-processing",
+        "managed-service"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway uses Kafka for async routing to batch processors"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine is a Kafka consumer for adjudicated claims"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the message broker, with specific usage patterns described"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "hashicorp-vault",
+      "name": "HashiCorp Vault",
+      "description": "Secrets management system for storing and accessing sensitive configuration data",
+      "overview": "HashiCorp Vault provides centralized secrets management for the claims processing platform. It securely stores API keys, database credentials, encryption keys, and other sensitive configuration data needed by the various systems.",
+      "details": "Serves as the centralized secrets management solution for all systems in the claims platform. Stores database connection strings, API keys, encryption keys, and other sensitive configuration data. All eight primary systems likely integrate with Vault to retrieve secrets at runtime, following security best practices for credential management in a cloud-native environment.",
+      "status": "active",
+      "tags": [
+        "secrets-management",
+        "security",
+        "vault"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "All systems in the platform use Vault for secrets management"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine needs secure access to credentials"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine requires secure credential management"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Listed as the secrets management infrastructure, though specific integration details not provided"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "datadog",
+      "name": "Datadog",
+      "description": "Monitoring and alerting platform for metrics, performance monitoring, and system observability",
+      "overview": "Datadog provides comprehensive monitoring and alerting for the claims processing platform. It collects metrics, tracks performance, and generates alerts for operational issues across all systems in the platform.",
+      "details": "Used for metrics collection and alerting across the entire claims platform infrastructure. Monitors the health and performance of all eight primary systems, the GKE clusters, databases, and other infrastructure components. Provides dashboards for operational visibility and alert management for the Claims Operations, Member Services, and Provider Network teams.",
+      "status": "active",
+      "tags": [
+        "monitoring",
+        "alerting",
+        "observability"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team uses Datadog for monitoring their systems"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Member Services team uses Datadog for system monitoring"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "Provider Network team uses Datadog for monitoring"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as the monitoring solution for the platform"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "splunk",
+      "name": "Splunk",
+      "description": "Log aggregation and analysis platform for centralized logging across the claims processing systems",
+      "overview": "Splunk provides centralized log aggregation and analysis for the claims processing platform. It collects logs from all systems and infrastructure components, enabling troubleshooting, audit trails, and operational analysis.",
+      "details": "Serves as the centralized logging platform for all claims processing systems. Aggregates logs from the GKE clusters, applications, databases, and other infrastructure components. Enables the engineering teams to troubleshoot issues, perform root cause analysis, and maintain audit trails for compliance. Works alongside Datadog to provide comprehensive observability for the platform.",
+      "status": "active",
+      "tags": [
+        "logging",
+        "log-aggregation",
+        "troubleshooting"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team uses Splunk for log analysis and troubleshooting"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the log aggregation solution"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "elasticsearch",
+      "name": "Elasticsearch",
+      "description": "Search engine powering provider search functionality in the Member Portal",
+      "overview": "Elasticsearch provides the search capabilities for the Provider Directory, enabling members to search for healthcare providers through the Member Portal. It indexes provider data to support fast, flexible provider searches with filtering by network status and other criteria.",
+      "details": "Used specifically for provider search functionality exposed via the Member Portal. Indexes provider data from the Provider Directory including demographics, specialties, locations, and network participation status. Enables members to quickly find in-network providers based on various search criteria such as location, specialty, and network status. The search results are filtered by network status per the member's specific plan.",
+      "status": "active",
+      "tags": [
+        "search-engine",
+        "provider-search",
+        "indexing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory uses ElasticSearch for search functionality"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal exposes provider search powered by ElasticSearch"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specifically mentioned as the search technology for provider search in the Provider Directory"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "vertex-ai",
+      "name": "Vertex AI",
+      "description": "Google Cloud machine learning platform used for fraud detection model training",
+      "overview": "Vertex AI provides the machine learning infrastructure for training the fraud detection models used in the claims processing platform. It handles the monthly retraining pipeline for the ML models that score claims for fraud, waste, and abuse detection.",
+      "details": "Google Cloud's managed ML platform used specifically for the fraud detection training pipeline. Handles monthly retraining of the scikit-learn and XGBoost models used for pre-payment claim scoring and post-payment pattern analysis. The models target a false positive rate below 8% and are retrained monthly to adapt to new fraud patterns. The trained models are then served via the FastAPI service in the Fraud Detection system.",
+      "status": "active",
+      "tags": [
+        "machine-learning",
+        "model-training",
+        "fraud-detection",
+        "google-cloud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection uses Vertex AI for model training pipeline"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as the ML training platform for fraud detection models"
+    },
+    {
+      "entity_type": "process",
+      "id": "duplicate-detection-process",
+      "name": "Duplicate Detection Process",
+      "description": "Process for identifying and preventing duplicate claim submissions using composite key matching",
+      "overview": "The duplicate detection process runs in the Claims Gateway to prevent the same claim from being processed multiple times. It uses a composite key to identify potential duplicates before claims enter the adjudication pipeline.",
+      "details": "Implemented in the Claims Gateway using a composite key consisting of: member ID + provider NPI + date of service + procedure codes. When a claim is submitted, this composite key is generated and checked against previously processed claims. If a match is found, the claim is flagged as a potential duplicate and handled according to business rules. This prevents duplicate payments and ensures claims are only adjudicated once. The process runs at claim intake before routing to downstream systems.",
+      "status": "active",
+      "tags": [
+        "claims-processing",
+        "duplicate-prevention",
+        "validation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway runs duplicate detection during claim validation"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "member-id",
+          "target_entity_name": "Member ID",
+          "reasoning": "Member ID is part of the composite key used for duplicate detection"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "npi",
+          "target_entity_name": "NPI",
+          "reasoning": "Provider NPI is part of the composite key"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined process with specific composite key components described"
+    },
+    {
+      "entity_type": "process",
+      "id": "claim-routing-process",
+      "name": "Claim Routing Process",
+      "description": "Process that routes validated claims to appropriate downstream systems based on business rules",
+      "overview": "The claim routing process in the Claims Gateway determines where validated claims should be sent next based on various business criteria. It implements a multi-step routing logic that considers eligibility, authorization requirements, and fraud scores.",
+      "details": "The routing logic follows this sequence: 1) All claims → Eligibility Service for coverage verification, 2) Claims for auth-required services → Pre-Auth Service for authorization status check, 3) Claims scoring >0.82 on the fraud model → held for SIU review, 4) Everything else → Rules Engine for adjudication. This ensures claims are properly validated and authorized before entering the expensive adjudication process, and high-risk claims are intercepted early.",
+      "status": "active",
+      "tags": [
+        "claims-processing",
+        "routing",
+        "business-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway executes the routing process"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "All claims are routed to Eligibility Service first"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Auth-required services are routed to Pre-Auth Service"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "High-scoring claims are routed for fraud review"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Most claims are ultimately routed to Rules Engine for adjudication"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Detailed routing logic with specific steps and criteria clearly described"
+    },
+    {
+      "entity_type": "process",
+      "id": "retroactive-reprocessing",
+      "name": "Retroactive Reprocessing",
+      "description": "Automated process that re-adjudicates claims when member enrollment changes are backdated",
+      "overview": "The retroactive reprocessing process automatically triggers when member enrollment changes occur within the past 60 days. It identifies and re-adjudicates any claims that were processed during the affected time period to ensure accurate payment based on the updated enrollment information.",
+      "details": "Triggered automatically by retroactive enrollment changes up to 60 days back. The Eligibility Service detects when member coverage is backdated and identifies all claims processed during the affected window. These claims are then sent through the adjudication pipeline again to ensure they are processed correctly based on the member's actual coverage at the time of service. This catches situations where a member's coverage was added, changed, or cancelled with a retroactive effective date, ensuring claims are paid correctly.",
+      "status": "active",
+      "tags": [
+        "claims-processing",
+        "retroactive",
+        "enrollment-changes"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "enrollment-change-event",
+          "target_entity_name": "Enrollment Change Event",
+          "reasoning": "Retroactive enrollment changes trigger this process"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service detects retroactive changes and triggers reprocessing"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear process description with specific triggers and business logic"
+    },
+    {
+      "entity_type": "process",
+      "id": "payment-cycle-processing",
+      "name": "Payment Cycle Processing",
+      "description": "Nightly batch job process that generates provider payments and member reimbursements",
+      "overview": "The payment cycle processing runs as nightly batch jobs to convert adjudicated claims into actual financial transactions. It handles provider payments, member reimbursements, and remittance advice generation according to business rules and payment schedules.",
+      "details": "Runs nightly as batch jobs to process payments from adjudicated claims. Generates provider payments batched per TIN (Tax Identification Number) per payment cycle via EFT, check, or virtual card. Processes member reimbursements for out-of-network claims within 10 business days. Applies business rules including $5 minimum payment threshold (amounts below are held until threshold is met) and spreads recoupments exceeding 50% of a payment across multiple cycles. Also generates ERA 835 electronic remittance advice and EOB documents.",
+      "status": "active",
+      "tags": [
+        "payments",
+        "batch-processing",
+        "nightly-jobs"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine runs the nightly batch jobs for payment processing"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "era-835",
+          "target_entity_name": "ERA 835",
+          "reasoning": "Process generates ERA 835 remittance advice"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "eob",
+          "target_entity_name": "EOB",
+          "reasoning": "Process generates EOB documents for members"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined batch process with specific timing, rules, and outputs"
+    },
+    {
+      "entity_type": "process",
+      "id": "recredentialing-process",
+      "name": "Provider Re-credentialing Process",
+      "description": "Required process to verify provider credentials every 3 years per NCQA standards",
+      "overview": "The re-credentialing process ensures healthcare providers maintain current and valid credentials in the Provider Directory. It runs on a 3-year cycle as required by NCQA (National Committee for Quality Assurance) standards and is managed by the Provider Network team.",
+      "details": "Required every 3 years per NCQA standards to maintain provider credentials in the Provider Directory. The Provider Network team manages this process, which involves verifying provider demographics, credentials, board certifications, practice locations, and service areas. Ensures that only properly credentialed providers remain in-network and that their information in the Provider Directory remains current and accurate. Failure to complete re-credentialing may result in network termination.",
+      "status": "active",
+      "tags": [
+        "provider-management",
+        "credentialing",
+        "ncqa-compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "Provider Network team manages the re-credentialing process"
+        },
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Re-credentialing maintains data quality in the Provider Directory"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Process mentioned with regulatory requirements and ownership, though details are limited"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "claim-submitted-event",
+      "name": "Claim Submitted Event",
+      "description": "Event triggered when a provider submits a claim through any intake channel",
+      "overview": "The claim submitted event is generated when healthcare providers submit claims through EDI 837, JSON API, or paper/OCR channels. This event initiates the claims processing workflow and carries the claim data through the validation and routing pipeline.",
+      "details": "Triggered when providers submit claims via EDI 837 Professional/Institutional, JSON REST API, or paper claims through OCR. The event carries the complete claim data including member information, provider details, service dates, procedure codes, and billed amounts. This event initiates the Claims Gateway processing pipeline including format validation, duplicate detection, and downstream routing to eligibility verification, fraud scoring, and adjudication systems.",
+      "status": "active",
+      "tags": [
+        "claims-processing",
+        "intake",
+        "provider-initiated"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway receives and processes claim submissions"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "duplicate-detection-process",
+          "target_entity_name": "Duplicate Detection Process",
+          "reasoning": "Claim submission triggers duplicate detection"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "claim-routing-process",
+          "target_entity_name": "Claim Routing Process",
+          "reasoning": "Valid claim submission triggers routing to downstream systems"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear event that initiates the claims processing pipeline"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "claim-adjudicated-event",
+      "name": "Claim Adjudicated Event",
+      "description": "Event emitted when Rules Engine completes adjudication with PAY, DENY, or PEND disposition",
+      "overview": "The claim adjudicated event is emitted by the Rules Engine when it completes the adjudication process and determines a claim disposition. This event carries the adjudication result and triggers downstream payment or denial processing.",
+      "details": "Generated by the Rules Engine after evaluating a claim against benefit plan terms, provider contracts, medical policies, and authorization status. The event payload includes the claim disposition (PAY, DENY, or PEND), calculated allowed amount, member cost-sharing amounts, and any applicable reason codes. PAY dispositions trigger the Payment Engine, DENY dispositions trigger EOB generation with denial reasons, and PEND dispositions route claims to manual review queues.",
+      "status": "active",
+      "tags": [
+        "adjudication",
+        "rules-engine",
+        "claim-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine publishes adjudication results"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine consumes adjudicated claims for PAY dispositions"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Member Portal updates claim status from adjudication results"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear event that connects adjudication to downstream processing"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "enrollment-change-event",
+      "name": "Enrollment Change Event",
+      "description": "Event triggered when member enrollment data is modified, potentially with retroactive effective dates",
+      "overview": "The enrollment change event is generated when member enrollment information is updated in the Eligibility Service. This includes new enrollments, terminations, and benefit plan changes, which may have retroactive effective dates requiring claim reprocessing.",
+      "details": "Published by the Eligibility Service when member enrollment data is modified. The event includes the member ID, previous and new enrollment details, effective dates, and whether the change is retroactive. Retroactive changes within 60 days automatically trigger the retroactive reprocessing workflow to re-adjudicate any claims processed during the affected time period. This ensures claims are paid correctly based on the member's actual coverage at the time of service.",
+      "status": "active",
+      "tags": [
+        "eligibility",
+        "enrollment",
+        "retroactive"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service publishes enrollment change events"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "retroactive-reprocessing",
+          "target_entity_name": "Retroactive Reprocessing",
+          "reasoning": "Retroactive enrollment changes trigger claim reprocessing"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Implied event that drives retroactive reprocessing described in the document"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "fraud-alert-event",
+      "name": "Fraud Alert Event",
+      "description": "Event generated when fraud detection identifies suspicious patterns requiring SIU investigation",
+      "overview": "The fraud alert event is generated by the Fraud Detection system when claims score above fraud thresholds or when post-payment analysis identifies suspicious patterns. These events route high-risk cases to the Special Investigation Unit (SIU) for manual review.",
+      "details": "Generated by Fraud Detection in two scenarios: pre-payment when claims score >0.82 (automatic hold for SIU review) or post-payment when historical pattern analysis detects aberrant billing, upcoding, unbundling, or phantom billing. The event includes the fraud score, specific patterns detected, affected claims, and recommended investigation actions. Claims scoring 0.65-0.82 proceed to adjudication but are tagged for post-payment review. Target false positive rate is below 8%.",
+      "status": "active",
+      "tags": [
+        "fraud-detection",
+        "siu",
+        "investigation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection system generates fraud alerts"
+        },
+        {
+          "relationship_type": "consumes",
+          "target_entity_id": "payment-api",
+          "target_entity_name": "Payment API",
+          "reasoning": "Fraud alerts may trigger payment holds via the Payment API"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Implied event that drives fraud investigation workflows described in the system"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "allowed-amount-calculation",
+      "name": "Allowed Amount Calculation",
+      "description": "Business rule that calculates the maximum payable amount based on provider contract fee schedules",
+      "overview": "The allowed amount calculation determines the maximum amount the plan will pay for a service based on the provider's contract fee schedule. This is a critical rule because member cost-sharing is calculated against the allowed amount, not the billed amount.",
+      "details": "Executed during adjudication to determine payment amounts. The allowed amount comes from the provider's contract fee schedule stored in the Provider Directory, not from what the provider billed. This is a common source of confusion for new engineers - providers often bill higher amounts than contracted rates. Member cost-sharing (deductible, copay, coinsurance) is always calculated against the allowed amount. For out-of-network providers, different fee schedule rules apply. The calculation considers the provider's network status as of the claim's date of service, not the processing date.",
+      "status": "active",
+      "tags": [
+        "adjudication",
+        "fee-schedule",
+        "payment-calculation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine executes allowed amount calculations during adjudication"
+        },
+        {
+          "relationship_type": "derives_from",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Fee schedules stored in Provider Directory parameterize this calculation"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Core business rule with specific implementation details described"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "soft-reservation-logic",
+      "name": "Soft Reservation Logic",
+      "description": "Business rule preventing over-application of benefit accumulators during concurrent claim processing",
+      "overview": "The soft reservation logic ensures that benefit accumulators (like deductibles) aren't over-applied when multiple claims are being processed simultaneously for the same member. This prevents two concurrent claims from both counting the same dollars toward the deductible.",
+      "details": "Implemented in the Eligibility Service to handle concurrent claim processing scenarios. When a claim is being adjudicated, the system places a soft reservation on the accumulator amounts being applied (e.g., $500 toward deductible). This prevents another simultaneous claim from applying those same dollars. The reservation is released when adjudication completes. Without this logic, race conditions could cause incorrect accumulator calculations, leading to wrong member cost-sharing amounts.",
+      "status": "active",
+      "tags": [
+        "concurrency",
+        "accumulators",
+        "eligibility"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service implements soft reservation logic for accumulators"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific business rule with clear purpose and implementation context"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "payment-threshold-rules",
+      "name": "Payment Threshold Rules",
+      "description": "Business rules governing minimum payment amounts and recoupment spreading for provider payments",
+      "overview": "Payment threshold rules control when and how provider payments are made. They include minimum payment thresholds to reduce transaction costs and recoupment spreading rules to maintain provider cash flow when recovering overpayments.",
+      "details": "Implemented in the Payment Engine with two key rules: 1) Minimum payment threshold of $5 - amounts below this are held until the threshold is met across multiple claims, reducing transaction costs for small payments. 2) Recoupments exceeding 50% of a payment are spread across multiple payment cycles to avoid severe cash flow impact on providers. These rules balance operational efficiency with provider relationship management. Payment batching is done per TIN (Tax Identification Number) per payment cycle.",
+      "status": "active",
+      "tags": [
+        "payments",
+        "thresholds",
+        "recoupment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine implements these threshold and spreading rules"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific business rules with exact thresholds and clear business rationale"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "fraud-scoring-algorithm",
+      "name": "Fraud Scoring Algorithm",
+      "description": "ML-based algorithm that scores claims for fraud, waste, and abuse risk using multiple models",
+      "overview": "The fraud scoring algorithm uses machine learning models to evaluate claims for potential fraud, waste, and abuse. It operates in two modes: pre-payment scoring at intake and post-payment pattern analysis for investigation.",
+      "details": "Implemented using scikit-learn and XGBoost models trained monthly on Vertex AI. Pre-payment mode scores individual claims at intake - scores >0.82 trigger automatic holds for SIU review, scores 0.65-0.82 proceed with tagging for post-payment review, scores <0.65 process normally. Post-payment mode analyzes historical patterns across adjudicated claims to detect aberrant billing, upcoding, unbundling, and phantom billing. Target false positive rate is below 8%. Models are retrained monthly to adapt to new fraud patterns.",
+      "status": "active",
+      "tags": [
+        "fraud-detection",
+        "machine-learning",
+        "scoring"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection system executes the scoring algorithm"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Detailed algorithm with specific thresholds, models, and business logic"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "authorization-validity-rules",
+      "name": "Authorization Validity Rules",
+      "description": "Business rules defining how long prior authorizations remain valid for different service types",
+      "overview": "Authorization validity rules establish time limits for how long prior authorization approvals remain valid. Different service types have different validity periods to balance member access with clinical appropriateness.",
+      "details": "Standard authorizations are valid for 90 days from approval date, while surgical authorizations have a shorter 60-day validity period due to the time-sensitive nature of surgical procedures. These rules are enforced during adjudication - if a claim references a service that required authorization but the authorization has expired, the claim is denied. Auth-required service lists are updated quarterly per benefit plan. The system checks authorization status during both gateway intake and rules engine adjudication.",
+      "status": "active",
+      "tags": [
+        "prior-authorization",
+        "validity-periods",
+        "clinical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service manages authorization validity periods"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine checks authorization validity during adjudication"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Specific business rules with defined time periods and enforcement points"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "edi-837-professional",
+      "name": "EDI 837 Professional",
+      "description": "Electronic data interchange format for professional healthcare claims (CMS-1500 equivalent)",
+      "overview": "EDI 837 Professional is the standard electronic format for submitting professional healthcare claims. It's the electronic equivalent of the CMS-1500 paper form and is processed in real-time by the Claims Gateway with a 30-second SLA.",
+      "details": "Standard EDI transaction format used for professional healthcare services claims. Contains member demographics, provider information, service dates, diagnosis codes, procedure codes, and billed amounts. Processed in real-time by the Claims Gateway with a 30-second SLA for faster provider cash flow. The Claims Gateway validates format and required fields before routing to downstream adjudication systems. This format is used for most outpatient professional services like physician visits, lab work, and outpatient procedures.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "professional-claims",
+        "real-time"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway accepts and validates EDI 837 Professional format"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "Claims Submission API accepts EDI 837 Professional claims"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Standard industry data format with specific processing characteristics described"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "edi-837-institutional",
+      "name": "EDI 837 Institutional",
+      "description": "Electronic data interchange format for institutional healthcare claims (UB-04 equivalent)",
+      "overview": "EDI 837 Institutional is the standard electronic format for submitting institutional healthcare claims such as hospital stays and facility services. It's the electronic equivalent of the UB-04 paper form and is processed in batch mode with 4-hour windows.",
+      "details": "Standard EDI transaction format used for institutional healthcare services like hospital inpatient stays, emergency room visits, and other facility-based care. Contains detailed service information, room and board charges, pharmacy charges, and other institutional billing elements. Processed in batch mode with 4-hour processing windows due to the typically larger size and complexity of these claims compared to professional claims. The Claims Gateway handles format validation and routing to adjudication systems.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "institutional-claims",
+        "batch-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway accepts and processes EDI 837 Institutional format"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "claims-submission-api",
+          "target_entity_name": "Claims Submission API",
+          "reasoning": "Claims Submission API accepts EDI 837 Institutional claims via batch endpoint"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Standard industry data format with specific batch processing characteristics"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "era-835",
+      "name": "ERA 835",
+      "description": "Electronic remittance advice format providing payment details to healthcare providers",
+      "overview": "ERA 835 is the standard electronic format for communicating payment information to healthcare providers. It provides detailed remittance advice showing what was paid, denied, or adjusted for each claim, replacing paper explanation of payment documents.",
+      "details": "Standard EDI transaction format generated by the Payment Engine to inform providers about claim payments and adjustments. Contains payment amounts, denial reasons, adjustment codes, and detailed claim-level information. Provides electronic remittance advice that providers can automatically import into their practice management systems. Generated as part of the payment cycle processing and made available through the Payment API. This electronic format improves provider reconciliation and reduces manual payment posting.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "remittance-advice",
+        "provider-communication"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "produced_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine generates ERA 835 remittance advice"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "payment-api",
+          "target_entity_name": "Payment API",
+          "reasoning": "Payment API exposes ERA 835 remittance advice via endpoint"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Standard output format clearly described as part of payment processing"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "edi-270-271",
+      "name": "EDI 270/271",
+      "description": "Electronic data interchange format for eligibility inquiry requests and responses",
+      "overview": "EDI 270/271 represents the inquiry/response transaction pair for real-time eligibility verification. Providers send 270 inquiries to verify member coverage, and the system responds with 271 transactions containing eligibility details.",
+      "details": "Standard EDI transaction pair for real-time eligibility verification. EDI 270 is the eligibility inquiry request sent by providers to verify member coverage, benefits, and accumulators. EDI 271 is the response containing eligibility status, benefit details, accumulator balances, and coverage information. The Eligibility Service handles both sides of this transaction, processing 270 requests and generating 271 responses. Also supports batch processing for bulk eligibility verification.",
+      "status": "active",
+      "tags": [
+        "edi",
+        "eligibility",
+        "real-time"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service handles EDI 270/271 transactions"
+        },
+        {
+          "relationship_type": "contracts",
+          "target_entity_id": "eligibility-check-api",
+          "target_entity_name": "Eligibility Check API",
+          "reasoning": "Eligibility Check API supports batch EDI 270 processing"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Standard EDI transaction pair with specific usage in eligibility verification"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "auth-required-service-lists",
+      "name": "Auth-Required Service Lists",
+      "description": "Lists of medical services that require prior authorization, maintained per benefit plan",
+      "overview": "Auth-required service lists define which medical services require prior authorization approval before they can be covered. These lists are maintained per benefit plan and updated quarterly to reflect changing clinical policies and cost management strategies.",
+      "details": "Maintained per benefit plan since different plans may have different authorization requirements based on their design and cost management approach. Updated quarterly to reflect changes in clinical guidelines, cost management strategies, and regulatory requirements. Used by both the Claims Gateway during intake (to route claims for auth-required services to Pre-Auth Service) and the Rules Engine during adjudication (to deny claims lacking required authorization). The lists typically include high-cost procedures, specialty services, and services with high potential for overutilization.",
+      "status": "active",
+      "tags": [
+        "prior-authorization",
+        "benefit-plans",
+        "quarterly-updates"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway checks auth-required lists during routing"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine checks auth-required lists during adjudication"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations likely maintains these clinical policy lists"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Reference data with clear usage patterns, though ownership not explicitly stated"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "tin",
+      "name": "TIN",
+      "description": "Tax Identification Number used for provider payment batching and tax reporting",
+      "overview": "TIN (Tax Identification Number) is used to identify providers for payment and tax reporting purposes. Provider payments are batched per TIN per payment cycle, which means all claims for providers sharing the same TIN are grouped together for payment processing.",
+      "details": "Used in the Payment Engine for batching provider payments - all claims for providers sharing the same TIN are grouped together in a single payment per payment cycle. This batching approach reduces transaction costs and simplifies reconciliation for providers who may have multiple practice locations or NPIs under the same tax entity. The TIN is also used for generating 1099 tax forms and other tax reporting requirements.",
+      "status": "active",
+      "tags": [
+        "payments",
+        "provider-identification",
+        "tax-reporting"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "payment-cycle-processing",
+          "target_entity_name": "Payment Cycle Processing",
+          "reasoning": "TIN is used for batching payments in the payment cycle process"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Business term with specific usage in payment processing clearly described"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "siu",
+      "name": "SIU",
+      "description": "Special Investigation Unit responsible for investigating potential fraud, waste, and abuse cases",
+      "overview": "SIU (Special Investigation Unit) is the team responsible for investigating claims flagged for potential fraud, waste, and abuse. They manually review high-scoring claims and investigate suspicious patterns identified by the fraud detection system.",
+      "details": "The specialized investigation team that handles fraud detection alerts. Claims scoring >0.82 on the fraud model are automatically held for SIU review rather than proceeding to adjudication. The SIU also investigates post-payment analysis alerts that identify suspicious patterns like aberrant billing, upcoding, unbundling, or phantom billing. They conduct manual investigations, coordinate with providers, and determine whether suspected fraud cases should be referred to law enforcement or regulatory authorities.",
+      "status": "active",
+      "tags": [
+        "fraud-investigation",
+        "manual-review",
+        "compliance"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "SIU investigates cases flagged by fraud detection system"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Business term with clear role in fraud investigation workflow"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "oon",
+      "name": "OON",
+      "description": "Out-of-Network, referring to providers not contracted with the health plan",
+      "overview": "OON (Out-of-Network) refers to healthcare providers who do not have contracts with Clearview Health Plans. Members typically have higher cost-sharing for OON services, and OON claims often require member reimbursement rather than direct provider payment.",
+      "details": "Providers who are not contracted with Clearview Health Plans and therefore not in the plan's provider network. Members using OON providers typically face higher deductibles, coinsurance, or copays. OON claims are often processed as member reimbursements rather than direct provider payments since there's no contractual relationship with the provider. The Member Portal includes OON claim submission functionality, and the payment engine processes OON reimbursements within 10 business days.",
+      "status": "active",
+      "tags": [
+        "provider-network",
+        "member-reimbursement",
+        "higher-cost-sharing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "contrasts_with",
+          "target_entity_id": "in-network",
+          "target_entity_name": "In-Network",
+          "reasoning": "OON is the opposite of in-network provider status"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "In-network entity not explicitly defined in this document"
+      ],
+      "reasoning": "Business term with clear meaning and specific processing implications"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "member-id",
+      "name": "Member ID",
+      "description": "Unique identifier for health plan members used across all systems for member identification",
+      "overview": "Member ID is the unique identifier used to identify health plan members across all systems in the claims processing platform. It's a key component in duplicate detection, eligibility verification, and claim processing workflows.",
+      "details": "The primary key used to identify Clearview Health Plans members across all systems. Used as part of the composite key for duplicate detection (member ID + provider NPI + date of service + procedure codes). Essential for eligibility lookups, accumulator tracking, claim adjudication, and member portal access. Ensures that all member-related data and transactions can be properly attributed and tracked across the platform.",
+      "status": "active",
+      "tags": [
+        "member-identification",
+        "primary-key",
+        "cross-system"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "duplicate-detection-process",
+          "target_entity_name": "Duplicate Detection Process",
+          "reasoning": "Member ID is part of the composite key for duplicate detection"
+        },
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "eligibility-check-api",
+          "target_entity_name": "Eligibility Check API",
+          "reasoning": "Member ID is used in eligibility API endpoints"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Fundamental business identifier with clear usage patterns across multiple systems"
+    },
+    {
+      "entity_type": "jargon-tech",
+      "id": "healthlogic-adjudicator",
+      "name": "HealthLogic Adjudicator",
+      "description": "Vendor rules engine product currently running version 4.2, being replaced per ADR-2024-007",
+      "overview": "HealthLogic Adjudicator 4.2 is the vendor product currently serving as the Rules Engine for claims adjudication. It's a third-party solution that executes business rules maintained by the Claims Operations team, though it's in the process of being replaced.",
+      "details": "Third-party vendor product from HealthLogic serving as the current Rules Engine implementation. Running version 4.2 in production. The vendor provides the execution platform while Clearview's Claims Operations team maintains the actual business rules for adjudication. Currently being replaced as documented in ADR-2024-007 (referenced in the document but not detailed). Evaluates claims against benefit plan terms, provider contracts, medical policies, and authorization requirements to produce PAY/DENY/PEND dispositions.",
+      "status": "deprecated",
+      "tags": [
+        "vendor-product",
+        "rules-engine",
+        "being-replaced"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "HealthLogic Adjudicator is the current implementation of the Rules Engine"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations maintains the rules in the HealthLogic platform"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Specific vendor product with version and replacement context clearly described"
+    },
+    {
+      "entity_type": "decision",
+      "id": "adr-2024-007",
+      "name": "ADR-2024-007",
+      "description": "Architecture decision record documenting the rationale for replacing HealthLogic Adjudicator",
+      "overview": "ADR-2024-007 is an architecture decision record that documents the context and rationale for replacing the current HealthLogic Adjudicator 4.2 rules engine. While referenced in the document, the specific details of this decision are not provided.",
+      "details": "Referenced as the documentation for the decision to replace the current HealthLogic Adjudicator 4.2 rules engine. The document mentions this ADR provides context on the migration from the vendor product to presumably an internal or different vendor solution. The specific rationale, alternatives considered, and implementation approach are not detailed in this architecture overview document but would be found in the actual ADR.",
+      "status": "active",
+      "tags": [
+        "architecture-decision",
+        "rules-engine-migration",
+        "vendor-replacement"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "ADR-2024-007 documents the decision to replace the current rules engine"
+        },
+        {
+          "relationship_type": "made_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations likely made this architecture decision about their core system"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Claims Operations likely made this decision, though document doesn't explicitly state the decision maker"
+      ],
+      "reasoning": "Referenced decision with clear context but limited details provided in this document"
+    },
+    {
+      "entity_type": "persona",
+      "id": "marcus-reeves",
+      "name": "Marcus Reeves",
+      "description": "Claims Operations team lead responsible for claims processing systems",
+      "overview": "Marcus Reeves is the team lead for Claims Operations, the team responsible for the core claims processing pipeline including Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, and Pre-Auth Service.",
+      "details": "Named as the Claims Operations team lead in the document. His team owns five of the eight primary systems in the claims platform: Claims Gateway, Rules Engine (currently HealthLogic Adjudicator), Payment Engine, Fraud Detection, and Pre-Auth Service. Also mentioned in the page history as having updated the payment engine API endpoints section in August 2025, indicating hands-on involvement in system documentation and architecture.",
+      "status": "active",
+      "tags": [
+        "team-lead",
+        "claims-operations",
+        "system-owner"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Marcus Reeves is the team lead for Claims Operations"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as team lead with specific responsibilities and historical contributions"
+    },
+    {
+      "entity_type": "persona",
+      "id": "priya-anand",
+      "name": "Priya Anand",
+      "description": "Claims Operations Engineering Lead and document author",
+      "overview": "Priya Anand is the Claims Operations Engineering Lead who authored this architecture overview document. She appears to have deep technical knowledge of the claims platform and is actively involved in maintaining system documentation.",
+      "details": "Identified as Claims Operations Engineering Lead and the most recent author of this architecture overview document (last updated 2025-11-14). Also shown in page history as having created the initial version in March 2025 and updated fraud detection sections. Her role suggests she has comprehensive technical knowledge of the claims processing platform architecture and is responsible for engineering aspects of the Claims Operations systems.",
+      "status": "active",
+      "tags": [
+        "engineering-lead",
+        "document-author",
+        "technical-expert"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Priya Anand is identified as Claims Operations Engineering Lead"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as engineering lead and primary document maintainer"
+    },
+    {
+      "entity_type": "persona",
+      "id": "dana-okafor",
+      "name": "Dana Okafor",
+      "description": "Member Services team lead responsible for eligibility and member portal systems",
+      "overview": "Dana Okafor is the team lead for Member Services, the team responsible for member-facing systems including the Eligibility Service and Member Portal. Her team focuses on member experience and data management.",
+      "details": "Named as the Member Services team lead responsible for two key systems: Eligibility Service (which handles member enrollment, EDI 270/271 transactions, and accumulator tracking) and Member Portal (the consumer-facing application for members to view claims, benefits, and submit OON claims). Her team's focus is on member experience and the foundational eligibility data that drives the entire claims processing pipeline.",
+      "status": "active",
+      "tags": [
+        "team-lead",
+        "member-services",
+        "member-experience"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "member-services",
+          "target_entity_name": "Member Services",
+          "reasoning": "Dana Okafor is the team lead for Member Services"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as team lead with specific system responsibilities"
+    },
+    {
+      "entity_type": "persona",
+      "id": "james-whitfield",
+      "name": "James Whitfield",
+      "description": "Provider Network team lead responsible for provider directory and credentialing",
+      "overview": "James Whitfield is the team lead for Provider Network, the team responsible for the Provider Directory system and provider credentialing processes. His team manages provider data quality and network relationships.",
+      "details": "Named as the Provider Network team lead responsible for the Provider Directory system, which contains provider demographics, credentials, specialties, network status, and fee schedules. His team also manages the provider re-credentialing process required every 3 years per NCQA standards. The Provider Directory is critical for network status determination and fee schedule lookups during claims adjudication.",
+      "status": "active",
+      "tags": [
+        "team-lead",
+        "provider-network",
+        "credentialing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "provider-network",
+          "target_entity_name": "Provider Network",
+          "reasoning": "James Whitfield is the team lead for Provider Network"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as team lead with specific responsibilities for provider management"
+    }
+  ],
+  "questions": [
+    "What is the specific content and rationale documented in ADR-2024-007 regarding the Rules Engine replacement?",
+    "Who maintains and updates the auth-required service lists that are updated quarterly?",
+    "What is the specific process for credentialing workflows mentioned in the seed context - is this part of the re-credentialing process or separate?",
+    "What are the deployment procedures referenced in the separate deployment runbook?",
+    "What specific fraud patterns does the post-payment analysis detect beyond the general categories mentioned?",
+    "How are the soft reservations implemented technically in the Eligibility Service?",
+    "What is the OCR pipeline mentioned for paper claims processing?"
+  ],
+  "new_jargon": [
+    "TIN",
+    "SIU",
+    "OON",
+    "ERA 835",
+    "EDI 270/271",
+    "HealthLogic Adjudicator",
+    "Soft reservations",
+    "Recoupment",
+    "Auth-required services"
+  ],
+  "decision_log": [
+    {
+      "subject": "Claims Gateway as system vs software-component",
+      "decision": "classified as system",
+      "reasoning": "Claims Gateway implements domain-specific business logic for claims validation, routing, and processing - it's not just infrastructure but a business logic system"
+    },
+    {
+      "subject": "Claims Submission API as separate entity from Claims Gateway",
+      "decision": "created separate api entity",
+      "reasoning": "The API has specific endpoints, SLAs, and contracts that are distinct from the system implementation - it's the interface that other systems and external parties interact with"
+    },
+    {
+      "subject": "HealthLogic Adjudicator classification",
+      "decision": "classified as jargon-tech rather than software-component",
+      "reasoning": "It's a vendor product name that's being replaced - more of a technical term specific to this domain's current implementation than a permanent software component"
+    },
+    {
+      "subject": "Team leads as persona entities",
+      "decision": "created persona entities for named team leads",
+      "reasoning": "They are named individuals with specific roles and responsibilities in the domain - they represent user roles that interact with and own systems"
+    },
+    {
+      "subject": "Fraud scoring as domain-logic vs process",
+      "decision": "classified as domain-logic",
+      "reasoning": "It's an algorithmic rule that executes at runtime to make business decisions - fits the domain-logic definition better than process"
+    },
+    {
+      "subject": "Platform entities for GKE clusters",
+      "decision": "created separate platform entities for prod and nonprod clusters",
+      "reasoning": "They are distinct hosting environments with different purposes - production vs development/staging/QA - each deserves its own entity"
+    },
+    {
+      "subject": "EDI formats as data-model vs jargon",
+      "decision": "classified as data-model",
+      "reasoning": "These are structured data formats with specific schemas and processing characteristics - they define the shape of data exchanged in the domain"
+    },
+    {
+      "subject": "Combining multiple event flows vs separate entities",
+      "decision": "created separate business-event entities for each distinct event flow",
+      "reasoning": "Following the instruction to never consolidate distinct named things - each event (claim submitted, claim adjudicated, enrollment change, fraud alert) has its own purpose and data payload"
+    }
+  ]
+}

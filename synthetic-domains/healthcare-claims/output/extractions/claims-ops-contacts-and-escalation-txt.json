@@ -1,0 +1,377 @@
+{
+  "source_document": "claims-ops-contacts-and-escalation.txt",
+  "document_summary": "Claims Operations team contact directory with team roster, escalation procedures, vendor contacts, and communication channels",
+  "entities": [
+    {
+      "entity_type": "persona",
+      "id": "kenji-watanabe",
+      "name": "Kenji Watanabe",
+      "description": "Senior Engineer joining Claims Operations team for Rules Engine migration",
+      "overview": "Senior Engineer starting November 1st, 2025, joining Claims Operations team from Meridian Health Systems. Specifically brought in for the Rules Engine migration project.",
+      "details": "Kenji Watanabe is a Senior Engineer scheduled to join the Claims Operations team on November 1st, 2025. He is coming from Meridian Health Systems and has been specifically hired to work on the Rules Engine migration project. His phone number is still to be determined (TBD). His Slack handle is @kenji.watanabe and email is kenji.watanabe@clearviewhealth.com. He represents new talent being brought in to address the known issues with HealthLogic Rules Engine replacement.",
+      "status": "active",
+      "tags": [
+        "incoming",
+        "rules-engine-migration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "belongs_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Listed as part of Claims Operations team roster"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined individual with specific role and joining date"
+    },
+    {
+      "entity_type": "persona",
+      "id": "rachel-dominguez",
+      "name": "Rachel Dominguez",
+      "description": "Contractor from Apex Consulting serving as Rules Engine migration SME",
+      "overview": "Contractor from Apex Consulting working on Claims Operations team as a Rules Engine migration Subject Matter Expert. Contract ends October 2025 and is not part of on-call rotation.",
+      "details": "Rachel Dominguez is a contractor from Apex Consulting working with the Claims Operations team. Her contract is set to end in October 2025. She serves as a Subject Matter Expert (SME) for the Rules Engine migration project. She is explicitly noted as NOT being on-call, which is typical for contractor arrangements. Her Slack handle is @rachel.dominguez and email is rachel.dominguez@apexconsulting.com. The timing of her contract end (October 2025) and Kenji's start date (November 1st, 2025) suggests a planned knowledge transfer.",
+      "status": "active",
+      "tags": [
+        "contractor",
+        "rules-engine-migration",
+        "temporary"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "works_with",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Listed as working with Claims Operations team on Rules Engine migration"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined contractor role with specific project focus and contract end date"
+    },
+    {
+      "entity_type": "persona",
+      "id": "dr-sarah-lin",
+      "name": "Dr. Sarah Lin",
+      "description": "Clinical Review Lead responsible for pre-authorization clinical decisions and medical policy",
+      "overview": "Dr. Sarah Lin leads the Clinical team and is responsible for pre-authorization clinical decisions and medical policy. She is part of the escalation contact directory for clinical matters.",
+      "details": "Dr. Sarah Lin serves as the Clinical Review Lead and is a key contact for clinical matters in the claims processing ecosystem. Her responsibilities include making pre-authorization clinical decisions and overseeing medical policy. Her contact information is dr.sarah.lin (Slack), sarah.lin@clearviewhealth.com (email), and (555) 901-2601 (phone). She represents the clinical expertise needed for complex authorization and claims decisions that require medical judgment.",
+      "status": "active",
+      "tags": [
+        "clinical",
+        "pre-authorization"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "works_with",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Responsible for pre-authorization clinical decisions"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined clinical role with specific responsibilities"
+    },
+    {
+      "entity_type": "persona",
+      "id": "mei-lin-torres",
+      "name": "Mei-Lin Torres",
+      "description": "UX Lead responsible for Member Portal redesign and provider portal design",
+      "overview": "Mei-Lin Torres is the UX Lead working on Member Portal redesign and provider portal design initiatives. She is part of the Product team.",
+      "details": "Mei-Lin Torres serves as the UX Lead and is part of the Product team. Her responsibilities include the Member Portal redesign and provider portal design. Her Slack handle is @meitorres and email is meitorres@clearviewhealth.com. She is not listed as being on-call, which is typical for UX/design roles. Her involvement suggests active user experience improvement initiatives for both member-facing and provider-facing portals.",
+      "status": "active",
+      "tags": [
+        "ux",
+        "member-portal",
+        "provider-portal"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "works_with",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Responsible for Member Portal redesign"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined UX role with specific portal responsibilities"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "apex-consulting",
+      "name": "Apex Consulting",
+      "description": "Consulting firm providing contractor services for Rules Engine migration",
+      "overview": "Apex Consulting is a consulting firm providing contractor services to Clearview Health Plans. They have at least one contractor (Rachel Dominguez) working on the Rules Engine migration project.",
+      "details": "Apex Consulting is an external consulting firm that provides contractor services to Clearview Health Plans. Rachel Dominguez works for Apex and is contracted as a Rules Engine migration Subject Matter Expert through October 2025. This suggests Clearview is using external expertise to supplement internal capabilities for the complex Rules Engine migration project.",
+      "status": "active",
+      "tags": [
+        "consulting",
+        "rules-engine-migration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "provides_services_to",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Provides contractor services for Rules Engine migration"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as external consulting firm providing contractor services"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "meridian-health-systems",
+      "name": "Meridian Health Systems",
+      "description": "Healthcare organization where Kenji Watanabe previously worked",
+      "overview": "Meridian Health Systems is a healthcare organization where Kenji Watanabe worked before joining Clearview Health Plans. This represents a source of external healthcare industry expertise.",
+      "details": "Meridian Health Systems is mentioned as Kenji Watanabe's previous employer before joining Clearview Health Plans in November 2025. The fact that Kenji is being brought in specifically for the Rules Engine migration suggests Meridian may have experience with similar healthcare claims processing systems or migrations that would be valuable to Clearview's project.",
+      "status": "active",
+      "tags": [
+        "healthcare",
+        "former-employer"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "former_employer_of",
+          "target_entity_id": "kenji-watanabe",
+          "target_entity_name": "Kenji Watanabe",
+          "reasoning": "Kenji's previous workplace before joining Clearview"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "Mentioned as previous employer context for new hire"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "healthlogic-systems",
+      "name": "HealthLogic Systems",
+      "description": "Vendor providing the Rules Engine system that Clearview is planning to replace",
+      "overview": "HealthLogic Systems is the vendor that provides the HealthLogic Rules Engine currently used by Clearview Health Plans. They provide enterprise support with defined SLAs but are noted as being slow to respond.",
+      "details": "HealthLogic Systems is the vendor behind the HealthLogic Rules Engine (also known as HealthLogic Adjudicator) that Clearview currently uses for claims adjudication. The document provides detailed contact information including support email (support@healthlogicsystems.com), support phone ((800) 555-HLGC), and account manager Derek Foss (derek.foss@healthlogicsystems.com). Their SLA includes P1 = 4 hour response, P2 = 8 hour response. However, there's a warning that 'they're slow' and recommendations to call AND email for P1 issues, plus ping Derek directly. They also provide VPN tunnel support through infra-ops@healthlogicsystems.com. The fact that Clearview is actively migrating away from this system (per ADR-2024-007) suggests ongoing challenges with this vendor relationship.",
+      "status": "active",
+      "tags": [
+        "vendor",
+        "rules-engine",
+        "slow-support"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "provides",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Vendor that provides the HealthLogic Rules Engine system"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified vendor with detailed contact information and current relationship"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "first-alliance-banking",
+      "name": "First Alliance Banking",
+      "description": "Banking partner providing EFT processing services for provider payments",
+      "overview": "First Alliance Banking serves as Clearview's banking partner for EFT (Electronic Funds Transfer) processing. They handle provider payment transactions and provide support for urgent payment reversals.",
+      "details": "First Alliance Banking is Clearview's banking partner responsible for EFT processing, which is critical for provider payments in the claims workflow. They provide support through a shared inbox (payments-support@firstalliancebanking.com) and have a dedicated commercial payments desk for urgent payment reversals accessible at (800) 555-1FAB. They also provide SFTP support through sftp-support@firstalliancebanking.com. This banking relationship is essential for the Payment Engine's ability to process provider payments efficiently.",
+      "status": "active",
+      "tags": [
+        "banking",
+        "eft-processing",
+        "payments"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "provides_services_to",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Banking partner that handles EFT processing for provider payments"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as banking partner with specific EFT processing role"
+    },
+    {
+      "entity_type": "process",
+      "id": "incident-escalation-process",
+      "name": "Incident Escalation Process",
+      "description": "Structured escalation workflow for handling system incidents by severity level",
+      "overview": "The incident escalation process defines how system incidents are handled based on severity levels (SEV-1, SEV-2, SEV-3) with specific response times and escalation paths. SEV-1 incidents require immediate war room activation.",
+      "details": "The incident escalation process is structured around three severity levels: SEV-1 (full outage/data loss) requires on-call engineer response → Marcus → Priya with 15 minute acknowledgment and 30 minute war room activation; SEV-2 (degraded/partial) requires on-call engineer response with 30 minute acknowledgment; SEV-3 (minor/informational) is handled next business day without paging. For SEV-1 incidents, the on-call engineer must: 1) Acknowledge in PagerDuty within 15 minutes, 2) Open a Slack thread in #claims-incidents, 3) Start a war room if not resolved within 30 minutes using the permanent Zoom link, 4) Page Marcus and Priya if they haven't joined. This process ensures rapid response to critical issues affecting claims processing.",
+      "status": "active",
+      "tags": [
+        "incident-response",
+        "escalation",
+        "war-room"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team manages this escalation process"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "marcus-reeves",
+          "target_entity_name": "Marcus Reeves",
+          "reasoning": "Primary escalation contact for all claims issues"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Primary escalation for engineering issues"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined process with specific steps, roles, and timing requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "on-call-handoff-process",
+      "name": "On-Call Handoff Process",
+      "description": "Weekly process for transferring on-call responsibilities between engineers",
+      "overview": "The on-call handoff process occurs every Monday at 9 AM ET in the #claims-on-call Slack channel. The outgoing engineer posts a summary of anything in progress to ensure continuity.",
+      "details": "The on-call handoff process ensures smooth transition of on-call responsibilities within the Claims Operations team. It happens weekly on Mondays at 9 AM Eastern Time in the #claims-on-call Slack channel. The outgoing on-call engineer is responsible for posting a summary of any ongoing issues, incidents, or work in progress to the incoming engineer. This process helps maintain continuity of operations and ensures no critical issues are lost during the transition. The PagerDuty schedule manages the formal on-call rotation.",
+      "status": "active",
+      "tags": [
+        "on-call",
+        "handoff",
+        "weekly"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team manages on-call rotation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined weekly process with specific timing and communication channel"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "pagerduty",
+      "name": "PagerDuty",
+      "description": "Incident management and on-call scheduling platform",
+      "overview": "PagerDuty manages the on-call schedule for Claims Operations and handles incident alerting. It requires acknowledgment within specific timeframes based on incident severity.",
+      "details": "PagerDuty is the incident management platform used by Claims Operations for managing on-call schedules and incident alerting. The schedule is accessible at https://pagerduty.clearviewhealth.internal/schedules/claims-ops. It integrates with the incident escalation process, requiring acknowledgment within 15 minutes for SEV-1 incidents and 30 minutes for SEV-2 incidents. PagerDuty likely connects to monitoring systems to automatically alert on-call engineers when issues are detected.",
+      "status": "active",
+      "tags": [
+        "incident-management",
+        "on-call",
+        "alerting"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations uses PagerDuty for on-call management"
+        },
+        {
+          "relationship_type": "supports",
+          "target_entity_id": "incident-escalation-process",
+          "target_entity_name": "Incident Escalation Process",
+          "reasoning": "PagerDuty acknowledgments are part of the escalation process"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as incident management platform with specific URL and integration role"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "zoom-war-room",
+      "name": "Claims War Room Zoom",
+      "description": "Dedicated Zoom room for Claims Operations incident response",
+      "overview": "A permanent Zoom meeting room dedicated to Claims Operations incident response. The room is always active during incidents and used for war room coordination during SEV-1 incidents.",
+      "details": "The Claims War Room Zoom is a permanent meeting room (https://zoom.us/j/clearview-claims-warroom) dedicated to incident response coordination. It remains always active during incidents and is specifically used when SEV-1 incidents require war room activation after 30 minutes without resolution. This provides a dedicated communication channel for real-time collaboration during critical incidents affecting claims processing systems.",
+      "status": "active",
+      "tags": [
+        "incident-response",
+        "war-room",
+        "communication"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations uses this Zoom room for incident response"
+        },
+        {
+          "relationship_type": "supports",
+          "target_entity_id": "incident-escalation-process",
+          "target_entity_name": "Incident Escalation Process",
+          "reasoning": "War room Zoom is activated during SEV-1 incident escalation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined as dedicated incident response communication tool"
+    }
+  ],
+  "questions": [
+    "What specific incident response documentation is missing that Marcus would need to provide the link for?",
+    "What technical capabilities or experience does Kenji Watanabe bring from Meridian Health Systems that makes him valuable for the Rules Engine migration?",
+    "What is the current Technical Account Manager situation with GCP Premium Support, and when will a new TAM be assigned?",
+    "Are there formal SLAs with the clearinghouses (Northeast Clearinghouse, MedConnect Exchange, DirectSubmit) or just best-effort support?",
+    "What monitoring systems integrate with PagerDuty to trigger the incident alerts?",
+    "What specific knowledge transfer is planned between Rachel Dominguez (contractor ending Oct 2025) and Kenji Watanabe (starting Nov 2025)?"
+  ],
+  "new_jargon": [
+    "War room",
+    "SEV-1/SEV-2/SEV-3",
+    "TAM (Technical Account Manager)",
+    "SME (Subject Matter Expert)"
+  ],
+  "decision_log": [
+    {
+      "subject": "Kenji Watanabe",
+      "decision": "classified as persona",
+      "reasoning": "Clear individual with defined role, responsibilities, and team membership - fits persona entity type"
+    },
+    {
+      "subject": "Rachel Dominguez",
+      "decision": "classified as persona",
+      "reasoning": "Individual contractor with specific role and expertise, even though temporary - still a persona in the domain"
+    },
+    {
+      "subject": "Incident escalation matrix",
+      "decision": "classified as process",
+      "reasoning": "Structured workflow with defined steps, timing, and roles - clearly a business process rather than just reference data"
+    },
+    {
+      "subject": "Slack channels",
+      "decision": "skipped as entities",
+      "reasoning": "Communication channels are tools/infrastructure but not domain entities with business logic or ownership"
+    },
+    {
+      "subject": "Phone numbers and emails",
+      "decision": "included in persona details but not separate entities",
+      "reasoning": "Contact information is important context for personas but not standalone domain entities"
+    },
+    {
+      "subject": "HealthLogic Systems",
+      "decision": "classified as external-party",
+      "reasoning": "Vendor organization providing services to the domain - fits external-party pattern"
+    },
+    {
+      "subject": "PagerDuty",
+      "decision": "classified as software-component",
+      "reasoning": "Infrastructure software supporting operations but not implementing domain business logic"
+    }
+  ]
+}

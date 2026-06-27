@@ -1,0 +1,19 @@
+---
+/**
+ * EntityPill — small chip showing entity name with layer color dot.
+ * Vocabulary-agnostic: color comes from entity data, not hardcoded.
+ */
+interface Props {
+  id: string;
+  name: string;
+  layerColor: string;
+  href?: string;
+}
+
+const { id, name, layerColor, href } = Astro.props;
+const Tag = href ? 'a' : 'span';
+---
+<Tag class="entity-pill" href={href} data-entity-id={id}>
+  <span class="entity-pill__dot" style={`background: ${layerColor}`}></span>
+  {name}
+</Tag>

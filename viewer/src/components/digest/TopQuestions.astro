@@ -1,0 +1,38 @@
+---
+/**
+ * TopQuestions — the agent's most important unresolved questions.
+ * Sorted by priority (lowest confidence entities first).
+ */
+import type { CBQuestion } from '../../lib/types';
+
+interface Props {
+  questions: CBQuestion[];
+  totalCount: number;
+}
+
+const { questions, totalCount } = Astro.props;
+---
+<div class="card">
+  <h2 class="section-header">What the Agent Is Asking You</h2>
+  <p class="section-subheader">
+    {totalCount} questions across the domain — these are the most important ones
+  </p>
+
+  {questions.map(q => (
+    <div class="question-card">
+      <div class="question-card__text">{q.text}</div>
+      <div class="question-card__source">
+        From: <a href={`/explorer?entity=${q.entityId}`}>{q.entityName}</a>
+        <span class="badge badge--question" style="margin-left: 8px;">
+          {(q.entityConfidence * 100).toFixed(0)}% confidence
+        </span>
+      </div>
+    </div>
+  ))}
+
+  {totalCount > questions.length && (
+    <div style="margin-top: var(--cb-space-md);">
+      <a href="/workbench">See all {totalCount} questions →</a>
+    </div>
+  )}
+</div>

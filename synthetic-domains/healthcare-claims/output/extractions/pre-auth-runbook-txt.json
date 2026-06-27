@@ -1,0 +1,341 @@
+{
+  "source_document": "pre-auth-runbook.txt",
+  "document_summary": "Operational runbook for Pre-Auth Service troubleshooting, covering common alerts, resolution steps, manual operations, database queries, and escalation contacts.",
+  "entities": [
+    {
+      "entity_type": "business-event",
+      "id": "auth-request-processing-backlog",
+      "name": "Auth Request Processing Backlog",
+      "description": "Alert triggered when pending authorization requests exceed threshold of 4 hours",
+      "overview": "A monitoring alert that fires when the Pre-Auth Service has more than a threshold number of authorization requests that haven't been processed within 4 hours. This indicates system performance degradation or service unavailability.",
+      "details": "The PRE-AUTH-BACKLOG alert monitors the age of pending authorization requests in the system. When more than a configured threshold (example shows 342 requests) remain unprocessed after 4 hours, this alert fires to operations teams. Common causes include Pre-Auth Service pod failures, Eligibility Service unavailability, database connection pool exhaustion, or clinical criteria loading failures. The alert example shows '[PRE-AUTH-BACKLOG] Pending auth requests exceed threshold: 342 requests older than 4 hours'.",
+      "status": "active",
+      "tags": [
+        "monitoring",
+        "alert",
+        "operational"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "pre-auth-backlog-resolution",
+          "target_entity_name": "Pre-Auth Backlog Resolution Process",
+          "reasoning": "This alert triggers the documented resolution process"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined monitoring event with specific thresholds and triggers"
+    },
+    {
+      "entity_type": "process",
+      "id": "pre-auth-backlog-resolution",
+      "name": "Pre-Auth Backlog Resolution Process",
+      "description": "Operational process for resolving Pre-Auth Service processing backlogs",
+      "overview": "A structured troubleshooting workflow triggered by auth request processing backlog alerts. The process includes checking pod health, examining logs, investigating common failure modes, and escalation paths.",
+      "details": "Multi-step resolution process: 1) Check Pre-Auth Service pod status in claims-ops namespace using kubectl, 2) Examine crashloop logs if pods are failing, 3) Investigate common root causes including Eligibility Service downtime, database connection pool exhaustion, or clinical criteria file loading failures from GCS. For database issues, includes specific queries to check active connections, identify idle connections, and terminate long-running idle connections after 30 minutes. Escalates to Priya Anand or Marcus Reeves if standard resolution steps don't resolve the issue.",
+      "status": "active",
+      "tags": [
+        "operational",
+        "troubleshooting",
+        "runbook"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "auth-request-processing-backlog",
+          "target_entity_name": "Auth Request Processing Backlog",
+          "reasoning": "This process is initiated by the backlog alert"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Escalation contact for unresolved issues"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "marcus-reeves",
+          "target_entity_name": "Marcus Reeves",
+          "reasoning": "Escalation contact for unresolved issues"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined operational process with clear steps and escalation paths"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "auto-approval-rate-drop",
+      "name": "Auto-Approval Rate Drop",
+      "description": "Alert when Pre-Auth Service auto-approval rate falls below 50% target threshold",
+      "overview": "Monitoring alert that fires when the Pre-Auth Service's auto-approval percentage drops below the 50% threshold, with a target rate of 60%. This typically indicates changes in clinical criteria rules or system issues affecting benefit plan data.",
+      "details": "The PRE-AUTH-RATE alert monitors the percentage of authorization requests that are automatically approved without manual clinical review. Alert example: '[PRE-AUTH-RATE] Auto-approval rate dropped below 50% (current: 43%). Target: 60%'. Rate drops usually result from updated clinical criteria files loaded from GCS or incorrect benefit plan data from the Eligibility Service. The alert triggers investigation of recent criteria file updates, comparison between versions, and analysis by service category to identify specific areas experiencing approval rate degradation.",
+      "status": "active",
+      "tags": [
+        "monitoring",
+        "alert",
+        "business-metrics"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "auto-approval-rate-investigation",
+          "target_entity_name": "Auto-Approval Rate Investigation Process",
+          "reasoning": "This alert triggers the investigation process"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear business metric alert with specific thresholds and business impact"
+    },
+    {
+      "entity_type": "process",
+      "id": "auto-approval-rate-investigation",
+      "name": "Auto-Approval Rate Investigation Process",
+      "description": "Process to investigate and resolve drops in Pre-Auth Service auto-approval rates",
+      "overview": "Systematic investigation process for auto-approval rate degradation, focusing on clinical criteria changes and benefit plan data accuracy. Includes version comparison, service category analysis, and coordination with clinical teams.",
+      "details": "Investigation steps: 1) Check criteria_load_history table to identify recent clinical criteria file updates, 2) Download and diff the last two criteria versions from gs://clearview-preauth-config/criteria/ to identify changes, 3) Run service category analysis query to identify which categories experienced approval rate drops, 4) If one category shows significant decline (e.g., imaging from 70% to 20%), coordinate with clinical team to verify intentional criteria tightening vs configuration error, 5) If rates dropped across all categories, investigate Eligibility Service for incorrect benefit plan assignments causing auth denials.",
+      "status": "active",
+      "tags": [
+        "operational",
+        "investigation",
+        "clinical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "auto-approval-rate-drop",
+          "target_entity_name": "Auto-Approval Rate Drop",
+          "reasoning": "Process initiated by the rate drop alert"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-documented investigation process with specific technical steps"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "auth-expiration-warning",
+      "name": "Auth Expiration Warning",
+      "description": "Informational alert for authorizations expiring within 7 days without associated claims",
+      "overview": "Non-urgent monitoring alert that identifies authorizations approaching expiration (within 7 days) that haven't been used for claims submission. Provides visibility into potentially unused authorizations.",
+      "details": "The PRE-AUTH-EXPIRY alert tracks authorizations nearing their validity expiration without corresponding claims. Alert example: '[PRE-AUTH-EXPIRY] 87 authorizations expiring in next 7 days without associated claims'. Standard authorizations are valid for 90 days, surgical authorizations for 60 days. High counts of expiring surgical auths may indicate delayed surgeries. Alert is informational unless count exceeds 200, at which point Member Services should be notified of potential provider scheduling issues.",
+      "status": "active",
+      "tags": [
+        "monitoring",
+        "alert",
+        "informational"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "dana-okafor",
+          "target_entity_name": "Dana Okafor",
+          "reasoning": "Member Services contact for high expiration counts"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear informational alert with defined thresholds and escalation criteria"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "auth-requests-table",
+      "name": "Auth Requests Table",
+      "description": "Database table storing authorization requests with status and processing timestamps",
+      "overview": "PostgreSQL table in the preauth_prod database that tracks authorization requests through their lifecycle. Contains fields for status tracking, timestamps, and processing metadata.",
+      "details": "Table structure includes auth_id, member_id, provider_npi, service_category, status (PENDING, PROCESSING, etc.), created_at, updated_at timestamps, and other authorization request metadata. Used for monitoring stuck requests (PROCESSING status older than 2 hours), tracking volume by day, and managing the authorization workflow. The scheduler picks up PENDING requests every 60 seconds for processing.",
+      "status": "active",
+      "tags": [
+        "database",
+        "authorization"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Primary system that reads and writes this table"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clear database table with defined schema and usage patterns"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "authorizations-table",
+      "name": "Authorizations Table",
+      "description": "Database table storing approved/denied authorization decisions with validity periods",
+      "overview": "PostgreSQL table containing authorization determinations, approval codes, expiration dates, and decision metadata. Tracks the final disposition of authorization requests.",
+      "details": "Table includes auth_id, member_id, provider_npi, service_category, determination (APPROVED/DENIED), approval_code, approved_date, expiry_date, determined_at, determined_by, and notes fields. Standard auths valid for 90 days, surgical auths for 60 days. Used for tracking expiring authorizations and manual override operations. Manual approvals use format 'MANUAL-YYYYMMDD-HH24MI' with clinical lead approval documentation.",
+      "status": "active",
+      "tags": [
+        "database",
+        "authorization"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "System that writes authorization decisions to this table"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined table structure with clear business rules for validity periods"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "criteria-load-history-table",
+      "name": "Criteria Load History Table",
+      "description": "Database table tracking versions and load times of clinical criteria files",
+      "overview": "Audit table that records when clinical criteria files are loaded from GCS, including version information and timestamps. Used for troubleshooting auto-approval rate changes.",
+      "details": "Contains criteria_version and loaded_at fields to track when new clinical criteria configurations are deployed to the Pre-Auth Service. Clinical criteria files are stored in gs://clearview-preauth-config/criteria/ and loaded on service startup. This table enables correlation between criteria updates and changes in auto-approval rates, supporting root cause analysis for business metric degradation.",
+      "status": "active",
+      "tags": [
+        "database",
+        "audit",
+        "clinical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Service that populates this table when loading criteria"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Audit table with clear purpose for tracking criteria file deployments"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "clinical-criteria-files",
+      "name": "Clinical Criteria Files",
+      "description": "GCS-stored configuration files defining clinical rules for authorization decisions",
+      "overview": "Configuration files stored in Google Cloud Storage that contain the clinical decision rules used by the Pre-Auth Service for automatic authorization approvals and denials.",
+      "details": "Files stored in gs://clearview-preauth-config/criteria/ bucket and loaded by the Pre-Auth Service on startup via CriteriaLoader component. Updates to these files directly impact auto-approval rates and require clinical team coordination. Failed loading triggers 'Failed to load criteria' errors and may require Platform Engineering assistance for GCS access issues. Files are versioned to enable comparison between releases when investigating approval rate changes.",
+      "status": "active",
+      "tags": [
+        "configuration",
+        "clinical",
+        "gcs"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Service loads and applies these criteria files"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear configuration data with defined storage location and loading mechanism"
+    },
+    {
+      "entity_type": "process",
+      "id": "manual-auth-override",
+      "name": "Manual Auth Override Process",
+      "description": "Emergency process for manually approving authorizations with clinical lead approval",
+      "overview": "Emergency procedure requiring Dr. Sarah Lin's written approval to manually override authorization decisions. Includes database updates, audit trails, and Slack communication requirements.",
+      "details": "Multi-step process: 1) Obtain written approval from Dr. Sarah Lin (Clinical Review Lead) via email or Slack, 2) Update authorizations table with determination='APPROVED', approval_code='MANUAL-' + timestamp, determined_by='manual-override', and reference documentation in notes field, 3) Log action in #preauth-ops Slack channel with reason and approval reference. This process bypasses normal clinical criteria evaluation and requires explicit clinical leadership authorization for emergency situations.",
+      "status": "active",
+      "tags": [
+        "emergency",
+        "manual",
+        "clinical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "dr-sarah-lin",
+          "target_entity_name": "Dr. Sarah Lin",
+          "reasoning": "Required approver for manual authorization overrides"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Well-defined emergency process with clear approval requirements and audit steps"
+    },
+    {
+      "entity_type": "process",
+      "id": "stuck-auth-reprocessing",
+      "name": "Stuck Auth Reprocessing",
+      "description": "Manual operation to reset stuck authorization requests for reprocessing",
+      "overview": "Operational procedure to identify authorization requests stuck in PROCESSING status and reset them to PENDING for scheduler pickup. Used when requests haven't been updated within 2 hours.",
+      "details": "Process involves: 1) Query auth_requests table for records with status='PROCESSING' and updated_at older than 2 hours, 2) Reset status to 'PENDING' and update timestamp, 3) Monitor in Datadog as scheduler picks up PENDING requests every 60 seconds. This addresses situations where authorization processing gets stuck due to system issues or unexpected failures during processing workflow.",
+      "status": "active",
+      "tags": [
+        "operational",
+        "manual",
+        "troubleshooting"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "operates_on",
+          "target_entity_id": "auth-requests-table",
+          "target_entity_name": "Auth Requests Table",
+          "reasoning": "Process directly updates this table to reset request status"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clear operational process with specific database operations"
+    }
+  ],
+  "questions": [
+    "What is the exact threshold number for the auth request processing backlog alert - is 342 just an example or the actual configured threshold?",
+    "What is the 'scheduler' component mentioned that picks up PENDING requests every 60 seconds - is this part of the Pre-Auth Service or a separate component?",
+    "What specific access issues with the GCS bucket require Platform Engineering assistance - are these IAM permission problems or network connectivity issues?",
+    "What is the #preauth-ops Slack channel governance - who monitors it and how are manual override logs reviewed?",
+    "What determines the assignment of standard vs surgical authorization validity periods (90 vs 60 days) - is this based on service category or other criteria?",
+    "What is the 'new batch auth import process' that Priya is documenting - is this a replacement for individual auth request processing?",
+    "How does the clinical criteria loading failure impact the auto-approval rate - does it default to manual review or deny all requests?",
+    "What is the relationship between the auth_requests and authorizations tables - does one record become one record in both tables?",
+    "What monitoring exists in Datadog specifically for the Pre-Auth Service beyond the manual reprocessing mention?",
+    "Who has access to kill database connections and what are the risks of terminating idle connections during business hours?"
+  ],
+  "new_jargon": [],
+  "decision_log": [
+    {
+      "subject": "Auth processing backlog",
+      "decision": "classified as business-event",
+      "reasoning": "This is a monitoring alert that represents a system state change event rather than a process or system component"
+    },
+    {
+      "subject": "Resolution steps for backlog",
+      "decision": "classified as process",
+      "reasoning": "Multi-step operational workflow with defined sequence and escalation paths fits process entity type"
+    },
+    {
+      "subject": "Database tables (auth_requests, authorizations, criteria_load_history)",
+      "decision": "classified as data-model",
+      "reasoning": "These represent the structure and schema of domain data stored in PostgreSQL, fitting data-model type rather than software-component"
+    },
+    {
+      "subject": "Clinical criteria files",
+      "decision": "classified as reference-data",
+      "reasoning": "Configuration files that parameterize business logic decisions fit reference-data type as they're used for operational decisions"
+    },
+    {
+      "subject": "Manual operations",
+      "decision": "classified as process",
+      "reasoning": "Both stuck auth reprocessing and manual override are defined workflows with specific steps, making them processes rather than domain-logic"
+    },
+    {
+      "subject": "kubectl commands and SQL queries",
+      "decision": "skipped as entities",
+      "reasoning": "These are implementation details/tools mentioned in the runbook but not domain concepts worth tracking as entities"
+    },
+    {
+      "subject": "Existing entities like Pre-Auth Service, Eligibility Service, contacts",
+      "decision": "referenced in relationships only",
+      "reasoning": "These entities already exist in the system, so I'm building relationships to them rather than creating duplicates"
+    }
+  ]
+}

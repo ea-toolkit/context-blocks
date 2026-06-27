@@ -1,0 +1,61 @@
+# Persona Templates for KB Completeness Evaluation
+#
+# Each persona defines what a specific role needs from a domain knowledge base.
+# The "checks" are hints — the LLM reads your seed context + these hints
+# and generates domain-specific questions.
+#
+# You can add, edit, or remove personas and checks to match your organization.
+# Changes here don't require any code changes.
+
+personas:
+  developer:
+    label: Developer Onboarding
+    description: What a new developer needs before their first ticket
+    checks:
+      - "API documentation or spec files for each system or service mentioned"
+      - "Source code repository locations or links for key systems"
+      - "Deployment and release process for each service"
+      - "Local development setup or environment configuration"
+      - "Data model schemas or database structure for core entities"
+      - "Error handling patterns and common failure modes"
+      - "Testing strategy and how to run tests"
+      - "Monitoring and logging — where to find logs, what alerts exist"
+
+  architect:
+    label: Architecture Review
+    description: What an architect needs to assess the domain's technical landscape
+    checks:
+      - "System boundaries and integration points between services"
+      - "Data flow — how data moves from ingestion to output"
+      - "Technology decisions and their rationale (ADRs or equivalent)"
+      - "Non-functional requirements — SLAs, throughput, latency targets"
+      - "Security model — authentication, authorization, data protection"
+      - "Scalability approach — how the system handles growth"
+      - "Disaster recovery and business continuity plans"
+      - "Technical debt and known architectural risks"
+
+  product-owner:
+    label: Product Owner Context
+    description: What a PO needs to understand the domain and prioritize work
+    checks:
+      - "Business capabilities and what each one delivers to users"
+      - "User personas and their primary workflows"
+      - "Business processes end-to-end with decision points"
+      - "Business rules and domain logic that governs behavior"
+      - "Regulatory or compliance requirements affecting the domain"
+      - "Key metrics and how success is measured"
+      - "Known pain points or frequently reported issues"
+      - "Roadmap items or planned changes to the domain"
+
+  new-joiner:
+    label: New Joiner Orientation
+    description: What anyone needs on day one to not be completely lost
+    checks:
+      - "High-level domain overview — what the organization does"
+      - "Key systems and what each one is responsible for"
+      - "Team structure — who owns what"
+      - "Common terminology and jargon definitions"
+      - "How to get help — escalation paths and contacts"
+      - "Most important business processes and how they connect"
+      - "Recent incidents or outages and lessons learned"
+      - "Onboarding resources or getting-started guides"

@@ -1,0 +1,563 @@
+{
+  "source_document": "ocr-pipeline-extracted-spec.txt",
+  "document_summary": "Technical specification for the OCR (Optical Character Recognition) pipeline that processes paper claims submitted via fax or mail, extracting structured data from scanned images and routing them through Claims Gateway for processing.",
+  "entities": [
+    {
+      "entity_type": "system",
+      "id": "ocr-pipeline",
+      "name": "OCR Pipeline",
+      "description": "System that processes paper claims from fax/mail, extracting structured data via OCR and routing to Claims Gateway",
+      "overview": "The OCR Pipeline handles approximately 5% of total claim volume (~10,000 claims/month) from paper submissions. It processes scanned TIFF/PDF images through five stages: preprocessing, OCR extraction, validation, manual review, and archival. Volume is declining as providers move to electronic submission.",
+      "details": "Multi-stage processing system built on Python 3.9 running in GKE claims-ops namespace. Uses Google Document AI for OCR extraction with separate templates for CMS-1500 and UB-04 forms. Implements confidence-based routing: >0.90 confidence auto-submits to Claims Gateway, 0.70-0.90 routes to manual data entry with pre-filled OCR results, <0.70 routes to blank manual entry form. Achieves 94.2% field-level accuracy for CMS-1500 and 91.8% for UB-04 forms. Monthly processing cost is $600-800 via Google Document AI at ~$0.02 per page.",
+      "status": "active",
+      "tags": [
+        "processing",
+        "legacy",
+        "declining-volume"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "OCR pipeline feeds extracted claim data into Claims Gateway for standard processing"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team owns the OCR pipeline as part of claims processing"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "nadia-volkov",
+          "target_entity_name": "Nadia Volkov",
+          "reasoning": "Nadia is the contact person for OCR pipeline questions"
+        },
+        {
+          "relationship_type": "produces",
+          "target_entity_id": "ocr-extracted-claim-data-event",
+          "target_entity_name": "OCR Extracted Claim Data Event",
+          "reasoning": "Pipeline generates structured claim data events from processed images"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is clearly a named software system that implements business logic specific to the claims domain - processing paper claims through OCR extraction"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "ocr-extracted-claim-data-event",
+      "name": "OCR Extracted Claim Data Event",
+      "description": "Event containing structured claim data extracted from paper forms via OCR processing",
+      "overview": "Business event generated when the OCR pipeline successfully extracts structured data from scanned paper claims. Contains the extracted claim fields along with confidence scores for routing decisions. High-confidence extractions are auto-submitted while lower confidence events trigger manual review workflows.",
+      "details": "Event payload includes extracted claim data from either CMS-1500 or UB-04 forms with field-level confidence scores. Claim-level confidence is calculated as minimum of all required field confidences. Events with confidence >0.90 are automatically routed to Claims Gateway, 0.70-0.90 confidence events route to manual data entry queue with OCR results pre-filled, and <0.70 confidence events route to blank manual entry forms.",
+      "status": "active",
+      "tags": [
+        "data-extraction",
+        "confidence-scoring",
+        "routing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline generates these events after processing scanned claims"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway receives high-confidence OCR extracted claims for processing"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "manual-data-entry-process",
+          "target_entity_name": "Manual Data Entry Process",
+          "reasoning": "Low confidence OCR extractions trigger manual data entry workflow"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This represents a named event flow that carries domain data between the OCR system and downstream processing systems"
+    },
+    {
+      "entity_type": "process",
+      "id": "manual-data-entry-process",
+      "name": "Manual Data Entry Process",
+      "description": "Manual review and correction process for low-confidence OCR extractions before Claims Gateway submission",
+      "overview": "Workflow where data entry team reviews scanned images alongside OCR output to correct errors and fill missing fields. Triggered for OCR extractions with confidence scores between 0.70-0.90 (pre-filled) or below 0.70 (blank forms). Completed claims are submitted to Claims Gateway via JSON API.",
+      "details": "Data entry team uses legacy web application from ClaimsPro era to review and correct OCR extractions. For confidence 0.70-0.90, OCR results are pre-filled for correction. For confidence <0.70, blank forms are provided as OCR is deemed too unreliable. Team supervisor is Maria Chen (contract team lead). The process represents a quality gate ensuring accurate claim data reaches Claims Gateway despite poor OCR confidence.",
+      "status": "active",
+      "tags": [
+        "manual-process",
+        "quality-control",
+        "legacy-tooling"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "ocr-extracted-claim-data-event",
+          "target_entity_name": "OCR Extracted Claim Data Event",
+          "reasoning": "Low confidence OCR extractions trigger manual data entry workflow"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Manual data entry team reports to Claims Operations"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "maria-chen",
+          "target_entity_name": "Maria Chen",
+          "reasoning": "Maria Chen is the contract team lead supervising the manual data entry team"
+        },
+        {
+          "relationship_type": "executed_by",
+          "target_entity_id": "manual-data-entry-tool",
+          "target_entity_name": "Manual Data Entry Tool",
+          "reasoning": "Process uses the legacy manual data entry web application"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined business process with specific steps and triggers for handling low-confidence OCR extractions"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "google-document-ai",
+      "name": "Google Document AI",
+      "description": "Google Cloud OCR service used for extracting structured data from scanned claim forms",
+      "overview": "API-based OCR engine that processes TIFF and PDF images of paper claims with per-page pricing model. Configured with separate extraction templates for CMS-1500 and UB-04 forms. Achieves 94.2% field-level accuracy for professional claims and 91.8% for institutional claims.",
+      "details": "Cloud-based document processing service that handles image preprocessing, form type detection, and field extraction. Costs approximately $0.02 per page processed, resulting in monthly costs of $600-800. The service extracts specific fields from standardized claim forms including member IDs, provider NPIs, diagnosis codes, procedure codes, and billing information. Common extraction errors include handwritten fields, fax artifacts, and formatting inconsistencies.",
+      "status": "active",
+      "tags": [
+        "cloud-service",
+        "third-party",
+        "ocr-engine"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline uses Google Document AI as its core OCR extraction engine"
+        },
+        {
+          "relationship_type": "hosted_by",
+          "target_entity_id": "google-cloud-platform",
+          "target_entity_name": "Google Cloud Platform",
+          "reasoning": "Google Document AI is a GCP service"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a named infrastructure software component that supports the OCR processing but doesn't implement domain business logic itself"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "manual-data-entry-tool",
+      "name": "Manual Data Entry Tool",
+      "description": "Legacy web application from ClaimsPro era used for manual claim data entry and OCR correction",
+      "overview": "Web-based tool that allows data entry team to review scanned claim images and correct OCR extractions. Last surviving piece of ClaimsPro system, connects directly to Claims Gateway database to insert claims. Described as ugly but functional by the team.",
+      "details": "Legacy application that bypasses the Claims Gateway API and connects directly to the database for claim insertion - a known technical debt issue that should route through the API instead but hasn't been prioritized. Used for both correcting low-confidence OCR extractions and entering claims from blank forms when OCR confidence is too low. The interface allows side-by-side viewing of scanned images and extracted data for correction.",
+      "status": "active",
+      "tags": [
+        "legacy",
+        "technical-debt",
+        "claimspro-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "manual-data-entry-process",
+          "target_entity_name": "Manual Data Entry Process",
+          "reasoning": "Manual data entry process relies on this tool for claim review and correction"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "claimspro",
+          "target_entity_name": "ClaimsPro",
+          "reasoning": "Originally part of the ClaimsPro system, now the last surviving piece"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Connects directly to Claims Gateway database to insert corrected claims"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "This should go through the API instead but nobody has prioritized the change"
+      ],
+      "reasoning": "This is a named software component that supports business operations but doesn't implement core domain logic"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "cms-1500-form",
+      "name": "CMS-1500 Form",
+      "description": "Standardized paper form structure for professional healthcare claims with specific field mappings",
+      "overview": "Professional claims form with standardized boxes for insurance information, patient demographics, diagnosis codes, service lines, and provider details. Used by healthcare professionals to submit claims for services rendered. OCR pipeline achieves 94.2% field-level accuracy when processing these forms.",
+      "details": "Form contains specific numbered boxes including: Box 1 (insurance type), Box 1a (member ID), Box 2 (patient name), Box 3 (birth date/sex), Box 11 (group number), Box 17 (referring provider NPI), Box 21 (ICD-10 diagnosis codes), Box 24a-j (service lines with dates, places, procedure codes, modifiers, charges, units), Box 25 (provider TIN), Box 31 (physician signature), and Box 33 (billing provider NPI). The OCR pipeline uses specialized templates to extract data from these standardized field positions.",
+      "status": "active",
+      "tags": [
+        "professional-claims",
+        "paper-form",
+        "standardized"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline uses CMS-1500 templates for data extraction"
+        },
+        {
+          "relationship_type": "contains",
+          "target_entity_id": "npi",
+          "target_entity_name": "NPI",
+          "reasoning": "CMS-1500 forms contain provider NPI fields in boxes 17 and 33"
+        },
+        {
+          "relationship_type": "contains",
+          "target_entity_id": "tin",
+          "target_entity_name": "TIN",
+          "reasoning": "CMS-1500 forms contain provider TIN in box 25"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This represents the structure and schema of a specific data format used in the claims domain"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "ub-04-form",
+      "name": "UB-04 Form",
+      "description": "Standardized paper form structure for institutional healthcare claims with complex field layouts",
+      "overview": "Institutional claims form used by hospitals and facilities with more complex layout than CMS-1500. Contains fields for patient control numbers, type of bill, admission details, revenue codes, and procedure information. OCR pipeline achieves 91.8% field-level accuracy, lower than CMS-1500 due to layout complexity.",
+      "details": "Form includes specific fields: Field 3a (patient control number), Field 4 (type of bill/TOB), Field 8 (patient name), Fields 12-13 (admission date/hour), Field 14 (priority/type of admission), Fields 38-41 (revenue codes), Field 42 (revenue description), Field 44 (HCPCS/rates), Field 67 (principal diagnosis), and Field 74 (principal procedure code). Multi-column fields with adjacent revenue codes and HCPCS codes create common extraction errors. The OCR template hasn't been updated since switching from ABBYY to Google Document AI in 2023.",
+      "status": "active",
+      "tags": [
+        "institutional-claims",
+        "paper-form",
+        "complex-layout",
+        "needs-review"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline processes UB-04 forms with specialized templates"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "Some field mappings might be suboptimal"
+      ],
+      "reasoning": "This represents the structure and schema of institutional claim forms processed by the OCR system"
+    },
+    {
+      "entity_type": "platform",
+      "id": "google-cloud-platform",
+      "name": "Google Cloud Platform",
+      "description": "Cloud infrastructure platform hosting OCR pipeline components and storage",
+      "overview": "GCP provides the hosting environment for the OCR pipeline including GKE clusters for the Python application and GCS buckets for image storage. Also hosts the Google Document AI service used for OCR extraction.",
+      "details": "Hosts the OCR pipeline Python 3.9 application in GKE claims-ops namespace and provides GCS bucket gs://clearview-claims-scans/ for storing original scanned images with 7-year retention requirement. The platform also provides the Google Document AI API service used for actual OCR processing at $0.02 per page.",
+      "status": "active",
+      "tags": [
+        "cloud-platform",
+        "infrastructure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline runs on GCP infrastructure"
+        },
+        {
+          "relationship_type": "enables",
+          "target_entity_id": "google-document-ai",
+          "target_entity_name": "Google Document AI",
+          "reasoning": "GCP provides the Document AI service"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "This is the hosting environment where the OCR pipeline systems run"
+    },
+    {
+      "entity_type": "persona",
+      "id": "maria-chen",
+      "name": "Maria Chen",
+      "description": "Contract team lead supervising the manual data entry team for OCR claim processing",
+      "overview": "Manages the contract team responsible for reviewing and correcting low-confidence OCR extractions. Reports to Claims Operations and oversees the manual claim data entry process using the legacy ClaimsPro-era web application.",
+      "details": "Supervises the data entry team that handles OCR corrections and manual claim entry when confidence scores are too low for automatic processing. The team has complained repeatedly about Valley Orthopedic Associates' non-standard forms causing consistently low confidence scores.",
+      "status": "active",
+      "tags": [
+        "contract-team",
+        "manual-operations"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "serves",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Maria's manual data entry team reports to Claims Operations"
+        },
+        {
+          "relationship_type": "involved_in",
+          "target_entity_id": "manual-data-entry-process",
+          "target_entity_name": "Manual Data Entry Process",
+          "reasoning": "Maria supervises the team executing the manual data entry process"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a named person with a specific role in the OCR processing domain"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "valley-orthopedic-associates",
+      "name": "Valley Orthopedic Associates",
+      "description": "Provider group that submits non-standard CMS-1500 forms causing OCR processing issues",
+      "overview": "Healthcare provider that uses modified CMS-1500 forms with non-standard field positions, causing consistently low OCR confidence scores. Their faxed claims require manual data entry intervention and have generated repeated complaints from the data entry team.",
+      "details": "Uses non-standard CMS-1500 forms with modified field positions that don't align with the OCR pipeline's extraction templates. This causes the OCR system to produce consistently low confidence scores, forcing all their claims through manual data entry review rather than automatic processing.",
+      "status": "active",
+      "tags": [
+        "problematic-provider",
+        "non-standard-forms"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "integrated_via",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "Submits paper claims through the OCR pipeline but with problematic formatting"
+        },
+        {
+          "relationship_type": "impacts",
+          "target_entity_id": "manual-data-entry-process",
+          "target_entity_name": "Manual Data Entry Process",
+          "reasoning": "Their non-standard forms consistently require manual intervention"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This is a named external organization that participates in the claims domain through paper submissions"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-5102",
+      "name": "CLV-5102",
+      "description": "Incident identifier for archive retention policy mismatch between regulatory requirement and GCS configuration",
+      "overview": "Tracking number for the issue where archive retention is set to 7 years per state regulation but the GCS lifecycle policy is configured for only 5 years. Filed as an issue but not prioritized for resolution.",
+      "details": "Represents a compliance risk where scanned claim images in gs://clearview-claims-scans/ bucket have a 2-year gap between the required 7-year retention period and the actual 5-year GCS lifecycle policy configuration. This could result in premature deletion of records that must be retained for regulatory compliance.",
+      "status": "active",
+      "tags": [
+        "compliance-issue",
+        "archive-retention",
+        "unprioritized"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-archive-process",
+          "target_entity_name": "Claims Archive Process",
+          "reasoning": "This incident relates to the archival retention policy mismatch"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "This follows the established pattern of CLV-#### incident identifiers used by Clearview"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-archive-process",
+      "name": "Claims Archive Process",
+      "description": "Process for storing and retaining original scanned claim images with regulatory compliance requirements",
+      "overview": "Archival workflow that stores original TIFF/PDF scanned images in GCS bucket gs://clearview-claims-scans/ with 7-year retention requirement per state regulation. Links archived images to claim records via claim_id for future reference and compliance audits.",
+      "details": "Final stage of OCR pipeline that stores original scanned images after processing completion. Images are stored in Google Cloud Storage bucket with claim_id linkage for traceability. Currently has a compliance issue (CLV-5102) where GCS lifecycle policy is set to 5 years instead of the required 7-year retention period per state regulation.",
+      "status": "active",
+      "tags": [
+        "archival",
+        "compliance",
+        "long-term-storage"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "Archive process is Stage 5 of the OCR pipeline workflow"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "leo-chen",
+          "target_entity_name": "Leo Chen",
+          "reasoning": "Leo Chen handles archive/storage questions according to the contacts section"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "seven-year-retention-rule",
+          "target_entity_name": "Seven Year Retention Rule",
+          "reasoning": "Process must comply with 7-year state regulatory retention requirements"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a clearly defined business process for handling long-term storage and compliance"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "ocr-confidence-scoring-rules",
+      "name": "OCR Confidence Scoring Rules",
+      "description": "Business rules for routing claims based on OCR extraction confidence levels and field accuracy",
+      "overview": "Algorithmic rules that determine claim routing based on confidence scores: >0.90 auto-submits to Claims Gateway, 0.70-0.90 routes to manual entry with pre-filled OCR results, <0.70 routes to blank manual entry forms. Claim-level confidence calculated as minimum of all required field confidences.",
+      "details": "Multi-tier confidence scoring system where each extracted field receives confidence score from 0.0-1.0. Overall claim confidence is the minimum confidence of all required fields, creating a conservative approach to automatic processing. The three routing tiers balance processing efficiency with accuracy requirements: high confidence enables straight-through processing, medium confidence leverages OCR results while ensuring human review, and low confidence falls back to manual entry to avoid propagating unreliable data.",
+      "status": "active",
+      "tags": [
+        "routing-logic",
+        "quality-control",
+        "confidence-thresholds"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "ocr-pipeline",
+          "target_entity_name": "OCR Pipeline",
+          "reasoning": "OCR pipeline implements these confidence-based routing rules"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "manual-data-entry-process",
+          "target_entity_name": "Manual Data Entry Process",
+          "reasoning": "Low confidence scores trigger manual review process"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "These are algorithmic business rules that execute at runtime to make processing decisions"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "seven-year-retention-rule",
+      "name": "Seven Year Retention Rule",
+      "description": "Regulatory compliance requirement for retaining original scanned claim images for seven years",
+      "overview": "State regulatory mandate requiring Clearview to retain original scanned claim images for seven years from processing date. Currently not properly enforced due to GCS lifecycle policy misconfiguration (CLV-5102) that deletes images after five years.",
+      "details": "Legal compliance requirement that governs the claims archive process, ensuring claim documentation is available for audits, investigations, and regulatory review. The rule creates a compliance obligation that extends beyond typical business data retention needs and impacts storage infrastructure configuration and costs.",
+      "status": "active",
+      "tags": [
+        "regulatory-compliance",
+        "data-retention",
+        "state-regulation"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-archive-process",
+          "target_entity_name": "Claims Archive Process",
+          "reasoning": "This rule governs how long archived claim images must be retained"
+        },
+        {
+          "relationship_type": "violated_by",
+          "target_entity_id": "clv-5102",
+          "target_entity_name": "CLV-5102",
+          "reasoning": "Current GCS configuration violates this retention requirement"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is a regulatory business rule that constrains system behavior and data management"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "tob",
+      "name": "TOB",
+      "description": "Type of Bill code used in UB-04 institutional claim forms to classify the billing category",
+      "overview": "Standardized code found in Field 4 of UB-04 forms that indicates the type of billing being submitted by institutional providers such as hospitals and facilities.",
+      "details": "Field extracted by OCR pipeline from UB-04 institutional claim forms as part of the structured data capture process. Used to categorize different types of institutional billing scenarios and processing requirements.",
+      "status": "active",
+      "tags": [
+        "institutional-claims",
+        "billing-codes",
+        "ub-04-field"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_in",
+          "target_entity_id": "ub-04-form",
+          "target_entity_name": "UB-04 Form",
+          "reasoning": "TOB appears as Field 4 in UB-04 institutional claim forms"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "This is domain-specific terminology that a new joiner wouldn't understand without context"
+    }
+  ],
+  "questions": [
+    "What happened when Clearview switched from ABBYY to Google Document AI in 2023 - was this purely a cost decision or were there performance/accuracy improvements?",
+    "Why hasn't the UB-04 template been updated since the vendor switch - is this just resource constraints or technical complexity?",
+    "How does the manual data entry tool's direct database connection impact data consistency and transaction integrity compared to going through the Claims Gateway API?",
+    "What specific changes would Valley Orthopedic Associates need to make to use standard CMS-1500 forms, and has Clearview attempted to work with them on this issue?",
+    "What are the actual storage costs and compliance risks of the 2-year retention gap between the 7-year requirement and 5-year GCS policy?",
+    "Are there any plans to modernize the manual data entry tool or is the low volume (5% of claims) making this a low priority?",
+    "What percentage of the 10,000 monthly paper claims require manual intervention due to low OCR confidence, and what's the processing time impact?",
+    "How does the OCR pipeline handle multi-page faxes that arrive as separate images - is there automated document assembly logic?"
+  ],
+  "new_jargon": [
+    "TOB (Type of Bill)",
+    "UB-04 (institutional claims form)",
+    "CMS-1500 (professional claims form)",
+    "CLV-5102 (specific incident identifier)",
+    "Document AI (Google's OCR service)",
+    "ABBYY (previous OCR vendor)"
+  ],
+  "decision_log": [
+    {
+      "subject": "OCR Pipeline classification",
+      "decision": "classified as system",
+      "reasoning": "This is a named software system that implements domain-specific business logic for processing paper claims through OCR extraction - clearly fits system definition"
+    },
+    {
+      "subject": "Manual Data Entry Tool",
+      "decision": "classified as software-component rather than system",
+      "reasoning": "While it processes claims data, it's described as a legacy tool that supports the manual process rather than implementing core domain logic - more of an infrastructure component"
+    },
+    {
+      "subject": "Google Document AI",
+      "decision": "classified as software-component rather than system",
+      "reasoning": "This is a third-party infrastructure service that supports OCR processing but doesn't implement Clearview's domain business logic"
+    },
+    {
+      "subject": "CMS-1500 and UB-04 forms",
+      "decision": "classified as data-model entities",
+      "reasoning": "These represent standardized data structures with defined field schemas that the OCR system processes - they define the shape of claim data"
+    },
+    {
+      "subject": "OCR confidence scoring",
+      "decision": "classified as domain-logic",
+      "reasoning": "These are algorithmic business rules that execute at runtime to make routing decisions based on confidence thresholds - clearly domain logic rather than a process"
+    },
+    {
+      "subject": "Archive retention requirement",
+      "decision": "classified as domain-logic rather than reference-data",
+      "reasoning": "This is a regulatory business rule that constrains system behavior rather than lookup data used for operations"
+    },
+    {
+      "subject": "Valley Orthopedic Associates",
+      "decision": "classified as external-party",
+      "reasoning": "This is a named healthcare provider organization outside Clearview that participates in the domain through claim submissions"
+    },
+    {
+      "subject": "Maria Chen inclusion",
+      "decision": "created persona entity",
+      "reasoning": "She's a named person with a specific role supervising manual data entry - fits the persona pattern even though she's contract staff"
+    }
+  ]
+}

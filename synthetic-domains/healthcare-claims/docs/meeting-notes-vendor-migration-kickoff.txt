@@ -1,0 +1,78 @@
+Rules Engine Vendor Migration — Kickoff Meeting
+2025-04-14, 10:00 AM ET
+Attendees: Marcus Reeves, Priya Anand, Leo Chen, Nadia Volkov, Tariq Hassan, Rachel Dominguez (new — contractor from Apex Consulting, specializing in claims adjudication systems)
+
+This is the kickoff for replacing HealthLogic Adjudicator. See ADR-2024-007 for the decision context.
+
+---
+
+Marcus: So we've been talking about this for over a year. HealthLogic Adjudicator 4.2 has been our rules engine since 2019. It works, mostly, but the licensing cost is killing us ($1.2M/year) and every time we need a new rule type we're waiting 8-12 weeks for their professional services team to implement it. The board approved the migration budget in Q1.
+
+Priya: the plan is to build our own adjudication engine. Not from scratch — we'll use Drools as the rules execution layer and build the claims-specific logic ourselves. The advantage is we control the rules, we control the release cycle, we stop paying HealthLogic.
+
+Rachel: I've done three of these migrations at other payers. The hard part isn't building the new engine — it's making sure the new engine produces the same results as the old one. You need to run them in parallel for months.
+
+Marcus: agreed. That's phase 2 of the plan. Phase 1 is building the new engine. Phase 2 is parallel processing. Phase 3 is cutover.
+
+Timeline discussed:
+  Phase 1 — build (now through Q3 2025)
+  Phase 2 — parallel run (Q4 2025)
+  Phase 3 — cutover (Q1 2026, tentative)
+
+Marcus: Rachel, what's the typical accuracy target for parallel runs?
+
+Rachel: you want 99.5% match rate on disposition (PAY/DENY/PEND) and 99.9% match on payment amount. The 0.5% that don't match need to be reviewed — they might actually be cases where the new engine is MORE correct than the old one.
+
+Technical architecture discussion:
+
+Priya: the new engine will be a Java service (Spring Boot, same as the rest of our stack). Drools for rule execution. Rules authored in DRL files, version-controlled in Git. No more waiting for HealthLogic to deploy rules.
+
+Leo: what about the rule authoring experience? HealthLogic has that web UI where the clinical team defines rules. Are we replacing that?
+
+Priya: initially no. Phase 1 is just the execution engine. Rules will be authored in DRL by engineers. A rule authoring UI is a nice-to-have for later.
+
+Marcus: Rachel, thoughts?
+
+Rachel: clinical teams hate DRL. Eventually you'll need a UI or at least a DSL that business people can read. But for phase 1, engineer-authored rules are fine. Just make sure you have a clear process for how clinical rule changes get translated to DRL.
+
+Nadia: what about the existing rules? How many are there?
+
+Priya: I pulled the count from HealthLogic. ~4,200 active rules. About 60% are straightforward claim edits (if procedure X, check diagnosis Y). 30% are benefit plan rules (copay, coinsurance, deductible calculations). 10% are complex — COB logic, accumulators, multi-claim bundling.
+
+Rachel: start with the 60% simple edits. That's your lowest-risk highest-coverage win. The complex stuff is where the bugs hide.
+
+Tariq: does the migration affect fraud scoring at all?
+
+Priya: no. Fraud Detection is independent — it scores at intake before claims reach the rules engine. The only thing fraud touches is the post-payment analysis feed, which just needs the adjudication result. As long as the output format stays the same, Tariq's team is unaffected.
+
+Tariq: good.
+
+Nadia asked about DRG (Diagnosis Related Group) handling. For institutional claims, the rules engine needs to calculate DRGs — this is how inpatient stays are reimbursed. Current HealthLogic config has the DRG grouper built in.
+
+Priya: we'll need a DRG grouper library. There are open-source options. Rachel, do you have a recommendation?
+
+Rachel: CMS publishes the ICD-10 PCS grouper annually. There are a couple of Java libraries that implement it. I'll send links. The key thing is you need to update the grouper definitions every October when CMS releases new fiscal year updates.
+
+Marcus: this is a good segue into jargon. Rachel, some of our engineers are going to be new to claims. Can you do a quick crash course on the coding systems? CPT, HCPCS, ICD-10, DRG — what are these?
+
+Rachel: quick version:
+  - CPT (Current Procedural Terminology) — codes for medical procedures and services. Maintained by the AMA. This is what you see on professional claims. Example: 99213 is an office visit.
+  - HCPCS (Healthcare Common Procedure Coding System) — broader set, includes CPT (Level I) plus codes for supplies, equipment, drugs (Level II). Level II codes start with a letter. Example: J0129 is abciximab injection.
+  - ICD-10 — diagnosis codes. ICD-10-CM for clinical diagnoses. Example: E11.9 is type 2 diabetes without complications. Every claim must have at least one diagnosis code.
+  - DRG (Diagnosis Related Group) — used for inpatient reimbursement. Groups a hospital stay into a payment category based on the principal diagnosis, procedures performed, complications, and patient demographics. The hospital gets paid a flat rate per DRG, not per service.
+
+Marcus: and we deal with all of these?
+
+Rachel: yes. Professional claims use CPT/HCPCS for procedures and ICD-10 for diagnoses. Institutional claims use the same plus DRGs for inpatient. Your rules engine needs to understand all of them.
+
+Action items:
+  [ ] Priya — set up the new rules engine repo, scaffold the Spring Boot project. By end of week.
+  [ ] Rachel — send DRG grouper library recommendations. By Wednesday.
+  [ ] Nadia — start mapping the 60% simple edit rules from HealthLogic. Create a spreadsheet of rule types and counts. By end of sprint 44.
+  [ ] Leo — investigate Drools performance with ~4000 rules loaded. Run benchmarks. By end of sprint 44.
+  [ ] Marcus — set up the biweekly migration sync meetings. Send invites.
+  [ ] Priya — talk to clinical team about rule change process during the migration (dual maintenance period).
+
+Next meeting: April 28
+
+Side note from Marcus: Rachel's contract is 6 months. We need to make sure we capture her institutional knowledge before she rolls off in October. I've been burned by this before.

@@ -1,0 +1,101 @@
+{
+  "source_document": "pharmacy-claims.txt",
+  "document_summary": "Placeholder documentation for pharmacy claims processing, which currently operates on the legacy PharmaCore system outside Clearview's main claims platform, with plans for migration in 2026.",
+  "entities": [
+    {
+      "entity_type": "system",
+      "id": "pharmacore",
+      "name": "PharmaCore",
+      "description": "Legacy system currently processing all pharmacy claims outside the main Clearview platform",
+      "overview": "PharmaCore is the existing pharmacy claims processing system that handles approximately 50K claims per quarter. It operates independently from Clearview's main claims platform and is scheduled for replacement as part of the 2026 roadmap migration.",
+      "details": "PharmaCore processes all of Clearview's pharmacy claims volume (~50K per quarter) but operates entirely outside the modern claims platform. The system is considered legacy and is targeted for replacement in the 2026 roadmap. Dana Okafor has the most knowledge about this system's current operations. The migration planning will involve decisions about NCPDP transaction standards, formulary integration, PBM integration strategy, pharmacy network pricing, and clinical drug review integration.",
+      "status": "active",
+      "tags": [
+        "legacy",
+        "pharmacy",
+        "migration-target"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "dana-okafor",
+          "target_entity_name": "Dana Okafor",
+          "reasoning": "Document states Dana knows the most about the PharmaCore system"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "PharmaCore is clearly described as a named system that processes pharmacy claims, fitting the definition of a system that implements domain-specific business logic"
+    },
+    {
+      "entity_type": "process",
+      "id": "pharmacy-claims-migration-2026",
+      "name": "Pharmacy Claims Migration (2026)",
+      "description": "Planned migration of pharmacy claims processing from PharmaCore to the main Clearview platform",
+      "overview": "A planned initiative for 2026 to bring pharmacy claims processing onto Clearview's main claims platform. This migration will require integrating NCPDP standards, formulary systems, PBM relationships, pharmacy networks, and clinical review processes.",
+      "details": "The 2026 roadmap includes migrating pharmacy claims from the legacy PharmaCore system to the main Clearview platform. Key integration points include: NCPDP transaction standards (pharmacy equivalent of EDI 837), formulary integration for covered drug lists per benefit plan, PBM integration decisions (continue external or bring in-house), pharmacy network and pricing integration (MAC, AWP, WAC pricing models), and clinical drug review/DUR integration. Priya Anand is designated as the engineering contact for migration planning.",
+      "status": "planned",
+      "tags": [
+        "migration",
+        "pharmacy",
+        "2026-roadmap"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Document identifies Priya as the engineering contact for migration planning"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "pharmacore",
+          "target_entity_name": "PharmaCore",
+          "reasoning": "Migration will replace PharmaCore with platform integration"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [],
+      "reasoning": "This represents a business process with defined steps and stakeholders, involving the migration from one system to another"
+    }
+  ],
+  "questions": [
+    "What specific technical limitations or business drivers are motivating the migration from PharmaCore to the main platform?",
+    "What is the current integration between PharmaCore and other Clearview systems for member eligibility, benefit verification, and reporting?",
+    "What are the specific decision criteria for the PBM integration choice (continue external vs bring in-house)?",
+    "How will the pharmacy claims migration align with or impact the ongoing HealthLogic Rules Engine replacement mentioned in previous ADRs?",
+    "What is the current data flow between PharmaCore and the quarterly metrics reporting that shows 50K claims per quarter?",
+    "Are there existing contracts or vendor relationships with PharmaCore that will impact migration timing or approach?"
+  ],
+  "new_jargon": [
+    "NCPDP",
+    "PBM",
+    "MAC",
+    "AWP",
+    "WAC",
+    "DUR",
+    "Formulary"
+  ],
+  "decision_log": [
+    {
+      "subject": "PharmaCore system classification",
+      "decision": "classified as system entity type",
+      "reasoning": "PharmaCore processes pharmacy claims and implements domain-specific business logic for a specific business function, matching the definition of a system rather than software-component"
+    },
+    {
+      "subject": "Pharmacy migration process",
+      "decision": "created as separate process entity",
+      "reasoning": "The migration has defined steps, stakeholders, and deliverables making it a distinct business process rather than just a decision or capability"
+    },
+    {
+      "subject": "Technical acronyms (NCPDP, PBM, etc.)",
+      "decision": "added to new_jargon but did not create individual entities",
+      "reasoning": "These are mentioned as concepts that will need to be addressed but lack sufficient detail in this document to create meaningful entities - they appear to be placeholders for future documentation"
+    },
+    {
+      "subject": "Dana Okafor and Priya Anand references",
+      "decision": "created relationships to existing persona entities",
+      "reasoning": "Both personas already exist in the entity list, so I referenced them rather than creating duplicates"
+    }
+  ]
+}

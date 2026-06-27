@@ -1,0 +1,258 @@
+Integration Patterns — Claims Platform
+Last updated: 2025-11-02 by Priya Anand
+
+This document describes the integration patterns used across the Clearview Health Plans claims platform. If you're building a new service or modifying an existing integration, follow these patterns. Don't invent new ones without talking to Priya or Marcus first.
+
+
+== Pattern 1: Synchronous Request-Response ==
+
+Used for: real-time queries where the caller needs an answer immediately.
+
+Examples:
+  - Claims Gateway → Eligibility Service (coverage check at intake)
+  - Claims Gateway → Fraud Detection (pre-payment scoring)
+  - Rules Engine → Eligibility Service (accumulator query during adjudication)
+  - Rules Engine → Provider Directory (fee schedule lookup)
+  - Rules Engine → Pre-Auth Service (auth decision code lookup)
+  - Member Portal → Eligibility Service (benefit balance display)
+
+Protocol: HTTP/REST over internal service mesh (Istio)
+Timeout: 5 seconds default, configurable per route
+Retry policy: 1 retry on 5xx, no retry on 4xx
+Circuit breaker: Resilience4j, 3 consecutive failures → open for 30 seconds
+
+Implementation notes:
+  - All sync calls go through the Istio service mesh. Don't bypass it with direct pod-to-pod calls.
+  - Use the service DNS names (e.g., eligibility-service.member-svc.svc.cluster.local)
+  - Always include a correlation ID header (X-Correlation-ID) — it's the claim_id for claim-related calls
+  - Log the correlation ID in every service's request/response logs. This is how we trace calls across services during incidents.
+
+When NOT to use sync:
+  - If the caller can proceed without the response (use async instead)
+  - If the operation takes >5 seconds (use async with callback)
+  - If you're processing batches (use Kafka)
+
+The fraud detection integration was originally async (Kafka sidecar) but we moved it to sync in 2025 so we could block claims at intake. The 120ms p99 latency made this feasible. See the fraud detection meeting notes for the rationale.
+
+
+== Pattern 2: Event-Driven (Kafka) ==
+
+Used for: async processing, batch operations, data feeds, audit trails.
+
+Kafka cluster: Confluent Cloud, us-central1
+Naming convention: clearview.<domain>.<entity>.<event>
+
+Key topics:
+
+  clearview.claims.claim.submitted
+    Producer: Claims Gateway
+    Consumers: Fraud Detection (post-payment analysis), Reporting pipeline
+    Schema: Avro, registered in Confluent Schema Registry
+    Partitioning: by member_id (ensures all claims for a member go to same partition)
+    Retention: 30 days
+
+  clearview.claims.claim.adjudicated
+    Producer: Rules Engine
+    Consumers: Payment Engine, Member Portal (status update), Reporting pipeline
+    Schema: Avro
+    Partitioning: by claim_id
+    Retention: 30 days
+
+  clearview.claims.payment.completed
+    Producer: Payment Engine
+    Consumers: Member Portal (EOB availability), Provider Directory (payment preferences update), Reporting pipeline
+    Schema: Avro
+    Partitioning: by payee_id (TIN or member_id)
+    Retention: 90 days
+
+  clearview.eligibility.enrollment.changed
+    Producer: Eligibility Service
+    Consumers: Claims Gateway (triggers retroactive reprocessing)
+    Schema: Avro
+    Partitioning: by member_id
+    Retention: 7 days
+    Note: retroactive enrollment changes (up to 60 days back) trigger automatic claim reprocessing
+
+  clearview.providers.status.changed
+    Producer: Provider Directory
+    Consumers: Rules Engine (cache invalidation), Member Portal (provider search update)
+    Schema: Avro
+    Partitioning: by npi
+    Retention: 7 days
+
+  clearview.fraud.alert.generated
+    Producer: Fraud Detection
+    Consumers: SIU case management, Payment Engine (payment holds)
+    Schema: Avro
+    Partitioning: by provider_npi
+    Retention: 365 days (compliance requirement)
+
+Implementation notes:
+  - All Kafka messages use Avro with schema evolution (backward compatible changes only)
+  - Consumer groups follow the pattern: <team>.<service>.<purpose> (e.g., claims-ops.payment-engine.adjudicated-claims)
+  - Dead letter topics: every consumer must have a DLT configured. Pattern: <original-topic>.dlt
+  - Exactly-once semantics are enabled for the Payment Engine consumer (financial transactions). Other consumers use at-least-once with idempotent processing.
+
+Schema Registry: https://confluent.clearviewhealth.internal/schema-registry
+  All schemas must be registered before deploying producers. The CI pipeline validates schema compatibility.
+
+
+== Pattern 3: Batch Processing ==
+
+Used for: EDI file processing, payment cycles, reporting, data feeds to external partners.
+
+Batch framework: Spring Batch (Java services), custom Python scripts (Fraud Detection)
+
+Key batch jobs:
+
+  Institutional claims intake (EDI 837I):
+    Schedule: every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)
+    Source: Claims Gateway picks up 837I files from the clearinghouse SFTP drop
+    Processing: validate, parse, insert into claims table, route to adjudication
+    Batch size: up to 2,000 per batch (limit added after the 2024 connection pool incident)
+
+  Payment cycle processing:
+    Schedule: nightly at 02:00 UTC
+    Processing: batch all adjudicated claims by provider TIN, generate payment records, create ERA 835 files
+    Output: EFT files to banking partner, check print files, 835 files to provider portal
+
+  Accumulator reservation cleanup:
+    Schedule: every 6 hours
+    Processing: expire soft reservations older than 4 hours (workaround for CLV-4521)
+
+  Fraud model retraining:
+    Schedule: 1st of each month at 06:00 UTC
+    Platform: Vertex AI
+    Input: last 12 months of claims + SIU investigation outcomes
+    Output: new model binary pushed to GCS, picked up by Fraud Detection service on restart
+
+  Provider re-credentialing check:
+    Schedule: weekly, Monday 08:00 UTC
+    Processing: check for providers with credentials expiring in the next 90 days
+    Output: notification to Provider Network team
+
+Implementation notes:
+  - All batch jobs are idempotent. If a job fails midway, it can be restarted without duplicate processing.
+  - Batch jobs log to a separate Splunk index: claims-batch-processing
+  - Job status is tracked in Datadog: dashboard "Claims Batch Jobs — Production"
+  - Payment cycle jobs have a manual approval gate — the batch runs, generates the files, but doesn't release to the bank until a Claims Ops lead approves in the admin console.
+
+
+== Pattern 4: EDI Transaction Processing ==
+
+Used for: standard healthcare EDI transactions with clearinghouses and trading partners.
+
+Supported transactions:
+
+  Inbound:
+    EDI 837P — Professional claims (real-time)
+    EDI 837I — Institutional claims (batch)
+    EDI 270  — Eligibility inquiry (batch or real-time)
+    EDI 278  — Prior authorization request (real-time)
+
+  Outbound:
+    EDI 835  — Electronic remittance advice (batch, per payment cycle)
+    EDI 271  — Eligibility response (real-time)
+    EDI 277  — Claim status response (real-time)
+    EDI 278  — Prior authorization response (real-time)
+
+EDI processing flow:
+  1. Clearinghouse sends file to SFTP drop (or real-time via AS2)
+  2. Claims Gateway picks up and validates envelope (ISA/GS segments)
+  3. Transaction sets are parsed and mapped to internal data model
+  4. Each transaction is processed per its type
+  5. Acknowledgment (EDI 997/999) is generated and sent back
+
+Trading partners:
+  - Northeast Clearinghouse (primary, ~60% of volume)
+  - MedConnect Exchange (~25% of volume)
+  - DirectSubmit (~15%, mostly smaller provider groups)
+
+SFTP configuration is managed in Vault. Each trading partner has their own credentials and directory structure.
+
+Important: EDI field lengths are strict. A provider NPI must be exactly 10 digits. An ICD-10 code must be 3-7 characters. The Claims Gateway validation layer catches these, but if you're building anything that generates EDI, test with the X12 validator first.
+
+
+== Pattern 5: Data Replication / Denormalization ==
+
+Used when a service needs data owned by another service but can't afford sync calls on the hot path.
+
+Current implementations:
+
+  Fraud Detection ← Provider Directory:
+    Fraud Detection maintains a denormalized provider profile (billing patterns, specialty, location) in its own database. Updated nightly via a Kafka consumer on clearview.providers.status.changed + a nightly full-sync batch job.
+    Rationale: fraud scoring needs provider history and can't afford a sync call during the 120ms scoring window.
+
+  Member Portal ← Eligibility Service:
+    Member Portal's BFF layer caches eligibility data with a 5-minute TTL. Not a full replica — just a cache for display purposes.
+    Rationale: member portal has high read volume for benefit balances, and the data is not time-critical (displaying benefit info, not adjudicating claims).
+
+  Rules Engine ← Benefit Plan config:
+    Rules Engine caches benefit plan configuration with a 15-minute TTL.
+    Rationale: plan config changes infrequently (quarterly at most). Caching avoids repeated Eligibility Service calls during high-volume adjudication.
+
+Rules for using this pattern:
+  1. The source service always remains the source of truth
+  2. Replicated data must have a defined freshness SLA (how stale can it be?)
+  3. Cache invalidation events must exist (Kafka topic or webhook)
+  4. Document the replication in this guide — undocumented replication becomes a debugging nightmare
+
+
+== Pattern 6: External Partner Integration ==
+
+Used for: integration with external vendors and partners.
+
+Current external integrations:
+
+  HealthLogic (vendor — Rules Engine):
+    Integration: SOAP web services (yes, really)
+    The Rules Engine sends claim data to the HealthLogic Adjudicator for rule evaluation. We're replacing this — see ADR-2024-007.
+    Auth: mutual TLS + API key
+    Environment: dedicated VPN tunnel to HealthLogic data center
+
+  Banking partner (Payment Engine):
+    Integration: SFTP for EFT/ACH files (NACHA format)
+    Settlement confirmation: daily file drop with settlement status
+    The Payment Engine generates NACHA files nightly and drops them on the bank's SFTP.
+
+  Clearinghouses (Claims Gateway):
+    Integration: AS2 for real-time, SFTP for batch
+    See Pattern 4 above for details.
+
+  State regulatory agencies:
+    Integration: SFTP file drops (custom formats per state)
+    Quarterly reporting of claims data, denied claims, and appeals outcomes.
+    Three states = three different formats. The reporting team maintains the transformations.
+
+
+== Anti-Patterns (Don't Do These) ==
+
+1. Direct database access across service boundaries
+   BAD: Service A queries Service B's database directly
+   GOOD: Service A calls Service B's API
+   We had this problem with the old monolith. It's how we ended up with the rules engine vendor lock-in.
+
+2. Undocumented sync calls
+   BAD: Adding a new HTTP call to another service without updating this doc
+   GOOD: Add the call, add it here, set up monitoring
+
+3. Using Kafka for request-response
+   BAD: Publish a message, then poll a response topic waiting for the answer
+   GOOD: Use sync HTTP if you need a response. Kafka is for fire-and-forget events.
+
+4. Shared databases
+   BAD: Two services writing to the same table
+   We don't do this anymore. But some legacy tables in the Claims Gateway DB still have columns that the Rules Engine used to write to directly. Don't add more.
+
+
+== Contacts ==
+
+Integration questions: Priya Anand (Claims Ops engineering lead)
+Kafka/messaging: Leo Chen (platform)
+EDI/clearinghouse: Nadia Volkov (Claims Ops)
+External vendor integrations: Marcus Reeves (Claims Ops lead)
+
+Page history:
+  2025-11-02 — Priya Anand — added data replication pattern, anti-patterns section
+  2025-08-15 — Priya Anand — added Kafka topic inventory
+  2025-05-20 — Leo Chen — initial version

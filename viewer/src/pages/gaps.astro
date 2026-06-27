@@ -1,0 +1,20 @@
+---
+/**
+ * Gaps page — where your documentation is thin.
+ * Core differentiator: shows CLEAN/INCOMPLETE/MISSING with actionable gap cards.
+ */
+import Layout from '../layouts/Layout.astro';
+import GapsView from '../components/gaps/GapsView';
+import { loadEvalData } from '../data/eval-loader';
+
+const evalData = loadEvalData();
+const results = evalData?.results ?? [];
+const stats = evalData?.stats ?? {
+  total: 0, clean: 0, incomplete: 0, missing: 0,
+  cleanPct: 0, incompletePct: 0, missingPct: 0,
+  perLayer: {}, perSource: {}, perPersona: {},
+};
+---
+<Layout title="Gaps" activePage="gaps" pageTitle="Gaps">
+  <GapsView client:load results={results} stats={stats} />
+</Layout>

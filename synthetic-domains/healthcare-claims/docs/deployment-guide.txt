@@ -1,0 +1,146 @@
+Claims Platform — Deployment Guide
+Last updated: 2025-10-15
+
+This guide covers how to deploy services in the claims platform. If you've never deployed here before, read the whole thing. If you're experienced, skip to the section for your service.
+
+
+== Prerequisites ==
+
+Before you can deploy anything:
+  1. GitHub access to the clearview-health org
+  2. GKE cluster access (kubectl configured for prod-claims-01 and nonprod-claims-01)
+  3. Artifact Registry read access (gcr.io/clearview-prod/)
+  4. Vault access for your service's secrets path
+  5. Datadog access for monitoring deployments
+  6. PagerDuty access (if you're in the on-call rotation)
+
+If you're missing any of these, file a ticket with Platform Engineering. They're usually fast.
+
+
+== CI/CD Pipeline ==
+
+All services use GitHub Actions for CI/CD.
+
+Pipeline stages:
+  1. Build — compile, run unit tests
+  2. Test — integration tests (against test containers)
+  3. Security scan — Snyk for dependency vulnerabilities, Trivy for container image scanning
+  4. Build image — Docker build, push to Artifact Registry
+  5. Deploy to staging — automatic on merge to main
+  6. Deploy to production — manual approval required
+
+Production deployment requires:
+  - All CI checks green
+  - Manual approval from at least one of: Marcus Reeves, Priya Anand, or the service's tech lead
+  - No active SEV-1 incidents
+  - Not during a payment cycle window (02:00-06:00 UTC) unless it's an emergency fix
+
+Deployment strategy: rolling update (default), canary (for high-risk changes)
+  - Rolling: new pods come up, old pods drain. Zero downtime if health checks are configured correctly.
+  - Canary: 10% traffic to new version for 30 minutes, then full rollout. Used for Rules Engine changes and Payment Engine changes.
+
+Rollback: revert the merge commit and the pipeline redeploys the previous version. Alternatively, use the GitHub Actions "rollback" workflow which re-deploys the last known good image tag.
+
+
+== Environment Promotion ==
+
+  dev → staging → production
+
+  dev (nonprod-claims-01, dev namespace):
+    - Deploys on every push to feature branches
+    - Shared database instance (separate logical databases per service)
+    - Uses mock external services (HealthLogic, banking partner)
+
+  staging (nonprod-claims-01, staging namespace):
+    - Deploys on merge to main (automatic)
+    - Separate database instances
+    - Connected to HealthLogic sandbox environment
+    - EDI testing uses a test clearinghouse (no real claims)
+    - Synthetic test data (not real member/provider data)
+
+  production (prod-claims-01):
+    - Manual promotion from staging
+    - HA database configuration (Cloud SQL with failover replica)
+    - Connected to real external services
+    - Real member and provider data — HIPAA applies
+
+Important: never connect dev or staging to production databases. This sounds obvious but it's happened twice.
+
+
+== Service-Specific Notes ==
+
+Claims Gateway:
+  - Deployment window: anytime outside payment cycle (02:00-06:00 UTC)
+  - Watch for: connection pool health after deployment (check Datadog dashboard)
+  - If connection pool alert fires post-deploy, roll back immediately
+  - Batch processing (837I) will pause during rolling update. Batches resume when new pods are healthy.
+
+Rules Engine:
+  - ALWAYS use canary deployment
+  - After deploying, check auto-adjudication rate for 30 minutes. If it drops >5%, rollback.
+  - Rule changes and code changes should be deployed separately when possible
+  - The HealthLogic Adjudicator config is deployed separately via GCS bucket update (not through the CI pipeline)
+
+Payment Engine:
+  - NEVER deploy during payment cycle (02:00-06:00 UTC)
+  - ALWAYS use canary deployment
+  - After deploying, verify the next payment cycle runs successfully before declaring the deploy complete
+  - If the deployment changes the NACHA file format, coordinate with the banking partner FIRST
+
+Eligibility Service:
+  - Deployment window: anytime, but avoid deploying during open enrollment periods (Nov-Dec) unless critical
+  - The Eligibility Service handles retroactive enrollment changes. If a deploy introduces a bug in enrollment processing, it can cascade to claim reprocessing. Be cautious.
+
+Fraud Detection:
+  - Model updates and code updates are separate deployments
+  - Model updates: push new model binary to GCS, restart pods (they pick up the new model on startup)
+  - Code updates: normal CI/CD pipeline
+  - After model update, monitor the fraud score distribution for 24 hours. If the score distribution shifts significantly, the model might have a data issue.
+
+Pre-Auth Service:
+  - Clinical criteria file updates: push to GCS bucket gs://clearview-preauth-config/criteria/
+  - Code deployments: normal CI/CD
+  - After criteria update, monitor auto-approval rate (target: 60%)
+
+Member Portal:
+  - Frontend deploys are independent of backend (React SPA served from CDN)
+  - BFF layer deploys follow the standard pipeline
+  - Use feature flags (LaunchDarkly) for gradual rollout of new features
+  - Test on mobile viewports before deploying — member portal has high mobile usage
+
+
+== Database Migrations ==
+
+  - Flyway for Java services, Alembic for Fraud Detection (Python)
+  - Migrations run automatically on service startup
+  - Rule: migrations must be backward compatible. The old code version must work with the new schema.
+    This means: add columns as nullable first, deploy code that writes to the new column, then make it non-nullable in a later migration.
+  - Never run DDL statements manually in production. Use migrations.
+
+Migration naming:
+  Java: V<version>__<description>.sql (e.g., V042__add_void_linkage_fields.sql)
+  Python: <timestamp>_<description>.py
+
+
+== Kubernetes Resources ==
+
+All service manifests live in the clearview-infra repo.
+
+Key resources per service:
+  - Deployment (pods, replicas, resource limits)
+  - Service (ClusterIP for internal, LoadBalancer for external)
+  - ConfigMap (environment-specific configuration)
+  - HPA (Horizontal Pod Autoscaler) — all services scale based on CPU and custom metrics
+  - PDB (Pod Disruption Budget) — minimum 2 pods available during updates
+
+Resource defaults:
+  - CPU request: 500m, limit: 2000m
+  - Memory request: 512Mi, limit: 2Gi
+  - These are defaults — services can override in their deployment manifest
+
+Namespace layout:
+  claims-ops — Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, Pre-Auth Service
+  member-svc — Eligibility Service, Member Portal BFF
+  provider-net — Provider Directory
+
+TODO: document the new Istio service mesh configuration (Leo is working on this)

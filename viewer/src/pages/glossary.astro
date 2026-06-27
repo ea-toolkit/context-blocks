@@ -1,0 +1,51 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { jargon } from '../data/registry';
+import { GlossaryTable } from '../components/glossary/GlossaryTable';
+import type { GlossaryEntry } from '../components/glossary/GlossaryTable';
+
+// Serialize only the fields the component needs — avoids passing non-serializable Map/etc.
+const entries: GlossaryEntry[] = jargon.map(e => ({
+  id: e.id,
+  name: e.name,
+  typeLabel: e.typeLabel,
+  description: e.description,
+  layerColor: e.layerColor,
+}));
+---
+
+<Layout title="Glossary" activePage="glossary">
+  <div class="glossary-page">
+    <div class="glossary-page__header">
+      <h1 class="glossary-page__title">Glossary</h1>
+      <p class="glossary-page__subtitle">
+        {jargon.length} domain terms — business and technical vocabulary extracted from the knowledge base
+      </p>
+    </div>
+
+    <GlossaryTable entries={entries} client:load />
+  </div>
+</Layout>
+
+<style>
+  .glossary-page {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .glossary-page__header {
+    margin-bottom: var(--cb-space-xl);
+  }
+
+  .glossary-page__title {
+    font-size: var(--cb-font-size-2xl);
+    font-weight: 700;
+    color: var(--cb-text);
+    margin-bottom: var(--cb-space-xs);
+  }
+
+  .glossary-page__subtitle {
+    font-size: var(--cb-font-size-sm);
+    color: var(--cb-text-muted);
+  }
+</style>

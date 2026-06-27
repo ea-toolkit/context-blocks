@@ -1,0 +1,327 @@
+{
+  "source_document": "claims-gateway-api-v1-deprecated.txt",
+  "document_summary": "Documentation for the deprecated Claims Submission API v1, covering its limitations, migration path to v2, remaining users, and decommission timeline. Details the technical issues that led to v2 development and provides endpoint specifications for reference.",
+  "entities": [
+    {
+      "entity_type": "api",
+      "id": "claims-submission-api-v1",
+      "name": "Claims Submission API v1",
+      "description": "Deprecated REST API for claim submission built in 2020, scheduled for decommission June 2025",
+      "overview": "The original claims submission API built when Claims Gateway was first extracted from the monolith in 2020. Deprecated June 2024 due to critical limitations including unlimited batch sizes that caused the March 2024 outage, inconsistent error handling, and lack of fraud score support.",
+      "details": "Base URL: https://api.clearviewhealth.internal/claims/v1. Major limitations include no batch size limit on /claims/batch endpoint (caused March 2024 outage), inconsistent error responses (JSON/plain text/HTTP status only), no correlation ID support, simplified status model (RECEIVED, PROCESSING, COMPLETED, REJECTED vs v2's full lifecycle), and no fraud score field support. Still used by DirectSubmit clearinghouse (~2% volume) and one direct-submitting provider group as of January 2025. Supports both JSON and EDI X12 content types. Authentication via OAuth 2.0 Bearer tokens. Decommission planned for June 1, 2025 pending final migrations.",
+      "status": "deprecated",
+      "tags": [
+        "deprecated",
+        "legacy-era",
+        "needs-migration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway exposes this API for claim submission"
+        },
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "directsubmit",
+          "target_entity_name": "DirectSubmit",
+          "reasoning": "DirectSubmit is still using v1 as of January 2025"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "claims-submission-api-v2",
+          "target_entity_name": "Claims Submission API v2",
+          "reasoning": "v2 was created to replace v1 and address its limitations"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined API with specific endpoints, authentication, and business purpose"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "march-2024-claims-gateway-outage",
+      "name": "March 2024 Claims Gateway Outage",
+      "description": "System outage caused by unlimited batch sizes in Claims Submission API v1",
+      "overview": "Critical production incident in March 2024 caused by the lack of batch size limits on the Claims Submission API v1 /claims/batch endpoint. This outage was the primary driver for developing API v2 with proper batch size controls.",
+      "details": "The outage occurred when large batch submissions overwhelmed the Claims Gateway system through the v1 /claims/batch endpoint, which had no size restrictions. This incident highlighted the need for better resource management and led directly to the development of Claims Submission API v2 with a 2,000 claim batch limit and improved error handling. The incident appears related to the broader connection pool issues that plagued the system in 2024.",
+      "status": "active",
+      "tags": [
+        "incident",
+        "legacy-era",
+        "catalyst"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "triggered_by",
+          "target_entity_id": "claims-submission-api-v1",
+          "target_entity_name": "Claims Submission API v1",
+          "reasoning": "v1's unlimited batch size caused the outage"
+        },
+        {
+          "relationship_type": "led_to",
+          "target_entity_id": "claims-submission-api-v2",
+          "target_entity_name": "Claims Submission API v2",
+          "reasoning": "This outage was the primary driver for developing v2"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "The incident appears related to the broader connection pool issues that plagued the system in 2024"
+      ],
+      "reasoning": "Described as a significant incident with clear cause and consequences, fits business-event pattern"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-api-v1-decommission",
+      "name": "Claims API v1 Decommission",
+      "description": "Planned process to retire Claims Submission API v1 by June 2025",
+      "overview": "Multi-step decommission process to retire the deprecated Claims Submission API v1, including consumer migration, compatibility shimming, and final code removal. Target date of June 1, 2025 may slip depending on DirectSubmit migration progress.",
+      "details": "Six-step decommission plan: 1) Deprecation notice sent (completed June 2024), 2) Sunset header added to responses (completed), 3) Chase remaining consumers to migrate (in progress), 4) Add request logging for undiscovered consumers (pending), 5) Route v1 traffic to v2 with compatibility shim (pending), 6) Decommission v1 code path (pending). Process managed by Priya Anand for technical aspects and James Whitfield for provider/clearinghouse outreach. Success depends on DirectSubmit completing their migration and identifying the unnamed provider group still using v1.",
+      "status": "active",
+      "tags": [
+        "decommission",
+        "migration",
+        "in-progress"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-submission-api-v1",
+          "target_entity_name": "Claims Submission API v1",
+          "reasoning": "This process is specifically for decommissioning v1"
+        },
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "priya-anand",
+          "target_entity_name": "Priya Anand",
+          "reasoning": "Priya owns the technical aspects of decommission"
+        },
+        {
+          "relationship_type": "involves",
+          "target_entity_id": "james-whitfield",
+          "target_entity_name": "James Whitfield",
+          "reasoning": "James handles provider/clearinghouse outreach"
+        },
+        {
+          "relationship_type": "depends_on",
+          "target_entity_id": "directsubmit",
+          "target_entity_name": "DirectSubmit",
+          "reasoning": "Decommission timeline depends on DirectSubmit migration"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined multi-step process with clear owners and dependencies"
+    },
+    {
+      "entity_type": "external-party",
+      "id": "unnamed-provider-group",
+      "name": "Unnamed Provider Group",
+      "description": "Provider organization still using Claims Submission API v1 for direct REST submissions",
+      "overview": "An unidentified provider group that submits claims directly via REST API instead of through a clearinghouse, still using the deprecated Claims Submission API v1. James Whitfield was assigned to reach out to them for migration assistance.",
+      "details": "One of only two remaining consumers of the deprecated Claims Submission API v1 as of January 2025. Unlike most providers who submit through clearinghouses, this group submits directly to Clearview's REST API. Their continued use of v1 is blocking the API decommission scheduled for June 2025. James Whitfield from Provider Network team was supposed to contact them for migration support, but their current status is unclear from the documentation.",
+      "status": "active",
+      "tags": [
+        "migration-blocker",
+        "direct-submission"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "consumes",
+          "target_entity_id": "claims-submission-api-v1",
+          "target_entity_name": "Claims Submission API v1",
+          "reasoning": "Still using v1 for claim submissions"
+        },
+        {
+          "relationship_type": "contact_assigned_to",
+          "target_entity_id": "james-whitfield",
+          "target_entity_name": "James Whitfield",
+          "reasoning": "James was assigned to reach out to them"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "Their current status is unclear from the documentation"
+      ],
+      "reasoning": "Mentioned as distinct entity blocking migration, though identity not specified"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "claims-api-v1-status-model",
+      "name": "Claims API v1 Status Model",
+      "description": "Simplified claim status enumeration used in deprecated Claims Submission API v1",
+      "overview": "Limited set of claim status values (RECEIVED, PROCESSING, COMPLETED, REJECTED) used by Claims Submission API v1, significantly simpler than the full lifecycle status model implemented in v2. The simplified model masked important workflow states from API consumers.",
+      "details": "Four-state model: RECEIVED (claim accepted), PROCESSING (covers everything between intake and final disposition), COMPLETED (claim processed, could be paid or denied), REJECTED (validation failure or system rejection). This simplification was problematic because PROCESSING covered multiple distinct workflow states (validation, eligibility check, adjudication, pending review) that consumers needed visibility into. COMPLETED status required additional fields to determine if claim was actually paid or denied. v2 expanded this to full lifecycle visibility: RECEIVED, VALIDATED, ELIGIBLE, ADJUDICATED, PAID, DENIED, PENDED, REJECTED.",
+      "status": "deprecated",
+      "tags": [
+        "deprecated",
+        "legacy-era",
+        "insufficient-granularity"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-submission-api-v1",
+          "target_entity_name": "Claims Submission API v1",
+          "reasoning": "v1 API returns these status values"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "claims-api-v2-status-model",
+          "target_entity_name": "Claims API v2 Status Model",
+          "reasoning": "v2 replaced this with more granular status model"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Explicitly defined data model with specific enumerated values and clear usage"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "claims-api-v2-status-model",
+      "name": "Claims API v2 Status Model",
+      "description": "Comprehensive claim status enumeration providing full lifecycle visibility in Claims Submission API v2",
+      "overview": "Enhanced claim status model in Claims Submission API v2 that provides granular visibility into claim processing stages: RECEIVED, VALIDATED, ELIGIBLE, ADJUDICATED, PAID, DENIED, PENDED, REJECTED. Addresses the visibility gaps from v1's simplified model.",
+      "details": "Eight-state model providing full claim lifecycle visibility: RECEIVED (initial intake), VALIDATED (format and structure verified), ELIGIBLE (member eligibility confirmed), ADJUDICATED (rules engine processing complete), PAID (payment issued), DENIED (claim rejected with reason), PENDED (held for manual review), REJECTED (validation failure). This granular model allows API consumers to understand exactly where claims are in the processing pipeline, unlike v1's generic PROCESSING state. Includes additional fields like fraud_score, disposition, denial_reason, pend_reason, and correlation_id for enhanced troubleshooting and monitoring.",
+      "status": "active",
+      "tags": [
+        "current",
+        "enhanced-visibility"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-submission-api-v2",
+          "target_entity_name": "Claims Submission API v2",
+          "reasoning": "v2 API returns these status values"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "claims-api-v1-status-model",
+          "target_entity_name": "Claims API v1 Status Model",
+          "reasoning": "v2 model replaces v1's simplified statuses"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Explicitly defined data model with enumerated values contrasted against v1"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "claims-api-v1-validation-logic",
+      "name": "Claims API v1 Validation Logic",
+      "description": "Asynchronous validation approach in Claims Submission API v1 that accepts invalid claims",
+      "overview": "Claims Submission API v1 uses asynchronous validation, returning HTTP 200 status for all accepted submissions even if validation fails later in the pipeline. This approach created confusion for API consumers who received success responses for ultimately invalid claims.",
+      "details": "v1 validation logic accepts claims into the system first, then validates asynchronously during processing. This means the API returns 200 OK and a claim_id even for claims that will fail validation downstream. Consumers only discover validation failures by polling the status endpoint later. This pattern was problematic because it gave false positive feedback at submission time and required consumers to implement additional polling logic to detect validation failures. v2 switched to synchronous validation, performing format and basic validation checks at submission time and returning 400 Bad Request for invalid claims immediately.",
+      "status": "deprecated",
+      "tags": [
+        "deprecated",
+        "legacy-era",
+        "async-validation",
+        "user-experience-issue"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-submission-api-v1",
+          "target_entity_name": "Claims Submission API v1",
+          "reasoning": "v1 API implements this validation approach"
+        },
+        {
+          "relationship_type": "superseded_by",
+          "target_entity_id": "claims-api-v2-validation-logic",
+          "target_entity_name": "Claims API v2 Validation Logic",
+          "reasoning": "v2 replaced async with synchronous validation"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described validation behavior with specific HTTP response patterns"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "claims-api-v2-validation-logic",
+      "name": "Claims API v2 Validation Logic",
+      "description": "Synchronous validation in Claims Submission API v2 that rejects invalid claims immediately",
+      "overview": "Claims Submission API v2 implements synchronous validation, performing format and basic validation checks at submission time and returning immediate feedback. Invalid claims receive 400 Bad Request responses rather than being accepted for later processing.",
+      "details": "v2 validation logic performs synchronous validation during the API call, checking claim format, structure, and basic business rules before accepting the submission. Invalid claims are immediately rejected with 400 Bad Request responses including detailed error information with correlation IDs for troubleshooting. This provides immediate feedback to API consumers and prevents invalid claims from entering the processing pipeline. The synchronous approach improves user experience by eliminating the need for consumers to poll for validation results and reduces system load by rejecting bad data early.",
+      "status": "active",
+      "tags": [
+        "current",
+        "sync-validation",
+        "improved-ux"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "claims-submission-api-v2",
+          "target_entity_name": "Claims Submission API v2",
+          "reasoning": "v2 API implements this validation approach"
+        },
+        {
+          "relationship_type": "supersedes",
+          "target_entity_id": "claims-api-v1-validation-logic",
+          "target_entity_name": "Claims API v1 Validation Logic",
+          "reasoning": "v2 replaced v1's async validation with sync"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described validation behavior contrasted with v1 approach"
+    }
+  ],
+  "questions": [
+    "What specific technical mechanism caused the March 2024 outage - was it memory exhaustion, database connection pool limits, or something else?",
+    "Has the unnamed provider group been contacted by James Whitfield yet, and what's their migration timeline?",
+    "Is DirectSubmit actually on track to migrate by Q2 2025, or is the June 2025 decommission date likely to slip?",
+    "What is the compatibility shim approach - will it translate v1 requests to v2 format, or proxy them?",
+    "Are there any other undiscovered v1 consumers beyond the two mentioned, and how will request logging help identify them?",
+    "What specific Avro schema support was added in v2, and how does it relate to the existing EDI X12 support?",
+    "How does the fraud score field work in v2 responses - is it the same score from Fraud Detection system?",
+    "What wiki page did Nadia write for the migration guide, and is it current?"
+  ],
+  "new_jargon": [
+    "compatibility shim",
+    "correlation_id",
+    "Sunset header"
+  ],
+  "decision_log": [
+    {
+      "subject": "Claims Submission API v1",
+      "decision": "classified as api entity type",
+      "reasoning": "Has specific base URL, defined endpoints, authentication scheme, and serves as named interface between systems"
+    },
+    {
+      "subject": "March 2024 outage",
+      "decision": "classified as business-event",
+      "reasoning": "Significant incident that triggered downstream changes, fits event pattern with clear cause and effects"
+    },
+    {
+      "subject": "v1 decommission process",
+      "decision": "classified as process",
+      "reasoning": "Multi-step workflow with defined stages, owners, and dependencies - clear business process"
+    },
+    {
+      "subject": "Unnamed provider group",
+      "decision": "classified as external-party despite lack of name",
+      "reasoning": "Represents distinct organization outside Clearview that interacts with systems, even though unnamed"
+    },
+    {
+      "subject": "Status models",
+      "decision": "created separate entities for v1 and v2 status models",
+      "reasoning": "They are distinct data structures with different enumerations and business impact, not just versions of same thing"
+    },
+    {
+      "subject": "Validation logic",
+      "decision": "created separate domain-logic entities for v1 and v2 validation",
+      "reasoning": "Fundamentally different algorithmic approaches (async vs sync) with different business rules and outcomes"
+    },
+    {
+      "subject": "Migration guide wiki page",
+      "decision": "did not create entity",
+      "reasoning": "Mentioned only in passing without enough detail about content or current status to be meaningful"
+    }
+  ]
+}

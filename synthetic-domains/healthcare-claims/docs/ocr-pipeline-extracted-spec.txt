@@ -1,0 +1,121 @@
+OCR Pipeline — Technical Specification
+[Document extracted from PDF scan of original spec — formatting may be inconsistent]
+[Source: Physical binder in Marcus's office, "Claims Platform v1 Specs", Tab 4]
+[Scanned 2024-02-15 by Nadia Volkov]
+
+---
+
+1 . OVERVIEW
+
+The OCR (Optical Character Recognition) pipeline processes paper claims submitted via fax or mail .
+Paper claims are scanned at the Clearview mailroom and uploaded to the OCR processing queue as
+TIFF or PDF images . The pipeline extracts structured claim data from these images and feeds
+them into the Claims Gateway for standard processing .
+
+Paper claims represent approximately 5% of total claim volume (~10,000 claims/month) .
+The volume is declining as more providers switch to electronic submission .
+
+2 . PIPELINE STAGES
+
+Stage 1 : Image Preprocessing
+   - Deskew and orientation correction
+   - Noise removal and contrast enhancement
+   - Form type detection (CMS-1500 vs UB-04)
+   - Multi-page document assembly (some faxes come as separate pages)
+
+Stage 2 : OCR Extraction
+   - Engine : Google Document AI (Cloud)
+   - Templates : separate extraction templates for CMS-1500 and UB-04 forms
+   - Fields extracted :
+      CMS—1500 (professional claims):
+         Box 1 : Insurance type (Medicare/Medicaid/etc)
+         Box 1a : Insured's I.D. Number (member ID)
+         Box 2 : Patient's Name
+         Box 3 : Patient's Birth Date / Sex
+         Box 11 : Insured's Group Number
+         Box 17 : Referring Provider NPI
+         Box 21 : Diagnosis codes (ICD-10)
+         Box 24a-j : Service lines (date, place, procedure code, modifier, DX pointer, charges, units)
+         Box 25 : Provider TIN
+         Box 31 : Physician Signature
+         Box 33 : Billing Provider NPI
+
+      UB-04 (institutional claims) :
+         Field 3a : Patient Control Number
+         Field 4 : Type of Bill (TOB)
+         Field 8 : Patient Name
+         Field 12-13 : Admission Date/Hour
+         Field 14 : Priority/Type of Admission
+         Field 38-41 : Revenue Codes
+         Field 42 : Revenue Description
+         Field 44 : HCPCS/Rates
+         Field 67 : Principal Diagnosis
+         Field 74 : Principal Procedure Code
+
+Stage 3 : Validation and Confidence Scoring
+   - Each extracted field gets a confidence score (0.0 — 1.0)
+   - Claim-level confidence = minimum of all required field confidences
+   - Confidence > 0.90 : auto-submitted to Claims Gateway
+   - Confidence 0.70 - 0.90 : routed to manual data entry queue with OCR results pre-filled
+   - Confidence < 0.70 : routed to manual data entry queue with blank form (OCR too unreliable)
+
+Stage 4 : Manual Data Entry (for low-confidence extractions)
+   - Data entry team reviews scanned image alongside OCR output
+   - Corrects errors , fills in missing fields
+   - Submits corrected claim to Claims Gateway via JSON API
+
+Stage 5 : Archive
+   - Original scanned image stored in GCS bucket : gs://clearview-claims-scans/
+   - Retention : 7 years (per state regulation)
+   - Linked to claim record via claim_id
+
+3 . ACCURACY METRICS
+
+Overall extraction accuracy (measured monthly against manual data entry baseline) :
+   CMS-1500 forms : 94.2% field-level accuracy
+   UB-04 forms : 91.8% field-level accuracy (lower due to more complex layout)
+
+Common extraction errors :
+   - Handwritten fields (physician signatures, handwritten procedure codes on older forms)
+   - Fax artifacts (dark bands , streaks , low resolution)
+   - Multi-column fields on UB-04 where revenue codes and HCPCS codes are adjacent
+   - ICD-10 codes with periods vs without (e.g. , E11.9 vs E119 — the OCR sometimes drops the period)
+   - Provider NPI : leading zeros sometimes dropped (NPI must be exactly 10 digits)
+
+4 . INFRASTRUCTURE
+
+   - Google Document AI for OCR (API-based, per-page pricing)
+   - Processing server : Python 3.9 application on GKE (claims-ops namespace)
+   - Image storage : GCS (gs://clearview-claims-scans/)
+   - Queue : Claims Gateway internal queue (same as JSON submissions)
+   - Manual data entry tool : legacy web application (the same one from ClaimsPro era — it's ugly but it works)
+
+   Cost: ~$0.02 per page processed via Document AI
+   Monthly OCR cost: ~$600-800 (declining as paper volume decreases)
+
+5. KNOWN ISSUES
+
+   - The UB-04 template hasn't been updated since we switched from the old OCR vendor (ABBYY) to
+     Google Document AI in 2023. Some field mappings might be suboptimal. Nobody has compared.
+   - The manual data entry tool is the last surviving piece of the ClaimsPro era. It connects directly to the
+     Claims Gateway database to insert claims. This should go through the API instead but nobody has
+     prioritized the change.
+   - Faxed claims from one specific provider group (Valley Orthopedic Associates) consistently have low
+     confidence scores because they use a non-standard CMS-1500 form with modified field positions.
+     The data entry team has complained about this repeatedly.
+   - Archive retention is set to 7 years but the GCS lifecycle policy is configured for 5 years .
+     Someone needs to fix this . Filed as CLV-5102 but not prioritized .
+
+6. CONTACTS
+
+   OCR pipeline questions : Nadia Volkov
+   Manual data entry team : Reports to Claims Ops , supervisor is Maria Chen (contract team lead)
+   Google Document AI support : through GCP support ticket
+   Archive/storage : Leo Chen (infrastructure)
+
+
+[END OF EXTRACTED DOCUMENT]
+[Note from Nadia: I scanned this because the binder is falling apart and I didn't want to lose the spec.
+Some of the formatting got messed up in the scan — the periods after sentences have extra spaces because
+the OCR interpreted sentence endings weird. I didn't clean it all up. The content is accurate as of when
+the original spec was written (early 2023) but some details may be outdated.]

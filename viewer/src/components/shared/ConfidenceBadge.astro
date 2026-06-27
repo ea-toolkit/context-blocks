@@ -1,0 +1,24 @@
+---
+/**
+ * Confidence badge — visual tier based on confidence score.
+ * solid (>=0.85), muted (0.55-0.84), sketched (<0.55)
+ * Uses the entity's layer color, never red.
+ */
+import { getConfidenceTier } from '../../lib/types';
+
+interface Props {
+  confidence: number;
+  layerColor?: string;
+}
+
+const { confidence, layerColor } = Astro.props;
+const tier = getConfidenceTier(confidence);
+const pct = Math.round(confidence * 100);
+---
+<span
+  class:list={['badge', `badge--confidence-${tier}`]}
+  style={layerColor ? `--badge-color: ${layerColor}; --badge-bg: ${layerColor}20;` : ''}
+  title={`${pct}% confidence (${tier})`}
+>
+  {pct}%
+</span>

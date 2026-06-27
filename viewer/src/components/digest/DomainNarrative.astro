@@ -1,0 +1,18 @@
+---
+/**
+ * DomainNarrative — trimmed prose understanding of the domain.
+ * Rendered from the analysis-report.md domain understanding section.
+ */
+import { marked } from 'marked';
+
+interface Props {
+  narrative: string;
+}
+
+const { narrative } = Astro.props;
+const narrativeHtml = marked.parse(narrative);
+---
+<div class="digest__section">
+  <h2 class="digest__section-title">Domain Understanding</h2>
+  <div class="digest__narrative cb-markdown" set:html={narrativeHtml} />
+</div>

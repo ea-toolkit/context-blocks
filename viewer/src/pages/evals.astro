@@ -1,0 +1,14 @@
+---
+/**
+ * Evals page — eval run explorer dashboard.
+ * Loads all eval result files as named runs and passes to the React island.
+ */
+import Layout from '../layouts/Layout.astro';
+import EvalsView from '../components/evals/EvalsView';
+import { loadAllEvalRuns } from '../data/eval-loader';
+
+const runs = loadAllEvalRuns();
+---
+<Layout title="Evals" activePage="evals">
+  <EvalsView client:load runs={runs} />
+</Layout>

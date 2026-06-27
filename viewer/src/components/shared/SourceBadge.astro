@@ -1,0 +1,21 @@
+---
+/**
+ * Source badge — shows where a question came from.
+ * seed / doc / persona:name / work-item
+ */
+interface Props {
+  source: string;
+  persona?: string;
+  sourceFile?: string;
+}
+
+const { source, persona, sourceFile } = Astro.props;
+
+const label = persona ? `${source}:${persona}` : source;
+const cssClass = source === 'persona' ? 'source-badge--persona'
+  : source === 'work-item' ? 'source-badge--work-item'
+  : '';
+---
+<span class:list={['source-badge', cssClass]} title={sourceFile || ''}>
+  {label}
+</span>

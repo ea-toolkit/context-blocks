@@ -1,0 +1,813 @@
+{
+  "source_document": "deployment-guide.txt",
+  "document_summary": "Deployment guide covering CI/CD pipeline, environment promotion, service-specific deployment procedures, database migrations, and Kubernetes resource configuration for Clearview's claims platform services.",
+  "entities": [
+    {
+      "entity_type": "process",
+      "id": "github-actions-cicd-pipeline",
+      "name": "GitHub Actions CI/CD Pipeline",
+      "description": "Six-stage continuous integration and deployment pipeline for all claims platform services",
+      "overview": "The standardized CI/CD pipeline that all claims platform services use, built on GitHub Actions. It handles everything from code compilation through production deployment with manual approval gates and rollback capabilities.",
+      "details": "Six-stage pipeline: 1) Build (compile, unit tests), 2) Test (integration tests against test containers), 3) Security scan (Snyk for dependencies, Trivy for container images), 4) Build image (Docker build, push to Artifact Registry), 5) Deploy to staging (automatic on merge to main), 6) Deploy to production (manual approval required). Production deployment requires all CI checks green, manual approval from Marcus Reeves, Priya Anand, or service tech lead, no active SEV-1 incidents, and avoidance of payment cycle windows (02:00-06:00 UTC) unless emergency. Supports both rolling update (default, zero downtime) and canary deployment strategies (10% traffic for 30 minutes then full rollout for high-risk changes). Rollback achieved by reverting merge commit or using GitHub Actions 'rollback' workflow to redeploy last known good image tag.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "deployment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "github",
+          "target_entity_name": "GitHub",
+          "reasoning": "Pipeline runs on GitHub Actions"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "artifact-registry",
+          "target_entity_name": "Artifact Registry",
+          "reasoning": "Pushes Docker images to Artifact Registry"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "snyk",
+          "target_entity_name": "Snyk",
+          "reasoning": "Uses Snyk for dependency vulnerability scanning"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "trivy",
+          "target_entity_name": "Trivy",
+          "reasoning": "Uses Trivy for container image scanning"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-cycle-timing-constraints",
+          "target_entity_name": "Payment Cycle Timing Constraints",
+          "reasoning": "Production deployments must avoid payment cycle windows unless emergency"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described workflow with defined stages, triggers, and approval gates"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "github",
+      "name": "GitHub",
+      "description": "Source code repository and CI/CD platform hosting clearview-health organization",
+      "overview": "GitHub serves as both the source code repository for all claims platform services and the CI/CD execution platform via GitHub Actions. All deployments originate from commits to this platform.",
+      "details": "Houses the clearview-health organization with repositories for all claims platform services. GitHub Actions provides the CI/CD execution environment for the six-stage deployment pipeline. Access to the clearview-health org is a prerequisite for any deployment activities. The platform also hosts the 'rollback' workflow used for emergency rollbacks to previous image versions.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "external"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "github-actions-cicd-pipeline",
+          "target_entity_name": "GitHub Actions CI/CD Pipeline",
+          "reasoning": "Pipeline executes on GitHub Actions"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as the source control and CI/CD platform"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "artifact-registry",
+      "name": "Artifact Registry",
+      "description": "Google Cloud container image registry for storing Docker images",
+      "overview": "Google Cloud's Artifact Registry (gcr.io/clearview-prod/) stores all Docker images built by the CI/CD pipeline. Services require read access to this registry for deployment operations.",
+      "details": "Container registry hosted at gcr.io/clearview-prod/ that stores Docker images built during the CI/CD pipeline's image build stage. All deployment personnel require read access to this registry as a prerequisite. The registry integrates with the Google Cloud Platform infrastructure and supports the rolling update and canary deployment strategies.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "google-cloud"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "github-actions-cicd-pipeline",
+          "target_entity_name": "GitHub Actions CI/CD Pipeline",
+          "reasoning": "Pipeline pushes Docker images to this registry"
+        },
+        {
+          "relationship_type": "deployed_on",
+          "target_entity_id": "google-cloud-platform",
+          "target_entity_name": "Google Cloud Platform",
+          "reasoning": "Artifact Registry is a Google Cloud service"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as container registry with specific URL and access requirements"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "snyk",
+      "name": "Snyk",
+      "description": "Dependency vulnerability scanning tool used in CI/CD pipeline",
+      "overview": "Security scanning tool integrated into the CI/CD pipeline's security scan stage to identify vulnerabilities in service dependencies.",
+      "details": "Third-party security tool that scans service dependencies for known vulnerabilities during the CI/CD pipeline's security scan stage. Works alongside Trivy to provide comprehensive security scanning before images are built and deployed.",
+      "status": "active",
+      "tags": [
+        "security",
+        "external"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "github-actions-cicd-pipeline",
+          "target_entity_name": "GitHub Actions CI/CD Pipeline",
+          "reasoning": "Pipeline uses Snyk for dependency vulnerability scanning"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as dependency vulnerability scanner in pipeline"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "trivy",
+      "name": "Trivy",
+      "description": "Container image vulnerability scanner used in CI/CD pipeline",
+      "overview": "Container image security scanning tool integrated into the CI/CD pipeline's security scan stage to identify vulnerabilities in Docker images.",
+      "details": "Security scanning tool that analyzes Docker container images for vulnerabilities during the CI/CD pipeline's security scan stage. Complements Snyk's dependency scanning by focusing specifically on container image security.",
+      "status": "active",
+      "tags": [
+        "security",
+        "external"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "github-actions-cicd-pipeline",
+          "target_entity_name": "GitHub Actions CI/CD Pipeline",
+          "reasoning": "Pipeline uses Trivy for container image scanning"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as container image scanner in pipeline"
+    },
+    {
+      "entity_type": "process",
+      "id": "environment-promotion-pipeline",
+      "name": "Environment Promotion Pipeline",
+      "description": "Three-stage environment promotion process: dev → staging → production",
+      "overview": "The structured environment promotion flow that ensures changes are tested through progressively production-like environments before reaching live systems. Each environment has distinct characteristics and data isolation.",
+      "details": "Three-stage promotion: dev (nonprod-claims-01 dev namespace, deploys on feature branch pushes, shared database instance with separate logical databases, uses mock external services), staging (nonprod-claims-01 staging namespace, automatic deploy on main merge, separate database instances, connected to HealthLogic sandbox, EDI testing via test clearinghouse with synthetic data), production (prod-claims-01, manual promotion, HA database with failover replica, real external services, real member/provider data under HIPAA). Critical rule: never connect dev or staging to production databases - this has caused incidents twice before.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "infrastructure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "gke-nonprod-claims-01",
+          "target_entity_name": "GKE Non-Production Cluster (nonprod-claims-01)",
+          "reasoning": "Dev and staging environments run on this cluster"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "gke-prod-claims-01",
+          "target_entity_name": "GKE Production Cluster (prod-claims-01)",
+          "reasoning": "Production environment runs on this cluster"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "hipaa-compliance-requirements",
+          "target_entity_name": "HIPAA Compliance Requirements",
+          "reasoning": "Production environment handles real member/provider data under HIPAA"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "healthlogic-systems",
+          "target_entity_name": "HealthLogic Systems",
+          "reasoning": "Staging connects to HealthLogic sandbox environment"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly described three-stage promotion with specific environment characteristics"
+    },
+    {
+      "entity_type": "process",
+      "id": "database-migration-process",
+      "name": "Database Migration Process",
+      "description": "Automated database schema change process using Flyway (Java) and Alembic (Python)",
+      "overview": "Standardized database schema evolution process that runs migrations automatically on service startup with strict backward compatibility requirements.",
+      "details": "Uses Flyway for Java services and Alembic for Fraud Detection (Python). Migrations run automatically on service startup. Critical rule: migrations must be backward compatible - old code version must work with new schema. This requires adding columns as nullable first, deploying code that writes to new column, then making non-nullable in later migration. Manual DDL execution in production is prohibited - all changes must go through migrations. Naming convention: Java uses V<version>__<description>.sql (e.g., V042__add_void_linkage_fields.sql), Python uses <timestamp>_<description>.py format.",
+      "status": "active",
+      "tags": [
+        "database",
+        "deployment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "flyway",
+          "target_entity_name": "Flyway",
+          "reasoning": "Java services use Flyway for database migrations"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "alembic",
+          "target_entity_name": "Alembic",
+          "reasoning": "Python services (Fraud Detection) use Alembic for migrations"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Well-defined process with specific tools and naming conventions"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "alembic",
+      "name": "Alembic",
+      "description": "Python database migration tool used by Fraud Detection service",
+      "overview": "Database migration framework used specifically by the Fraud Detection service (Python-based) for managing schema changes.",
+      "details": "Python-based database migration tool used by the Fraud Detection service for managing schema evolution. Uses timestamp-based naming convention (<timestamp>_<description>.py) and runs automatically on service startup. Must follow backward compatibility rules where old code works with new schema.",
+      "status": "active",
+      "tags": [
+        "database",
+        "python"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection service uses Alembic for database migrations"
+        },
+        {
+          "relationship_type": "part_of",
+          "target_entity_id": "database-migration-process",
+          "target_entity_name": "Database Migration Process",
+          "reasoning": "Alembic is part of the standardized migration process"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Explicitly mentioned as Python migration tool for Fraud Detection"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-gateway-deployment",
+      "name": "Claims Gateway Deployment",
+      "description": "Specific deployment procedure for Claims Gateway with connection pool monitoring",
+      "overview": "Claims Gateway deployment process with specific timing windows, connection pool health monitoring, and batch processing considerations during rolling updates.",
+      "details": "Deployment window: anytime outside payment cycle (02:00-06:00 UTC). Critical monitoring: connection pool health after deployment via Datadog dashboard. If connection pool alert fires post-deploy, immediate rollback required. Batch processing (837I) pauses during rolling update but resumes when new pods become healthy. This service has specific infrastructure concerns due to its role as the primary claims intake point.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "claims-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Deployment process specifically for Claims Gateway service"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-cycle-timing-constraints",
+          "target_entity_name": "Payment Cycle Timing Constraints",
+          "reasoning": "Must avoid payment cycle window for deployments"
+        },
+        {
+          "relationship_type": "monitors_via",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Uses Datadog dashboard to monitor connection pool health"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Service-specific deployment procedure with clear constraints and monitoring requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "rules-engine-deployment",
+      "name": "Rules Engine Deployment",
+      "description": "Mandatory canary deployment process for Rules Engine with auto-adjudication rate monitoring",
+      "overview": "High-risk deployment process for Rules Engine that requires canary deployment strategy and careful monitoring of auto-adjudication rates to prevent claims processing disruption.",
+      "details": "ALWAYS requires canary deployment strategy. After deployment, auto-adjudication rate must be monitored for 30 minutes - if rate drops >5%, immediate rollback required. Rule changes and code changes should be deployed separately when possible. HealthLogic Adjudicator configuration is deployed separately via GCS bucket update, not through the standard CI pipeline. This reflects the critical nature of the Rules Engine in claims processing.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "high-risk"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Deployment process specifically for Rules Engine"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "auto-adjudication-rate-targets",
+          "target_entity_name": "Auto-Adjudication Rate Targets",
+          "reasoning": "Deployment success measured against auto-adjudication rate thresholds"
+        },
+        {
+          "relationship_type": "integrates_with",
+          "target_entity_id": "healthlogic-adjudicator",
+          "target_entity_name": "HealthLogic Adjudicator",
+          "reasoning": "Configuration deployed separately via GCS bucket"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined high-risk deployment process with specific monitoring requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "payment-engine-deployment",
+      "name": "Payment Engine Deployment",
+      "description": "High-risk deployment process for Payment Engine with strict timing constraints and banking coordination",
+      "overview": "Critical deployment process for Payment Engine that prohibits deployment during payment cycles and requires verification of subsequent payment cycle success before completion.",
+      "details": "NEVER deploy during payment cycle (02:00-06:00 UTC). ALWAYS use canary deployment. After deployment, must verify next payment cycle runs successfully before declaring deploy complete. If deployment changes NACHA file format, coordination with banking partner is required FIRST. This reflects the Payment Engine's critical role in financial operations and external banking integrations.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "high-risk",
+        "financial"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Deployment process specifically for Payment Engine"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-cycle-timing-constraints",
+          "target_entity_name": "Payment Cycle Timing Constraints",
+          "reasoning": "Strictly prohibited during payment cycle windows"
+        },
+        {
+          "relationship_type": "coordinates_with",
+          "target_entity_id": "banking-partner",
+          "target_entity_name": "Banking Partner",
+          "reasoning": "Must coordinate NACHA format changes with banking partner"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "nacha-format",
+          "target_entity_name": "NACHA Format",
+          "reasoning": "Deployment changes may affect NACHA file format"
+        }
+      ],
+      "confidence": 0.95,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined high-risk deployment with specific banking coordination requirements"
+    },
+    {
+      "entity_type": "process",
+      "id": "eligibility-service-deployment",
+      "name": "Eligibility Service Deployment",
+      "description": "Deployment process for Eligibility Service with open enrollment period restrictions",
+      "overview": "Eligibility Service deployment process with timing restrictions during open enrollment periods due to the cascading impact of enrollment processing bugs on claim reprocessing.",
+      "details": "Deployment window: anytime, but avoid during open enrollment periods (Nov-Dec) unless critical. The Eligibility Service handles retroactive enrollment changes, so deployment bugs in enrollment processing can cascade to claim reprocessing, requiring extra caution. This service's central role in member eligibility verification makes deployment stability critical.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "enrollment"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Deployment process specifically for Eligibility Service"
+        },
+        {
+          "relationship_type": "affects",
+          "target_entity_id": "open-enrollment-process",
+          "target_entity_name": "Open Enrollment Process",
+          "reasoning": "Deployment restricted during open enrollment periods"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Deployment process with specific timing constraints related to enrollment periods"
+    },
+    {
+      "entity_type": "process",
+      "id": "fraud-detection-deployment",
+      "name": "Fraud Detection Deployment",
+      "description": "Dual deployment process for Fraud Detection covering both model updates and code changes",
+      "overview": "Specialized deployment process for Fraud Detection that separates model updates (via GCS) from code updates (via CI/CD) with distinct monitoring requirements.",
+      "details": "Separates model updates from code updates. Model updates: push new model binary to GCS bucket, restart pods (they pick up new model on startup). Code updates: follow normal CI/CD pipeline. After model update, fraud score distribution must be monitored for 24 hours - significant shifts may indicate model data issues. This dual deployment approach reflects the ML-driven nature of the fraud detection service.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "machine-learning"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Deployment process specifically for Fraud Detection service"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "google-cloud-storage",
+          "target_entity_name": "Google Cloud Storage",
+          "reasoning": "Model binaries deployed via GCS bucket"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "fraud-scoring-thresholds",
+          "target_entity_name": "Fraud Scoring Thresholds",
+          "reasoning": "Model updates monitored against fraud scoring distribution"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined dual deployment process with model-specific procedures"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "google-cloud-storage",
+      "name": "Google Cloud Storage",
+      "description": "Cloud storage service used for ML model binaries and configuration files",
+      "overview": "Google Cloud Storage buckets used for storing ML model binaries for Fraud Detection and configuration files for Pre-Auth Service clinical criteria.",
+      "details": "GCS buckets serve multiple purposes: storing fraud detection model binaries that pods pick up on startup, and housing Pre-Auth Service clinical criteria files at gs://clearview-preauth-config/criteria/. This provides a deployment mechanism outside the standard CI/CD pipeline for configuration and model updates.",
+      "status": "active",
+      "tags": [
+        "storage",
+        "google-cloud",
+        "configuration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "fraud-detection-deployment",
+          "target_entity_name": "Fraud Detection Deployment",
+          "reasoning": "Stores fraud detection model binaries"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "pre-auth-service-deployment",
+          "target_entity_name": "Pre-Auth Service Deployment",
+          "reasoning": "Stores clinical criteria configuration files"
+        },
+        {
+          "relationship_type": "deployed_on",
+          "target_entity_id": "google-cloud-platform",
+          "target_entity_name": "Google Cloud Platform",
+          "reasoning": "GCS is a Google Cloud Platform service"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clearly mentioned as storage for models and configuration files"
+    },
+    {
+      "entity_type": "process",
+      "id": "pre-auth-service-deployment",
+      "name": "Pre-Auth Service Deployment",
+      "description": "Dual deployment process for Pre-Auth Service covering clinical criteria and code changes",
+      "overview": "Pre-Auth Service deployment process that separates clinical criteria file updates (via GCS) from code deployments (via CI/CD) with auto-approval rate monitoring.",
+      "details": "Separates clinical criteria updates from code deployments. Clinical criteria file updates: push to GCS bucket gs://clearview-preauth-config/criteria/. Code deployments: follow normal CI/CD pipeline. After criteria updates, auto-approval rate must be monitored (target: 60%). This separation allows clinical policy changes independent of code deployment cycles.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "clinical-policy"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Deployment process specifically for Pre-Auth Service"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "google-cloud-storage",
+          "target_entity_name": "Google Cloud Storage",
+          "reasoning": "Clinical criteria files stored in GCS bucket"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "pre-authorization-requirements",
+          "target_entity_name": "Pre-Authorization Requirements",
+          "reasoning": "Auto-approval rate target governs deployment success"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined dual deployment process with clinical criteria management"
+    },
+    {
+      "entity_type": "process",
+      "id": "member-portal-deployment",
+      "name": "Member Portal Deployment",
+      "description": "Multi-component deployment process for Member Portal covering frontend, BFF, and feature flags",
+      "overview": "Member Portal deployment process that handles independent frontend and backend deployments with feature flag integration and mobile testing requirements.",
+      "details": "Frontend deployments are independent of backend (React SPA served from CDN). BFF layer deployments follow standard pipeline. Uses LaunchDarkly feature flags for gradual rollout of new features. Requires testing on mobile viewports before deployment due to high mobile usage. This architecture allows independent deployment of frontend and backend components while supporting progressive feature rollouts.",
+      "status": "active",
+      "tags": [
+        "deployment",
+        "frontend",
+        "mobile"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Deployment process specifically for Member Portal"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "launchdarkly",
+          "target_entity_name": "LaunchDarkly",
+          "reasoning": "Uses feature flags for gradual feature rollout"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "cdn",
+          "target_entity_name": "CDN",
+          "reasoning": "React SPA served from CDN"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Multi-component deployment process with specific mobile testing requirements"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "cdn",
+      "name": "CDN",
+      "description": "Content Delivery Network serving Member Portal React SPA frontend",
+      "overview": "Content Delivery Network that serves the Member Portal's React Single Page Application, enabling independent frontend deployments from the backend BFF layer.",
+      "details": "CDN infrastructure that hosts and serves the Member Portal React SPA, allowing frontend deployments to be independent of backend BFF deployments. This architecture separation supports faster frontend iteration and better user experience through edge caching.",
+      "status": "active",
+      "tags": [
+        "frontend",
+        "infrastructure"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "serves",
+          "target_entity_id": "member-portal",
+          "target_entity_name": "Member Portal",
+          "reasoning": "Serves the Member Portal React SPA frontend"
+        }
+      ],
+      "confidence": 0.8,
+      "hedged_statements": [
+        "CDN infrastructure likely provides edge caching for better user experience"
+      ],
+      "reasoning": "Mentioned as serving React SPA but specific CDN provider not identified"
+    },
+    {
+      "entity_type": "reference-data",
+      "id": "kubernetes-resource-defaults",
+      "name": "Kubernetes Resource Defaults",
+      "description": "Standard resource allocation settings for claims platform Kubernetes deployments",
+      "overview": "Standardized CPU and memory resource requests and limits that serve as defaults for all claims platform services, with override capability in deployment manifests.",
+      "details": "Default resource allocation: CPU request 500m, CPU limit 2000m, Memory request 512Mi, Memory limit 2Gi. These are baseline defaults that individual services can override in their deployment manifests. All services also include Horizontal Pod Autoscaler (HPA) for scaling based on CPU and custom metrics, plus Pod Disruption Budget (PDB) ensuring minimum 2 pods available during updates.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "resource-management"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "kubernetes-deployment-manifests",
+          "target_entity_name": "Kubernetes Deployment Manifests",
+          "reasoning": "Manifests use these defaults unless overridden"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined standard resource allocation values"
+    },
+    {
+      "entity_type": "data-model",
+      "id": "kubernetes-deployment-manifests",
+      "name": "Kubernetes Deployment Manifests",
+      "description": "Service deployment configurations stored in clearview-infra repository",
+      "overview": "Kubernetes resource definitions for all claims platform services, stored centrally in the clearview-infra repository and organized by service namespace.",
+      "details": "All service manifests stored in clearview-infra repo. Key resources per service: Deployment (pods, replicas, resource limits), Service (ClusterIP for internal, LoadBalancer for external), ConfigMap (environment-specific configuration), HPA (scales on CPU and custom metrics), PDB (minimum 2 pods during updates). Namespace layout: claims-ops (Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, Pre-Auth Service), member-svc (Eligibility Service, Member Portal BFF), provider-net (Provider Directory).",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "configuration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "stored_in",
+          "target_entity_id": "clearview-infra-repo",
+          "target_entity_name": "Clearview-Infra Repository",
+          "reasoning": "All manifests stored in this centralized repository"
+        },
+        {
+          "relationship_type": "uses",
+          "target_entity_id": "kubernetes-resource-defaults",
+          "target_entity_name": "Kubernetes Resource Defaults",
+          "reasoning": "Uses default resource settings unless overridden"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly described Kubernetes resource configuration with specific organization"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "clearview-infra-repo",
+      "name": "Clearview-Infra Repository",
+      "description": "Centralized repository containing all Kubernetes deployment manifests for claims platform services",
+      "overview": "Central repository housing all Kubernetes deployment manifests and infrastructure configuration for the claims platform services.",
+      "details": "Repository containing all service deployment manifests organized by namespace functionality. Houses the infrastructure-as-code definitions that define how services are deployed across the claims platform environments.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "configuration"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "contains",
+          "target_entity_id": "kubernetes-deployment-manifests",
+          "target_entity_name": "Kubernetes Deployment Manifests",
+          "reasoning": "Repository contains all deployment manifests"
+        }
+      ],
+      "confidence": 0.85,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as repository for infrastructure manifests"
+    },
+    {
+      "entity_type": "platform",
+      "id": "claims-ops-namespace",
+      "name": "Claims-Ops Namespace",
+      "description": "Kubernetes namespace hosting core claims processing services",
+      "overview": "Kubernetes namespace containing the primary claims processing services: Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, and Pre-Auth Service.",
+      "details": "Kubernetes namespace that groups the core claims processing workflow services. Contains Claims Gateway (intake), Rules Engine (adjudication), Payment Engine (disbursement), Fraud Detection (screening), and Pre-Auth Service (authorization). This logical grouping reflects the primary claims processing pipeline.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "claims-processing"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway deployed in this namespace"
+        },
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine deployed in this namespace"
+        },
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine deployed in this namespace"
+        },
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection deployed in this namespace"
+        },
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "pre-auth-service",
+          "target_entity_name": "Pre-Auth Service",
+          "reasoning": "Pre-Auth Service deployed in this namespace"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined namespace organization with specific service grouping"
+    },
+    {
+      "entity_type": "platform",
+      "id": "member-svc-namespace",
+      "name": "Member-Svc Namespace",
+      "description": "Kubernetes namespace hosting member-facing services",
+      "overview": "Kubernetes namespace containing services that directly serve members: Eligibility Service and Member Portal BFF layer.",
+      "details": "Kubernetes namespace that groups member-focused services. Contains Eligibility Service (member enrollment and benefit verification) and Member Portal BFF (backend-for-frontend layer supporting the member portal). This organization reflects the member-centric service grouping.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "member-services"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "eligibility-service",
+          "target_entity_name": "Eligibility Service",
+          "reasoning": "Eligibility Service deployed in this namespace"
+        },
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "nodejs-bff",
+          "target_entity_name": "Node.js BFF",
+          "reasoning": "Member Portal BFF deployed in this namespace"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined namespace with member-focused service grouping"
+    },
+    {
+      "entity_type": "platform",
+      "id": "provider-net-namespace",
+      "name": "Provider-Net Namespace",
+      "description": "Kubernetes namespace hosting provider network services",
+      "overview": "Kubernetes namespace containing services related to provider network management, specifically the Provider Directory service.",
+      "details": "Kubernetes namespace focused on provider network functionality. Contains Provider Directory service which manages provider master data, demographics, credentials, network status, and fee schedules. This organization reflects the provider network service domain.",
+      "status": "active",
+      "tags": [
+        "kubernetes",
+        "provider-network"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "hosts",
+          "target_entity_id": "provider-directory",
+          "target_entity_name": "Provider Directory",
+          "reasoning": "Provider Directory deployed in this namespace"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [],
+      "reasoning": "Clearly defined namespace with provider network focus"
+    }
+  ],
+  "questions": [
+    "What specific incident caused the 'never connect dev or staging to production databases' rule - what were the consequences of the two previous violations?",
+    "What is the 'Claims War Room Zoom' and how does it relate to the deployment incident response process?",
+    "What percentage of deployments actually use the canary strategy vs rolling updates, and what criteria determine the choice?",
+    "How are the 'custom metrics' for HPA scaling defined - what business metrics beyond CPU trigger scaling?",
+    "What is Leo working on regarding 'new Istio service mesh configuration' and how will it change the deployment process?",
+    "What specific monitoring alerts exist for the auto-adjudication rate drops that trigger Rules Engine rollbacks?",
+    "How is the 30-minute canary window enforced technically - is it automated or manual monitoring?",
+    "What constitutes a 'high-risk change' that mandates canary deployment beyond Rules Engine and Payment Engine?",
+    "What is the approval workflow mechanism - is it GitHub's built-in approvals or a custom tool?"
+  ],
+  "new_jargon": [
+    "Canary deployment",
+    "Rolling update",
+    "HPA (Horizontal Pod Autoscaler)",
+    "PDB (Pod Disruption Budget)",
+    "BFF (Backend for Frontend)",
+    "CDN",
+    "GCS bucket",
+    "SEV-1 incidents"
+  ],
+  "decision_log": [
+    {
+      "subject": "GitHub Actions CI/CD Pipeline",
+      "decision": "classified as process",
+      "reasoning": "It's a defined workflow with stages, triggers, and approval gates - clearly a business process rather than a system or component"
+    },
+    {
+      "subject": "Artifact Registry",
+      "decision": "classified as software-component",
+      "reasoning": "It's infrastructure software that supports but doesn't implement business logic - stores container images but doesn't process claims"
+    },
+    {
+      "subject": "Service-specific deployment procedures",
+      "decision": "created separate process entities for each service",
+      "reasoning": "Each service has distinct deployment characteristics, constraints, and monitoring requirements that merit individual documentation"
+    },
+    {
+      "subject": "Kubernetes namespaces",
+      "decision": "classified as platform",
+      "reasoning": "They're hosting environments where systems run, not the software components themselves - they provide the runtime environment"
+    },
+    {
+      "subject": "Database migration tools (Flyway, Alembic)",
+      "decision": "classified as software-component",
+      "reasoning": "They're infrastructure tools that support deployment but don't implement domain business logic"
+    },
+    {
+      "subject": "CDN",
+      "decision": "classified as software-component despite limited detail",
+      "reasoning": "Clearly serves infrastructure function for frontend hosting, though specific provider not mentioned"
+    },
+    {
+      "subject": "Marcus Reeves and Priya Anand approval authority",
+      "decision": "added relationships to existing personas rather than duplicate",
+      "reasoning": "These personas already exist from previous documents, just adding new context about their approval authority"
+    }
+  ]
+}

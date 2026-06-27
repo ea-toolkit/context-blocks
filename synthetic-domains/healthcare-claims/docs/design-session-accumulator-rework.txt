@@ -1,0 +1,96 @@
+Design Session — Accumulator Service Rework
+2025-05-19
+Attendees: Priya Anand, Leo Chen, Dana Okafor (partial), Nadia Volkov
+
+Context: The accumulator system (deductible, OOP max tracking) has been causing issues. The soft reservation approach works for most cases but we keep hitting edge cases. This session is to explore whether we should rework the approach.
+
+---
+
+Priya opened with the problem statement. Current issues:
+  1. Accumulator reservations not cleaned up when Rules Engine crashes mid-adjudication (CLV-4521). The 6-hour batch cleanup is a workaround, not a fix.
+  2. Concurrent claim processing can still result in accumulator drift (two claims reserving against the same accumulator, both succeed, total exceeds the limit)
+  3. The monthly reconciliation job catches drift but it's retroactive — by the time we fix it, the member may have already seen incorrect benefit balances on the portal
+  4. Plan year boundary handling is fragile (see the November 2024 incident where accumulators weren't created for new plan year until the batch job ran)
+
+Leo: the fundamental issue is that accumulators are a shared mutable resource being updated by multiple concurrent claim processors. Classic distributed systems problem. Soft reservations were our first attempt but they're not transactional.
+
+Priya: right. What are the options?
+
+Option A — event-sourced accumulators
+  Instead of tracking a running balance, store every accumulator event (reservation, application, release, adjustment) as an immutable log. The current balance is derived by replaying events.
+  Pros: no state corruption, perfect audit trail, handles the crash cleanup problem (orphaned reservations are just events that never got a matching "applied" event)
+  Cons: performance — replaying events to get current balance during adjudication could be slow. We'd need a materialized view or CQRS pattern.
+
+Leo: I've seen this work at scale but you need a really good materialized view strategy. The read path (Rules Engine querying accumulators during adjudication) needs to be sub-millisecond.
+
+Nadia: couldn't we use a cache that's updated by the event stream?
+
+Leo: yes, that's the CQRS approach. Write path goes to the event log (Kafka). Read path goes to a materialized view (PostgreSQL or Redis). The view is updated asynchronously from the event stream.
+
+Priya: what about consistency? If a claim writes an accumulator event but the materialized view hasn't caught up yet, the next claim could see stale data.
+
+Leo: that's the tradeoff. Event sourcing gives you eventual consistency, not strong consistency. For accumulators that's risky — you could over-apply deductible.
+
+Option B — distributed lock with short TTL
+  Before applying to an accumulator, acquire a distributed lock (Redis) scoped to the member + accumulator type. Lock TTL = 5 seconds. If you don't release it, Redis expires it.
+  Pros: strong consistency, simple to understand, handles the crash case (lock expires)
+  Cons: adds latency to every adjudication (lock acquire + release), contention for members with lots of concurrent claims, Redis becomes a dependency on the critical path
+
+Leo: I don't love putting Redis on the adjudication hot path. If Redis goes down, all adjudication stops.
+
+Priya: what if we use the existing PostgreSQL advisory locks instead of Redis? No new dependency.
+
+Leo: PostgreSQL advisory locks are per-connection, not per-transaction. If the connection drops, the lock is released. That actually works well for the crash case. And it avoids the Redis dependency.
+
+Priya: downside?
+
+Leo: the database becomes the bottleneck. Advisory locks still hit the database, so you're adding at least one round trip per accumulator update. With multiple accumulator types per claim (individual deductible, family deductible, individual OOP, family OOP), that's potentially 4 additional DB round trips per adjudication.
+
+Priya: current adjudication time is ~4 seconds. How much would 4 extra DB calls add?
+
+Leo: at our database latency, probably 8-12ms total. Negligible.
+
+Option C — hybrid approach (what we probably should do)
+  Keep the current reservation system but make it transactional:
+  1. Reserve accumulator amount within the same DB transaction as the adjudication write
+  2. If the transaction commits, the reservation is applied atomically
+  3. If the transaction rolls back (crash), the reservation is never written
+  4. No cleanup job needed for crash cases
+
+  The remaining drift issue (two concurrent reservations totaling more than the limit) is handled by:
+  - SELECT ... FOR UPDATE on the accumulator row before reserving
+  - This serializes concurrent claims for the same member at the database level
+
+Priya: this is the simplest option. The question is whether FOR UPDATE locks cause too much contention during high volume.
+
+Leo: for a single member, how many concurrent claims do we typically process?
+
+Nadia: we looked at this. The vast majority of members have at most 2 concurrent claims. Even the heavy users (chronic conditions, multiple providers) rarely exceed 5 concurrent claims. The lock hold time would be milliseconds.
+
+Priya: OK. I'm leaning toward Option C. It's the least disruptive — we keep the existing architecture, just make the reservation transactional and add the row-level lock.
+
+Dana joined at this point. Asked if the rework would affect the Member Portal benefit balance display.
+
+Priya: it shouldn't. The read path stays the same. We're just changing how reservations are written.
+
+Dana: what about the open enrollment accumulator reset? That's my biggest concern — the plan year boundary.
+
+Priya: separate issue. The accumulator reset needs its own fix. Currently the reset is a batch job that runs on Jan 1. We should pre-create the new plan year's accumulators during open enrollment processing, so they're ready before Jan 1.
+
+Dana: yes. That would have prevented the November 2024 issue. Let's do that.
+
+Decisions:
+  - Go with Option C (transactional reservations with SELECT FOR UPDATE)
+  - Pre-create next plan year accumulators during open enrollment
+  - Remove the 6-hour cleanup batch job once Option C is deployed (it becomes unnecessary)
+  - Keep the monthly reconciliation job as a safety net
+
+Action items:
+  [ ] Leo — prototype the transactional reservation approach. Test with concurrent load.
+  [ ] Priya — estimate migration effort. How do we transition from current approach to new approach with zero downtime?
+  [ ] Nadia — analyze concurrent claim patterns to validate the low-contention assumption
+  [ ] Dana — document the open enrollment accumulator pre-creation requirements
+
+Leo: one more thing. We should add the accumulator type as a domain concept in our docs. New engineers keep asking what accumulators are and how they work. The seed context mentions them but it's like one sentence.
+
+Priya: fair point. Add it to the backlog.

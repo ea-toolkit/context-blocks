@@ -1,0 +1,474 @@
+{
+  "source_document": "monitoring-alerting-runbook.txt",
+  "document_summary": "Operations runbook for the Claims Platform monitoring and alerting setup, detailing critical alerts, escalation procedures, dashboards, and troubleshooting guidance for on-call engineers.",
+  "entities": [
+    {
+      "entity_type": "software-component",
+      "id": "datadog",
+      "name": "Datadog",
+      "description": "Observability platform providing metrics, APM tracing, and alerting for Claims Platform services",
+      "overview": "Datadog serves as the primary monitoring platform for Claims Platform, handling metrics collection, distributed tracing via APM, and alert generation. It integrates with PagerDuty for incident escalation and provides production dashboards for all major services.",
+      "details": "Datadog monitors all Claims Platform services with specific dashboards for Claims Gateway, Rules Engine, Payment Engine, Fraud Detection, and Eligibility Service. Each dashboard tracks key metrics like request rate, error rate, latency percentiles (p50/p95/p99), and service-specific metrics like auto-adjudication rates and connection pool utilization. The platform generates alerts based on conditions like error rate thresholds (>50% for 5 minutes triggers SEV-1) and performance degradation (p95 latency >3s for Member Portal). Datadog APM provides distributed tracing capabilities that allow tracking claims across multiple services using structured claim_id logging.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "monitoring"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Datadog monitors Claims Gateway metrics and generates alerts"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Datadog monitors Rules Engine performance and health"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Datadog tracks Payment Engine batch processing and metrics"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "pagerduty",
+          "target_entity_name": "PagerDuty",
+          "reasoning": "Datadog alerts trigger PagerDuty notifications for on-call engineers"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as monitoring infrastructure software component based on its role providing observability services"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "splunk",
+      "name": "Splunk",
+      "description": "Log aggregation and search platform for Claims Platform application logs",
+      "overview": "Splunk serves as the centralized logging platform for all Claims Platform services, providing structured log search and analysis capabilities. It maintains specific indexes for different service types and supports cross-service claim tracing through structured logging.",
+      "details": "Splunk indexes logs from all Claims Platform services with specific indexes including 'claims-gateway', 'rules-engine', 'claims-batch-processing', and 'claims-*' for general claim-related logs. The platform supports structured logging with fields like claim_id that enable tracing individual claims across services over extended periods (up to 7 days shown in examples). Common operational queries include error analysis (level=ERROR), batch job monitoring, and specific claim investigation. All services implement structured logging to ensure consistent field naming and searchability across the platform.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "logging"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway logs are indexed in Splunk for troubleshooting"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine logs adjudication failures and operations"
+        },
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine batch processing logs are tracked in claims-batch-processing index"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clearly identified as logging infrastructure component based on its role in centralized log management"
+    },
+    {
+      "entity_type": "process",
+      "id": "claims-ops-on-call-rotation",
+      "name": "Claims Operations On-Call Rotation",
+      "description": "Weekly on-call rotation schedule for Claims Operations team covering Monday 9AM to Monday 9AM ET",
+      "overview": "The Claims Operations team maintains a weekly on-call rotation to provide 24/7 incident response for the Claims Platform. The rotation runs from Monday 9AM to Monday 9AM Eastern Time, with engineers responsible for responding to PagerDuty alerts and following established runbooks.",
+      "details": "The on-call rotation is managed through PagerDuty with a dedicated schedule at https://pagerduty.clearviewhealth.internal/schedules/claims-ops. On-call engineers are expected to respond to SEV-1 alerts immediately, SEV-2 alerts within 30 minutes, and review SEV-3 alerts the next business day. The escalation path for unresolved incidents goes from the on-call engineer to Marcus Reeves (Claims Ops lead), then Priya Anand (Engineering lead), and finally to VP Engineering for SEV-1 incidents lasting more than 2 hours. Member Services operates a separate parallel rotation on the same schedule.",
+      "status": "active",
+      "tags": [
+        "operational",
+        "incident-response"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "owned_by",
+          "target_entity_id": "claims-operations",
+          "target_entity_name": "Claims Operations",
+          "reasoning": "Claims Operations team owns and staffs this rotation"
+        },
+        {
+          "relationship_type": "managed_via",
+          "target_entity_id": "pagerduty",
+          "target_entity_name": "PagerDuty",
+          "reasoning": "PagerDuty manages the on-call schedule and alert routing"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear operational process for incident response and on-call management"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "alert-severity-classification",
+      "name": "Alert Severity Classification",
+      "description": "Three-tier severity classification system for Claims Platform alerts with defined response times",
+      "overview": "The Claims Platform uses a three-tier alert severity system: SEV-1 for critical alerts requiring immediate paging, SEV-2 for warning alerts requiring acknowledgment within 30 minutes, and SEV-3 for informational alerts reviewed next business day. Each severity level has specific conditions and response expectations.",
+      "details": "SEV-1 (Critical) alerts include Claims Gateway error rate >50% for 5 minutes, connection pool exhaustion >90% for 2 minutes, Rules Engine down for 3 minutes, Payment Engine batch failures, and Eligibility Service down for 2 minutes. These trigger immediate paging. SEV-2 (Warning) alerts include processing backlogs >5000 claims older than 30 minutes, Fraud Detection p99 latency >500ms for 10 minutes, Pre-Auth backlogs >200 requests older than 4 hours, auto-adjudication rate drops below 75%, and Member Portal p95 latency >3s for 10 minutes. SEV-3 (Informational) alerts include EDI batch partial failures >5% parse errors, excessive accumulator reservation cleanup >100 expired reservations, and provider credential expiration notifications >20 providers in 30 days.",
+      "status": "active",
+      "tags": [
+        "operational",
+        "incident-response"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "datadog",
+          "target_entity_name": "Datadog",
+          "reasoning": "Datadog monitors implement these severity thresholds"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "pagerduty",
+          "target_entity_name": "PagerDuty",
+          "reasoning": "PagerDuty routes alerts based on severity classification"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business rule defining operational response priorities and escalation logic"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "connection-pool-utilization-thresholds",
+      "name": "Connection Pool Utilization Thresholds",
+      "description": "HikariCP connection pool monitoring with 90% utilization threshold triggering immediate alerts",
+      "overview": "Claims Gateway monitors HikariCP connection pool utilization with alerts triggered when utilization exceeds 90% for 2 minutes. This threshold was established after the 2024-03-12 connection pool incident (CLV-3903) to prevent similar outages.",
+      "details": "The connection pool monitoring specifically tracks HikariCP pools with a critical alert (CLAIMS-GW-POOL-EXHAUSTION) at 90% utilization for 2 minutes. The current configuration supports maximum 200 connections via PgBouncer following the Q3 2024 migration. When triggered, the runbook requires immediately checking pg_stat_activity for stuck queries, with batch processing jobs being the first suspect. The response protocol prioritizes killing batch jobs before restarting pods to prevent cascading failures. This monitoring was added specifically after CLV-3903 incident analysis.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "database",
+        "legacy-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Connection pool monitoring specifically applies to Claims Gateway service"
+        },
+        {
+          "relationship_type": "derives_from",
+          "target_entity_id": "2024-connection-pool-incident",
+          "target_entity_name": "2024 Connection Pool Incident",
+          "reasoning": "These thresholds were established in response to the 2024 incident"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business rule for infrastructure monitoring derived from operational experience"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "payment-cycle-timing-constraints",
+      "name": "Payment Cycle Timing Constraints",
+      "description": "Critical timing requirements for Payment Engine batch processing to meet banking cutoff deadlines",
+      "overview": "Payment Engine batch job failures during payment cycle nights are time-critical and must be resolved before 6 AM to meet banking partner cutoff requirements. These constraints make payment-related incidents particularly urgent during specific timeframes.",
+      "details": "The Payment Engine runs nightly batch jobs that generate provider payments and ERA 835 files. If the batch job fails after midnight during payment cycle nights, resolution must occur before 6 AM to meet the banking partner's processing cutoff. This timing constraint escalates payment failures to time-critical status regardless of normal severity classification. The process includes NACHA file generation for EFT payments and ERA 835 remittance advice creation. Failure during these windows impacts provider cash flow and contractual payment obligations, making rapid resolution essential.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "time-critical",
+        "operational"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "These timing constraints specifically govern Payment Engine operations"
+        },
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "banking-partner",
+          "target_entity_name": "Banking Partner",
+          "reasoning": "Banking partner cutoff times drive these operational constraints"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business rule defining operational timing requirements for financial processes"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "fraud-circuit-breaker-logic",
+      "name": "Fraud Circuit Breaker Logic",
+      "description": "Fraud Detection circuit breaker that defaults claims to 0.0 fraud score when service is degraded",
+      "overview": "When Fraud Detection service experiences high latency or failures, a circuit breaker pattern defaults all claims to a fraud score of 0.0, allowing claims processing to continue uninterrupted. This design prioritizes pipeline availability over fraud detection accuracy.",
+      "details": "The Fraud Detection service implements circuit breaker logic that activates when p99 latency exceeds 500ms for 10 minutes or the service becomes unavailable. When the circuit breaker trips, all claims receive a default fraud score of 0.0, effectively bypassing fraud scoring to prevent pipeline blockage. This design decision reflects the business priority that missing fraud flags is preferable to blocking legitimate claim payments. The circuit breaker behavior is explicitly documented as intentional design rather than a failure mode, indicating claims processing availability takes precedence over fraud detection completeness.",
+      "status": "active",
+      "tags": [
+        "reliability",
+        "business-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "enforced_by",
+          "target_entity_id": "fraud-detection",
+          "target_entity_name": "Fraud Detection",
+          "reasoning": "Fraud Detection service implements this circuit breaker behavior"
+        },
+        {
+          "relationship_type": "enables",
+          "target_entity_id": "claims-processing-workflow",
+          "target_entity_name": "Claims Processing Workflow",
+          "reasoning": "Circuit breaker ensures claims processing continues during fraud service outages"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business logic rule that governs system behavior during service degradation"
+    },
+    {
+      "entity_type": "domain-logic",
+      "id": "auto-adjudication-rate-targets",
+      "name": "Auto-Adjudication Rate Targets",
+      "description": "Target 85% auto-adjudication rate with alerts when dropping below 75% threshold",
+      "overview": "Claims Platform maintains an 85% target auto-adjudication rate with monitoring alerts when the rolling 24-hour rate drops below 75%. Current performance runs approximately 81%, with rate drops often attributed to incomplete rules migration from HealthLogic.",
+      "details": "The system monitors auto-adjudication rates continuously with a 24-hour rolling window, targeting 85% automatic processing of claims without manual intervention. When rates drop below 75%, a SEV-2 alert (AUTO-ADJUDICATION-RATE-DROP) triggers investigation. Current performance averages 81%, indicating room for improvement toward the target. Rate degradation commonly correlates with rules engine migration issues where business rules from HealthLogic haven't been fully ported to the new system. The runbook includes a SQL query to analyze pend reasons: 'SELECT pend_reason, count(*) FROM claims WHERE status='PENDED' AND created_at > now() - interval '24 hours' GROUP BY 1 ORDER BY 2 DESC' to identify specific bottlenecks in automated processing.",
+      "status": "active",
+      "tags": [
+        "performance",
+        "business-logic"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "applies_to",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Auto-adjudication rates are determined by Rules Engine performance"
+        },
+        {
+          "relationship_type": "impacted_by",
+          "target_entity_id": "healthlogic-adjudicator",
+          "target_entity_name": "HealthLogic Adjudicator",
+          "reasoning": "Incomplete migration from HealthLogic impacts auto-adjudication rates"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear performance target and business logic for automated claim processing efficiency"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "hikaricp-pool-exhaustion-event",
+      "name": "HikariCP Pool Exhaustion Event",
+      "description": "Critical system event when database connection pool utilization exceeds 90% threshold",
+      "overview": "Connection pool exhaustion events trigger immediate SEV-1 alerts when HikariCP utilization exceeds 90% for 2 minutes. These events indicate potential database connectivity issues that can cascade into system-wide failures if not addressed quickly.",
+      "details": "HikariCP pool exhaustion events are detected when connection pool utilization exceeds 90% for a sustained 2-minute period, generating the CLAIMS-GW-POOL-EXHAUSTION alert. The event typically correlates with stuck database queries visible in pg_stat_activity or batch processing jobs holding connections longer than expected. Response protocol requires immediate investigation of active queries, with batch job termination taking priority over pod restarts to prevent connection state corruption. The current pool configuration allows 200 maximum connections via PgBouncer following the Q3 2024 architecture changes. These events were added to monitoring after the 2024-03-12 incident (CLV-3903) that highlighted connection pool management as a critical failure point.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "critical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway publishes pool exhaustion events through monitoring"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "incident-escalation-process",
+          "target_entity_name": "Incident Escalation Process",
+          "reasoning": "Pool exhaustion events trigger SEV-1 incident response"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "connection-pool-utilization-thresholds",
+          "target_entity_name": "Connection Pool Utilization Thresholds",
+          "reasoning": "Event generation is governed by the 90% utilization threshold rule"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear system event with defined triggers and response protocols"
+    },
+    {
+      "entity_type": "business-event",
+      "id": "payment-batch-failure-event",
+      "name": "Payment Batch Failure Event",
+      "description": "Critical event when Payment Engine nightly batch job fails during payment cycle processing",
+      "overview": "Payment batch failure events occur when the Payment Engine's nightly batch processing fails, impacting provider payments and ERA 835 generation. These events are time-critical during payment cycle nights due to banking cutoff requirements.",
+      "details": "Payment batch failure events trigger SEV-1 alerts when the Payment Engine nightly batch job fails to complete successfully. The event impacts provider payment generation, ERA 835 remittance advice creation, and NACHA file processing for EFT transactions. Failures occurring after midnight during payment cycle nights become time-critical with resolution required before 6 AM to meet banking partner cutoff windows. The event generates logs in Splunk's claims-batch-processing index with job names matching the pattern 'payment-cycle-*'. Investigation typically involves checking batch job logs, database connectivity, and NACHA file generation processes. Escalation path includes Leo Chen as primary contact, then Marcus Reeves for extended outages.",
+      "status": "active",
+      "tags": [
+        "financial",
+        "time-critical"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "published_by",
+          "target_entity_id": "payment-engine",
+          "target_entity_name": "Payment Engine",
+          "reasoning": "Payment Engine publishes batch failure events"
+        },
+        {
+          "relationship_type": "triggers",
+          "target_entity_id": "incident-escalation-process",
+          "target_entity_name": "Incident Escalation Process",
+          "reasoning": "Payment batch failures trigger SEV-1 incident response"
+        },
+        {
+          "relationship_type": "governed_by",
+          "target_entity_id": "payment-cycle-timing-constraints",
+          "target_entity_name": "Payment Cycle Timing Constraints",
+          "reasoning": "Event urgency is governed by banking cutoff timing requirements"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business event with financial impact and defined escalation procedures"
+    },
+    {
+      "entity_type": "api",
+      "id": "healthlogic-soap-endpoint",
+      "name": "HealthLogic SOAP Endpoint",
+      "description": "SOAP web service endpoint used by Rules Engine to communicate with HealthLogic Adjudicator",
+      "overview": "The HealthLogic SOAP endpoint provides the integration interface between Clearview's Rules Engine and the HealthLogic Adjudicator system. Connectivity issues with this endpoint can cause complete claims adjudication failures and trigger SEV-1 alerts.",
+      "details": "The HealthLogic SOAP endpoint serves as the critical integration point for claim adjudication processing, handling requests from the Rules Engine service. When this endpoint becomes unavailable or unresponsive, it triggers the RULES-ENGINE-DOWN alert since adjudication cannot proceed. The endpoint connectivity is monitored as part of Rules Engine health checks with failure thresholds set at 3 minutes of unavailability. Issues with this endpoint prevent auto-adjudication entirely, causing claims to accumulate in the gateway queue. The SOAP protocol choice is noted in ADR-2024-007 as a limitation of the HealthLogic system that influenced the decision to migrate to a replacement adjudication platform.",
+      "status": "active",
+      "tags": [
+        "integration",
+        "legacy"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "consumed_by",
+          "target_entity_id": "rules-engine",
+          "target_entity_name": "Rules Engine",
+          "reasoning": "Rules Engine consumes this SOAP endpoint for adjudication"
+        },
+        {
+          "relationship_type": "exposed_by",
+          "target_entity_id": "healthlogic-adjudicator",
+          "target_entity_name": "HealthLogic Adjudicator",
+          "reasoning": "HealthLogic Adjudicator exposes this SOAP endpoint"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear API interface with defined consumer and provider relationships"
+    },
+    {
+      "entity_type": "jargon-business",
+      "id": "clv-3903",
+      "name": "CLV-3903",
+      "description": "Incident identifier for the 2024-03-12 connection pool exhaustion incident",
+      "overview": "CLV-3903 refers to the March 12, 2024 connection pool exhaustion incident that led to significant changes in Claims Gateway monitoring and database connectivity management.",
+      "details": "CLV-3903 represents a critical incident from March 12, 2024 involving connection pool exhaustion in the Claims Gateway system. This incident was significant enough to drive architectural changes including the addition of HikariCP pool utilization monitoring with 90% thresholds and 2-minute alert windows. The incident also influenced the subsequent PgBouncer migration in Q3 2024 and the current 200 connection maximum configuration. The incident identifier follows Clearview's CLV-#### naming convention for tracking operational issues and postmortems.",
+      "status": "active",
+      "tags": [
+        "incident",
+        "historical",
+        "legacy-era"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "related_to",
+          "target_entity_id": "2024-connection-pool-incident",
+          "target_entity_name": "2024 Connection Pool Incident",
+          "reasoning": "CLV-3903 is the specific incident identifier for the connection pool incident"
+        },
+        {
+          "relationship_type": "motivated",
+          "target_entity_id": "connection-pool-utilization-thresholds",
+          "target_entity_name": "Connection Pool Utilization Thresholds",
+          "reasoning": "This incident drove the creation of connection pool monitoring thresholds"
+        }
+      ],
+      "confidence": 1.0,
+      "hedged_statements": [],
+      "reasoning": "Clear business terminology for incident tracking and reference"
+    },
+    {
+      "entity_type": "software-component",
+      "id": "pgbouncer",
+      "name": "PgBouncer",
+      "description": "PostgreSQL connection pooling proxy introduced in Q3 2024 migration",
+      "overview": "PgBouncer is a PostgreSQL connection pooling proxy that was introduced during Q3 2024 as part of database connectivity improvements following the connection pool incidents. It now manages database connections with a maximum of 200 connections for the Claims Gateway.",
+      "details": "PgBouncer was implemented during Q3 2024 as part of the post-incident improvements following CLV-3903. It serves as a connection pooling proxy for PostgreSQL databases, managing connection limits and improving database connectivity reliability. The current configuration supports a maximum of 200 connections, which represents a change from the previous direct connection architecture. This migration coincided with updates to HikariCP pool monitoring and connection pool exhaustion alerting. PgBouncer helps isolate application connection pools from database connection limits, providing an additional layer of connection management and potentially reducing the risk of connection exhaustion incidents.",
+      "status": "active",
+      "tags": [
+        "infrastructure",
+        "database"
+      ],
+      "relationships": [
+        {
+          "relationship_type": "used_by",
+          "target_entity_id": "claims-gateway",
+          "target_entity_name": "Claims Gateway",
+          "reasoning": "Claims Gateway uses PgBouncer for database connectivity"
+        },
+        {
+          "relationship_type": "communicates_with",
+          "target_entity_id": "cloud-sql-postgresql",
+          "target_entity_name": "Cloud SQL PostgreSQL",
+          "reasoning": "PgBouncer proxies connections to PostgreSQL database"
+        }
+      ],
+      "confidence": 0.9,
+      "hedged_statements": [
+        "PgBouncer helps isolate application connection pools from database connection limits, providing an additional layer of connection management and potentially reducing the risk of connection exhaustion incidents"
+      ],
+      "reasoning": "Infrastructure component based on its role as database connection pooling proxy"
+    }
+  ],
+  "questions": [
+    "What specific technical limitations beyond SOAP are driving the HealthLogic Rules Engine replacement mentioned in the context?",
+    "Are there formal SLAs with banking partners for payment processing cutoffs, and what are the penalties for missing them?",
+    "What is the relationship between CLV-3903 and the 2024 Connection Pool Incident - are they the same event or different incidents?",
+    "What monitoring exists for the PgBouncer layer introduced in Q3 2024, and does it have its own alerting?",
+    "Is there a Member Portal dashboard mentioned as TODO that provides insights into the current state of this monitoring gap?",
+    "What are the false positive rates mentioned for Fraud Detection, and how do they relate to the circuit breaker behavior?",
+    "Why is there a separate Member Services on-call rotation, and how do incidents get routed between Claims Ops and Member Services?",
+    "What specific rules migration issues are causing the auto-adjudication rate to remain at 81% instead of the 85% target?"
+  ],
+  "new_jargon": [
+    "CLV-3903",
+    "PgBouncer",
+    "HikariCP",
+    "pg_stat_activity"
+  ],
+  "decision_log": [
+    {
+      "subject": "Datadog and Splunk classification",
+      "decision": "classified as software-components rather than systems",
+      "reasoning": "These are infrastructure monitoring tools that support but don't implement business logic - they fit the software-component definition as named infrastructure software"
+    },
+    {
+      "subject": "Alert severity classification",
+      "decision": "classified as domain-logic rather than reference-data",
+      "reasoning": "This is an algorithmic rule that the system executes at runtime to determine alert routing and response, not static reference data"
+    },
+    {
+      "subject": "PgBouncer introduction timing",
+      "decision": "tagged as infrastructure component without legacy-era tag",
+      "reasoning": "Introduced in Q3 2024 which is less than 3 years ago, so not legacy despite being introduced after an incident"
+    },
+    {
+      "subject": "CLV-3903 vs 2024 Connection Pool Incident",
+      "decision": "created separate entity for CLV-3903 despite similar naming",
+      "reasoning": "CLV-3903 appears to be the specific incident identifier while the other is a general reference - they may be related but document isn't clear if they're the same event"
+    },
+    {
+      "subject": "HealthLogic SOAP endpoint",
+      "decision": "classified as api rather than software-component",
+      "reasoning": "This is a named interface that provides integration between systems, fitting the API definition rather than just infrastructure software"
+    }
+  ]
+}

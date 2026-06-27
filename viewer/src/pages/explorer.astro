@@ -1,0 +1,67 @@
+---
+/**
+ * Explorer Page — browse entities by type with detail panel.
+ *
+ * Sidebar is generated from meta-model.yaml config (vocabulary-agnostic).
+ * Entity data passed as serialized JSON to React island.
+ */
+import Layout from '../layouts/Layout.astro';
+import ExplorerView from '../components/explorer/ExplorerView';
+import { entities, byLayer, getEntitiesByType } from '../data/registry';
+import { loadMetaModel } from '../config/meta-model-loader';
+
+const config = loadMetaModel();
+
+// Build layer groups for sidebar (vocabulary-agnostic — from config)
+const layers = Object.entries(config.layers).map(([layerKey, layerConfig]) => {
+  const typeMap = byLayer.get(layerKey);
+  const types = Object.entries(config.entity_types)
+    .filter(([_, tc]) => tc.layer === layerKey)
+    .map(([typeKey, tc]) => ({
+      key: typeKey,
+      label: tc.label,
+      icon: tc.icon,
+      count: typeMap?.get(typeKey)?.length ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    key: layerKey,
+    label: layerConfig.label,
+    color: layerConfig.color,
+    types,
+  };
+});
+
+// Build serializable entity data for React
+const entitiesByType: Record<string, any[]> = {};
+for (const [typeKey] of Object.entries(config.entity_types)) {
+  const list = getEntitiesByType(typeKey);
+  if (list.length > 0) {
+    entitiesByType[typeKey] = list;
+  }
+}
+
+// All entities as lookup map
+const allEntities: Record<string, any> = {};
+for (const [id, entity] of entities) {
+  allEntities[id] = entity;
+}
+
+// Read URL params for deep linking
+const url = new URL(Astro.request.url);
+const initialType = url.searchParams.get('type') ?? undefined;
+const initialEntity = url.searchParams.get('entity') ?? undefined;
+---
+<Layout title="Explorer" activePage="explorer" pageTitle="Explorer">
+  <div style="height: 100%; overflow: hidden; margin: calc(-1 * var(--cb-space-xl)); margin-top: 0;">
+    <ExplorerView
+      client:load
+      layers={layers}
+      entities={entitiesByType}
+      allEntities={allEntities}
+      initialType={initialType}
+      initialEntity={initialEntity}
+    />
+  </div>
+</Layout>

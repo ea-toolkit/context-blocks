@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context Blocks</title>
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a1a; --bg2: #222; --bg3: #2a2a2a; --bg4: #333;
+    --text: #dadada; --text-dim: #999; --text-faint: #666;
+    --border: #444; --border-light: #555;
+    --accent: #4A90E2;
+    --green: #2d7d46; --yellow: #b8960a; --red: #d45050;
+    --structural: #4A90E2; --behavioral: #1ABC9C; --reference: #0891B2;
+    --organizational: #9B59B6; --language: #F39C12; --decision: #B45309;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  body { min-height: 100vh; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.9em; background: var(--bg4); padding: 1px 5px; }
+
+  /* Nav */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 48px; background: var(--bg2); border-bottom: 2px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 32px;
+  }
+  .nav-brand { font-weight: 700; font-size: 15px; color: var(--accent); letter-spacing: 0.5px; }
+  .nav-links { display: flex; gap: 4px; }
+  .nav-link {
+    padding: 6px 14px; font-size: 13px; color: var(--text-dim);
+    border: 1px solid transparent; cursor: pointer; background: none;
+    font-family: inherit;
+  }
+  .nav-link:hover { color: var(--text); border-color: var(--border); }
+  .nav-link.active { color: var(--text); border-color: var(--accent); background: rgba(74,144,226,0.1); }
+  .nav-stats { margin-left: auto; font-size: 12px; color: var(--text-faint); display: flex; gap: 16px; }
+  .nav-stats strong { color: var(--text-dim); }
+
+  /* Main */
+  main { margin-top: 48px; max-width: 1200px; margin-left: auto; margin-right: auto; padding: 32px 24px; }
+
+  /* Story page */
+  .story-hero { margin-bottom: 40px; }
+  .story-hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+  .story-hero .subtitle { font-size: 15px; color: var(--text-dim); margin-bottom: 24px; }
+  .story-prose { font-size: 15px; line-height: 1.8; color: var(--text); max-width: 800px; }
+  .story-prose p { margin-bottom: 16px; }
+  .story-prose strong { color: #fff; }
+
+  /* Stats cards */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 32px 0; }
+  .stat-card {
+    background: var(--bg2); border: 2px solid var(--border); padding: 16px;
+    text-align: center;
+  }
+  .stat-card .number { font-size: 32px; font-weight: 700; }
+  .stat-card .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+  /* Layer bar */
+  .layer-bar { display: flex; height: 8px; margin: 24px 0; overflow: hidden; }
+  .layer-segment { transition: width 0.3s; }
+
+  /* Section */
+  .section { margin-top: 48px; }
+  .section-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .section-subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
+
+  /* Layer sections */
+  .layer-section { margin-bottom: 32px; }
+  .layer-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0; border-bottom: 2px solid var(--border); margin-bottom: 12px;
+  }
+  .layer-dot { width: 10px; height: 10px; flex-shrink: 0; }
+  .layer-name { font-size: 14px; font-weight: 700; }
+  .layer-question { font-size: 12px; color: var(--text-dim); font-style: italic; }
+  .layer-count { margin-left: auto; font-size: 12px; color: var(--text-faint); }
+
+  /* Entity cards */
+  .entity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+  .entity-card {
+    background: var(--bg2); border: 2px solid var(--border); padding: 12px 14px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .entity-card:hover { border-color: var(--border-light); }
+  .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .card-name { font-size: 14px; font-weight: 600; }
+  .card-conf { font-size: 11px; font-weight: 700; }
+  .conf-high { color: var(--green); }
+  .conf-med { color: var(--yellow); }
+  .conf-low { color: var(--red); }
+  .card-type { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .card-desc { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-questions { font-size: 11px; color: var(--yellow); margin-top: 6px; }
+
+  /* Type group */
+  .type-group { margin-bottom: 20px; }
+  .type-label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .type-count { color: var(--text-faint); }
+
+  /* Entity detail page */
+  .entity-detail { max-width: 800px; }
+  .entity-detail .back { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; display: inline-block; }
+  .entity-detail h1 { font-size: 28px; margin-bottom: 4px; }
+  .entity-meta { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .entity-meta .badge { padding: 2px 8px; border: 1px solid; font-size: 11px; font-weight: 700; }
+  .entity-body { font-size: 14px; line-height: 1.7; }
+  .entity-body h2 { font-size: 18px; margin-top: 28px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .entity-body h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; }
+  .entity-body ul { padding-left: 20px; margin-bottom: 12px; }
+  .entity-body li { margin-bottom: 4px; }
+  .entity-body pre { background: var(--bg3); padding: 12px; margin: 12px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; overflow-x: auto; border: 1px solid var(--border); white-space: pre-wrap; }
+  .entity-body p { margin-bottom: 12px; }
+  .entity-rels { margin-top: 24px; }
+  .rel-item { padding: 6px 0; border-bottom: 1px solid var(--bg4); font-size: 13px; display: flex; gap: 8px; }
+  .rel-type { color: var(--text-faint); min-width: 120px; font-size: 12px; }
+  .entity-sources { margin-top: 24px; font-size: 12px; color: var(--text-dim); }
+
+  /* Questions page */
+  .question-item { padding: 12px 16px; background: var(--bg2); border: 2px solid var(--border); margin-bottom: 6px; }
+  .question-text { font-size: 14px; line-height: 1.5; }
+  .question-from { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Glossary */
+  .glossary-search { width: 100%; max-width: 400px; padding: 8px 12px; background: var(--bg3); border: 2px solid var(--border); color: var(--text); font-size: 14px; margin-bottom: 20px; font-family: inherit; }
+  .glossary-search:focus { outline: none; border-color: var(--accent); }
+  .glossary-table { width: 100%; border-collapse: collapse; }
+  .glossary-table th { text-align: left; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+  .glossary-table td { padding: 10px 12px; border-bottom: 1px solid var(--bg4); font-size: 13px; vertical-align: top; }
+  .glossary-table tr:hover { background: var(--bg3); }
+  .glossary-table .term { font-weight: 600; cursor: pointer; color: var(--accent); }
+  .glossary-table .def { color: var(--text-dim); max-width: 600px; }
+
+  /* Map page */
+  #graph-container { width: 100%; height: calc(100vh - 140px); background: var(--bg); border: 2px solid var(--border); }
+  .map-controls { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+  .map-btn { padding: 6px 12px; font-size: 12px; background: var(--bg3); border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-family: inherit; }
+  .map-btn:hover { border-color: var(--text-dim); }
+  .map-legend { display: flex; gap: 16px; margin-left: auto; font-size: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; color: var(--text-dim); }
+  .legend-dot { width: 8px; height: 8px; }
+
+  /* Key relationships */
+  .key-relationships { background: var(--bg2); border: 2px solid var(--border); padding: 20px; margin-top: 24px; }
+  .key-relationships h3 { font-size: 14px; margin-bottom: 12px; color: var(--accent); }
+  .key-relationships ul { padding-left: 20px; }
+  .key-relationships li { font-size: 13px; line-height: 1.6; margin-bottom: 8px; color: var(--text-dim); }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Context Blocks</span>
+  <div class="nav-links">
+    <button class="nav-link" onclick="navigate('story')" data-page="story">Story</button>
+    <button class="nav-link" onclick="navigate('entities')" data-page="entities">Entities</button>
+    <button class="nav-link" onclick="navigate('map')" data-page="map">Map</button>
+    <button class="nav-link" onclick="navigate('questions')" data-page="questions">Questions</button>
+    <button class="nav-link" onclick="navigate('glossary')" data-page="glossary">Glossary</button>
+  </div>
+  <div class="nav-stats">
+    <span><strong id="nav-entities">0</strong> entities</span>
+    <span><strong id="nav-questions">0</strong> questions</span>
+    <span><strong id="nav-connections">0</strong> connections</span>
+  </div>
+</nav>
+
+<main>
+  <!-- Story Page -->
+  <div id="page-story" class="page-content"></div>
+  <!-- Entities Page -->
+  <div id="page-entities" class="page-content hidden"></div>
+  <!-- Map Page -->
+  <div id="page-map" class="page-content hidden"></div>
+  <!-- Questions Page -->
+  <div id="page-questions" class="page-content hidden"></div>
+  <!-- Glossary Page -->
+  <div id="page-glossary" class="page-content hidden"></div>
+  <!-- Entity Detail -->
+  <div id="page-entity" class="page-content hidden"></div>
+</main>
+
+<script>
+/*DATA_INJECT*/
+
+let network = null;
+
+// -- Navigation --
+function navigate(page, push = true) {
+  document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+  const el = document.getElementById('page-' + page);
+  if (el) { el.classList.remove('hidden'); }
+
+  const btn = document.querySelector('[data-page="' + page + '"]');
+  if (btn) btn.classList.add('active');
+
+  // Render page content on first visit
+  if (page === 'story' && !el.dataset.rendered) { renderStory(); el.dataset.rendered = '1'; }
+  if (page === 'entities' && !el.dataset.rendered) { renderEntities(); el.dataset.rendered = '1'; }
+  if (page === 'map' && !el.dataset.rendered) { renderMap(); el.dataset.rendered = '1'; }
+  if (page === 'questions' && !el.dataset.rendered) { renderQuestions(); el.dataset.rendered = '1'; }
+  if (page === 'glossary' && !el.dataset.rendered) { renderGlossary(); el.dataset.rendered = '1'; }
+
+  if (push) history.pushState({ page }, '', page === 'story' ? '/' : '/' + page);
+}
+
+function showEntity(id) {
+  document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  const el = document.getElementById('page-entity');
+  el.classList.remove('hidden');
+  renderEntityDetail(id);
+  history.pushState({ page: 'entity', id }, '', '/entities/' + id);
+}
+
+window.addEventListener('popstate', (e) => {
+  if (e.state && e.state.page === 'entity') showEntity(e.state.id);
+  else if (e.state) navigate(e.state.page, false);
+  else navigate('story', false);
+});
+
+// -- Confidence helpers --
+function confClass(c) { return c >= 0.85 ? 'conf-high' : c >= 0.7 ? 'conf-med' : 'conf-low'; }
+function confPct(c) { return Math.round(c * 100) + '%'; }
+
+// -- Simple markdown to HTML --
+function md(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+    .replace(/```[\s\S]*?```/g, (m) => '<pre>' + m.slice(3, -3).trim() + '</pre>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[huplr])(.+)$/gm, '<p>$1</p>')
+    .replace(/<p><\/p>/g, '');
+}
+
+// -- Render: Story --
+function renderStory() {
+  const el = document.getElementById('page-story');
+  const layers = Object.entries(BY_LAYER);
+  const total = STATS.total;
+  const layerBar = layers.map(([k, v]) =>
+    `<div class="layer-segment" style="width:${(v.count/total*100).toFixed(1)}%;background:${v.color}" title="${v.label}: ${v.count}"></div>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="story-hero">
+      <h1>Domain Knowledge Base</h1>
+      <div class="subtitle">Built from ${STATS.sources} documents &middot; ${STATS.total} entities discovered &middot; ${STATS.questions} open questions</div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="number" style="color:var(--accent)">${STATS.total}</div>
+        <div class="label">Entities</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" style="color:var(--green)">${STATS.high_conf}</div>
+        <div class="label">High Confidence</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" style="color:var(--yellow)">${STATS.questions}</div>
+        <div class="label">Open Questions</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" style="color:var(--structural)">${STATS.edges}</div>
+        <div class="label">Connections</div>
+      </div>
+    </div>
+
+    <div class="layer-bar">${layerBar}</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:32px;font-size:11px">
+      ${layers.map(([k,v]) => `<span style="color:${v.color}">&#9632; ${v.label} (${v.count})</span>`).join('')}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Domain Understanding</div>
+      <div class="section-subtitle">What the agent learned from reading your documents</div>
+      <div class="story-prose">${md(DOMAIN.summary)}</div>
+    </div>
+
+    ${DOMAIN.relationships ? `
+    <div class="key-relationships">
+      <h3>Key Relationships</h3>
+      <div>${md(DOMAIN.relationships)}</div>
+    </div>` : ''}
+
+    ${DOMAIN.questions && DOMAIN.questions.length > 0 ? `
+    <div class="section">
+      <div class="section-title">What the Agent is Asking You</div>
+      <div class="section-subtitle">Questions that emerged from reading your documents</div>
+      ${DOMAIN.questions.map(q => `<div class="question-item"><div class="question-text">${q}</div></div>`).join('')}
+      <div style="margin-top:12px"><a href="#" onclick="navigate('questions');return false;">See all ${STATS.questions} questions &rarr;</a></div>
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-title">Knowledge by Layer</div>
+      <div class="section-subtitle">The six layers of domain understanding</div>
+      ${layers.map(([k, v]) => `
+        <div class="layer-section">
+          <div class="layer-header">
+            <div class="layer-dot" style="background:${v.color}"></div>
+            <span class="layer-name">${v.label}</span>
+            <span class="layer-question">${v.question}</span>
+            <span class="layer-count">${v.count} entities</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${Object.entries(v.types).map(([t, ids]) =>
+              ids.map(id => {
+                const e = ENTITIES[id];
+                if (!e) return '';
+                return `<span style="padding:4px 10px;background:var(--bg3);border:1px solid var(--border);font-size:12px;cursor:pointer" onclick="showEntity('${id}')">${e.name || id}</span>`;
+              }).join('')
+            ).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// -- Render: Entities --
+function renderEntities() {
+  const el = document.getElementById('page-entities');
+  const layers = Object.entries(BY_LAYER);
+
+  el.innerHTML = `
+    <div class="section" style="margin-top:0">
+      <div class="section-title">All Entities</div>
+      <div class="section-subtitle">${STATS.total} entities across ${Object.keys(BY_LAYER).length} layers</div>
+      <input type="text" class="glossary-search" id="entity-search" placeholder="Search entities..." oninput="filterEntityCards()" style="margin-bottom:24px">
+    </div>
+    ${layers.map(([layerKey, layer]) => `
+      <div class="layer-section">
+        <div class="layer-header">
+          <div class="layer-dot" style="background:${layer.color}"></div>
+          <span class="layer-name">${layer.label}</span>
+          <span class="layer-question">${layer.question}</span>
+          <span class="layer-count">${layer.count}</span>
+        </div>
+        ${Object.entries(layer.types).map(([typeDir, ids]) => `
+          <div class="type-group">
+            <div class="type-label"><span>${TYPE_LABELS[typeDir] || typeDir}</span><span class="type-count">${ids.length}</span></div>
+            <div class="entity-grid">
+              ${ids.map(id => {
+                const e = ENTITIES[id];
+                if (!e) return '';
+                const conf = e.confidence || 0;
+                const qs = (e.open_questions || []).length;
+                return `
+                  <div class="entity-card" data-search="${(e.name + ' ' + e.description + ' ' + e.id).toLowerCase()}" onclick="showEntity('${id}')">
+                    <div class="card-row">
+                      <span class="card-name">${e.name || id}</span>
+                      <span class="card-conf ${confClass(conf)}">${confPct(conf)}</span>
+                    </div>
+                    <div class="card-desc">${e.description || ''}</div>
+                    ${qs > 0 ? `<div class="card-questions">${qs} open question${qs > 1 ? 's' : ''}</div>` : ''}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+  `;
+}
+
+function filterEntityCards() {
+  const q = document.getElementById('entity-search').value.toLowerCase();
+  document.querySelectorAll('#page-entities .entity-card').forEach(card => {
+    card.classList.toggle('hidden', q && !card.dataset.search.includes(q));
+  });
+}
+
+// -- Render: Entity Detail --
+function renderEntityDetail(id) {
+  const el = document.getElementById('page-entity');
+  const e = ENTITIES[id];
+  if (!e) { el.innerHTML = '<p>Entity not found.</p>'; return; }
+
+  const conf = e.confidence || 0;
+  const sources = (e.source_documents || []).join(', ');
+  const layerInfo = LAYERS_CONFIG[e.layer] || {};
+
+  // Relationships
+  const relFields = ['related_to','depends_on','owned_by','implements','produces','consumes','triggers','part_of','deployed_on','belongs_to','used_by','communicates_with','executed_by','involves','exposes','exposed_by','consumed_by','handles','published_by','serves','enforced_by','applies_to','derives_from','documented_in','used_in','defined_by','synonymous_with','contrasts_with','made_by','provides','integrated_via','hosts','contains','maps_to','parameterises'];
+  let rels = [];
+  relFields.forEach(r => {
+    let vals = e[r];
+    if (!vals) return;
+    if (!Array.isArray(vals)) vals = [vals];
+    vals.forEach(v => {
+      if (v) rels.push({ type: r, target: v, targetName: ENTITIES[v] ? ENTITIES[v].name : v });
+    });
+  });
+
+  el.innerHTML = `
+    <div class="entity-detail">
+      <a class="back" href="#" onclick="navigate('entities');return false;">&larr; All Entities</a>
+      <h1>${e.name || id}</h1>
+      <div class="entity-meta">
+        <span style="color:${layerInfo.color || '#999'}">${e.type_label || e.type || ''}</span>
+        <span>&middot;</span>
+        <span class="badge ${confClass(conf)}" style="border-color:currentColor">${confPct(conf)} confidence</span>
+        <span>&middot;</span>
+        <span style="color:var(--text-faint)">${e.status || 'active'}</span>
+      </div>
+      <div class="entity-body">${md(e.body)}</div>
+      ${rels.length > 0 ? `
+        <div class="entity-rels">
+          <h2 style="font-size:16px;border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:8px">Relationships (${rels.length})</h2>
+          ${rels.map(r => `
+            <div class="rel-item">
+              <span class="rel-type">${r.type.replace(/_/g, ' ')}</span>
+              <a href="#" onclick="showEntity('${r.target}');return false;">${r.targetName}</a>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      <div class="entity-sources">
+        <strong>Sources:</strong> ${sources || 'unknown'}
+      </div>
+    </div>
+  `;
+}
+
+// -- Render: Map --
+function renderMap() {
+  const el = document.getElementById('page-map');
+  const legendItems = Object.entries(LAYERS_CONFIG).map(([k, v]) =>
+    `<span class="legend-item"><span class="legend-dot" style="background:${v.color}"></span>${v.label}</span>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="section" style="margin-top:0">
+      <div class="section-title">Domain Context Map</div>
+      <div class="section-subtitle">Relationships between all entities</div>
+    </div>
+    <div class="map-controls">
+      <button class="map-btn" onclick="network && network.fit()">Fit All</button>
+      <button class="map-btn" onclick="network && network.stabilize(100)">Stabilize</button>
+      <div class="map-legend">${legendItems}</div>
+    </div>
+    <div id="graph-container"></div>
+  `;
+
+  setTimeout(initGraph, 100);
+}
+
+function initGraph() {
+  const container = document.getElementById('graph-container');
+  if (!container || !GRAPH.nodes.length) return;
+  try {
+    const nodes = new vis.DataSet(GRAPH.nodes.map(n => ({
+      id: n.id, label: n.label,
+      color: { background: n.color, border: n.color, highlight: { background: n.color, border: '#fff' }, hover: { background: n.color, border: '#ccc' } },
+      font: { color: '#ccc', size: 11, face: 'system-ui' },
+      shape: 'dot', size: 8 + (n.confidence * 12),
+      title: n.type + ': ' + n.label,
+      opacity: 0.4 + (n.confidence * 0.6),
+    })));
+    const edges = new vis.DataSet(GRAPH.edges.map((e, i) => ({
+      id: i, from: e.source, to: e.target,
+      color: { color: '#333', highlight: '#888', hover: '#555' },
+      font: { color: '#444', size: 8, face: 'system-ui', strokeWidth: 0 },
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      smooth: { type: 'curvedCW', roundness: 0.12 }, width: 1,
+    })));
+    network = new vis.Network(container, { nodes, edges }, {
+      physics: { stabilization: { iterations: 300 }, barnesHut: { gravitationalConstant: -4000, springLength: 180, springConstant: 0.02 } },
+      interaction: { hover: true, tooltipDelay: 200 },
+    });
+    network.on('click', (params) => { if (params.nodes.length > 0) showEntity(params.nodes[0]); });
+  } catch(err) {
+    container.innerHTML = '<div style="padding:40px;color:#666;text-align:center">Graph error: ' + err.message + '</div>';
+  }
+}
+
+// -- Render: Questions --
+function renderQuestions() {
+  const el = document.getElementById('page-questions');
+  el.innerHTML = `
+    <div class="section" style="margin-top:0">
+      <div class="section-title">Open Questions</div>
+      <div class="section-subtitle">${ALL_QUESTIONS.length} questions the agent wants you to answer</div>
+    </div>
+    ${ALL_QUESTIONS.map(q => `
+      <div class="question-item">
+        <div class="question-text">${q.question}</div>
+        <div class="question-from">from: ${q.entity_id ? `<a href="#" onclick="showEntity('${q.entity_id}');return false;">${q.entity_name}</a>` : q.entity_name}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// -- Render: Glossary --
+function renderGlossary() {
+  const el = document.getElementById('page-glossary');
+  el.innerHTML = `
+    <div class="section" style="margin-top:0">
+      <div class="section-title">Glossary</div>
+      <div class="section-subtitle">${JARGON.length} domain terms</div>
+    </div>
+    <input type="text" class="glossary-search" id="glossary-search" placeholder="Search terms..." oninput="filterGlossary()">
+    <table class="glossary-table">
+      <thead><tr><th>Term</th><th>Type</th><th>Definition</th></tr></thead>
+      <tbody id="glossary-body">
+        ${JARGON.map(j => `
+          <tr data-search="${(j.name + ' ' + j.description).toLowerCase()}">
+            <td class="term" onclick="showEntity('${j.id}')">${j.name}</td>
+            <td style="color:var(--text-faint);font-size:12px">${j.type === 'jargon-business' ? 'Business' : 'Technical'}</td>
+            <td class="def">${j.description}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function filterGlossary() {
+  const q = document.getElementById('glossary-search').value.toLowerCase();
+  document.querySelectorAll('#glossary-body tr').forEach(row => {
+    row.classList.toggle('hidden', q && !row.dataset.search.includes(q));
+  });
+}
+
+// -- Init --
+document.getElementById('nav-entities').textContent = STATS.total;
+document.getElementById('nav-questions').textContent = STATS.questions;
+document.getElementById('nav-connections').textContent = STATS.edges;
+
+// Route based on initial page
+const path = window.location.pathname.replace(/\/$/, '');
+if (path.startsWith('/entities/')) {
+  showEntity(path.split('/entities/')[1]);
+} else if (path === '/entities') {
+  navigate('entities');
+} else if (path === '/map') {
+  navigate('map');
+} else if (path === '/questions') {
+  navigate('questions');
+} else if (path === '/glossary') {
+  navigate('glossary');
+} else {
+  navigate('story');
+}
+</script>
+</body>
+</html>

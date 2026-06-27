@@ -1,0 +1,208 @@
+# Context Blocks Meta-Model Configuration
+# Users can edit this file to customize entity types, layers, and relationships.
+# The viewer reads this at build time — no code changes needed.
+
+layers:
+  structural:
+    label: Structural
+    question: What exists?
+    color: "#4A90E2"
+    description: Systems, components, APIs, data models, and platforms that make up the domain
+  behavioral:
+    label: Behavioral
+    question: How does it work?
+    color: "#1ABC9C"
+    description: Processes, events, and business rules that drive domain behavior
+  reference:
+    label: Reference
+    question: What are the allowed values?
+    color: "#0891B2"
+    description: Configuration data, lookup tables, and reference datasets
+  organizational:
+    label: Organizational
+    question: Who is involved?
+    color: "#9B59B6"
+    description: Teams, people, capabilities, and external parties
+  language:
+    label: Language
+    question: What do terms mean?
+    color: "#F39C12"
+    description: Domain vocabulary — business jargon and technical terminology
+  decision:
+    label: Decision
+    question: Why was this chosen?
+    color: "#B45309"
+    description: Architecture decisions, trade-offs, and their reasoning
+
+entity_types:
+  # Structural layer
+  system:
+    layer: structural
+    directory: systems
+    label: Systems
+    icon: S
+  software-component:
+    layer: structural
+    directory: software-components
+    label: Software Components
+    icon: SC
+  api:
+    layer: structural
+    directory: apis
+    label: APIs
+    icon: API
+  data-model:
+    layer: structural
+    directory: data-models
+    label: Data Models
+    icon: DM
+  data-product:
+    layer: structural
+    directory: data-products
+    label: Data Products
+    icon: DP
+  platform:
+    layer: structural
+    directory: platforms
+    label: Platforms
+    icon: PL
+
+  # Behavioral layer
+  process:
+    layer: behavioral
+    directory: processes
+    label: Processes
+    icon: PR
+  business-event:
+    layer: behavioral
+    directory: business-events
+    label: Business Events
+    icon: EV
+  domain-logic:
+    layer: behavioral
+    directory: domain-logic
+    label: Domain Logic
+    icon: DL
+
+  # Reference layer
+  reference-data:
+    layer: reference
+    directory: reference-data
+    label: Reference Data
+    icon: RD
+
+  # Organizational layer
+  team:
+    layer: organizational
+    directory: teams
+    label: Teams
+    icon: TM
+  persona:
+    layer: organizational
+    directory: personas
+    label: Personas
+    icon: PE
+  capability:
+    layer: organizational
+    directory: capabilities
+    label: Capabilities
+    icon: CA
+  offering:
+    layer: organizational
+    directory: offerings
+    label: Offerings
+    icon: OF
+  external-party:
+    layer: organizational
+    directory: external-parties
+    label: External Parties
+    icon: EP
+
+  # Language layer
+  jargon-business:
+    layer: language
+    directory: jargon-business
+    label: Business Jargon
+    icon: JB
+  jargon-tech:
+    layer: language
+    directory: jargon-tech
+    label: Technical Jargon
+    icon: JT
+
+  # Decision layer
+  decision:
+    layer: decision
+    directory: decisions
+    label: Decisions
+    icon: DC
+
+# Relationship fields the viewer recognizes in entity frontmatter.
+# Any frontmatter key matching one of these is treated as a relationship.
+relationship_fields:
+  - related_to
+  - depends_on
+  - supersedes
+  - part_of
+  - owned_by
+  - made_by
+  - deployed_on
+  - belongs_to
+  - hosts
+  - hosted_by
+  - used_by
+  - enables
+  - requires
+  - exposes
+  - exposed_by
+  - consumed_by
+  - contracts
+  - persists
+  - sourced_from
+  - contains
+  - maps_to
+  - produced_by
+  - parameterises
+  - triggers
+  - triggered_by
+  - produces
+  - consumes
+  - published_by
+  - carries
+  - handles
+  - communicates_with
+  - executed_by
+  - involves
+  - initiates
+  - serves
+  - served_by
+  - implements
+  - realised_by
+  - powered_by
+  - provided_by
+  - integrated_via
+  - provides
+  - enforced_by
+  - applies_to
+  - derives_from
+  - documented_in
+  - enforced_via
+  - motivated_by
+  - used_in
+  - defined_by
+  - synonymous_with
+  - contrasts_with
+  - supports
+  - uses
+  - enabled_by
+
+# Standard frontmatter fields (not relationships)
+standard_fields:
+  - type
+  - id
+  - name
+  - description
+  - status
+  - tags
+  - source_documents
+  - confidence

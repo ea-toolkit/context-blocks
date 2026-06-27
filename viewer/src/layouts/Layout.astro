@@ -1,0 +1,179 @@
+---
+/**
+ * App Layout — sidebar nav + main content + optional right panel.
+ * Matches the mockup design: left sidebar with nav, domain selector,
+ * recent questions, and stats footer.
+ */
+import '../styles/global.css';
+import { stats, jargon } from '../data/registry';
+
+interface Props {
+  title: string;
+  activePage: string;
+  /** Show a right panel (e.g., trace panel on Ask page) */
+  hasPanel?: boolean;
+  /** Custom page header content */
+  pageTitle?: string;
+}
+
+const { title, activePage, hasPanel = false, pageTitle } = Astro.props;
+
+// Lucide-style SVG icons as inline strings (Astro can't use React components in .astro)
+const icons: Record<string, string> = {
+  ask: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  digest: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
+  explorer: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  map: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+  workbench: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  glossary: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>',
+  evals: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
+  settings: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+};
+
+const navLinks = [
+  { href: '/', label: 'Ask', key: 'ask', count: undefined as number | undefined },
+  { href: '/digest', label: 'Digest', key: 'digest', count: undefined as number | undefined },
+  { href: '/explorer', label: 'Explorer', key: 'explorer', count: stats.totalEntities },
+  { href: '/map', label: 'Map', key: 'map', count: stats.totalEdges },
+  { href: '/workbench', label: 'Workbench', key: 'workbench', count: stats.totalQuestions },
+  { href: '/glossary', label: 'Glossary', key: 'glossary', count: jargon.length },
+  { href: '/evals', label: 'Evals', key: 'evals', count: undefined as number | undefined },
+];
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title} — Context Blocks</title>
+  <script is:inline>
+    // Theme persistence
+    const theme = localStorage.getItem('cb-theme') || 'dark';
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Left Sidebar Nav -->
+    <nav class="app-sidebar-nav" id="sidebar-nav">
+      <div class="app-sidebar-nav__header">
+        <div class="app-sidebar-nav__logo">
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+          <span class="app-sidebar-nav__logo-block"></span>
+        </div>
+        <span class="app-sidebar-nav__brand">Context Blocks</span>
+      </div>
+
+      <div class="app-sidebar-nav__domain">
+        <span style="width: 8px; height: 8px; border-radius: 2px; background: var(--cb-primary); flex-shrink: 0;"></span>
+        <span>Domain KB</span>
+      </div>
+
+      <a href="/" class="app-sidebar-nav__new-btn">
+        + New question
+      </a>
+
+      <div class="app-sidebar-nav__links">
+        {navLinks.map(link => (
+          <a
+            href={link.href}
+            class:list={[
+              'app-sidebar-nav__link',
+              { 'app-sidebar-nav__link--active': activePage === link.key }
+            ]}
+          >
+            <span class="app-sidebar-nav__link-icon" set:html={icons[link.key] || ''} />
+            <span>{link.label}</span>
+            {link.count !== undefined && (
+              <span class="app-sidebar-nav__link-count">{link.count}</span>
+            )}
+          </a>
+        ))}
+      </div>
+
+      <div class="app-sidebar-nav__section">Recent</div>
+      <div class="app-sidebar-nav__recent" id="recent-questions"></div>
+
+      <div class="app-sidebar-nav__footer">
+        <div class="app-sidebar-nav__stats">
+          <span><strong>{stats.totalEntities}</strong> entities</span>
+          <span><strong>{stats.totalDocuments}</strong> docs</span>
+        </div>
+        <button
+          class="app-sidebar-nav__collapse"
+          id="theme-toggle"
+          title="Toggle theme"
+        >
+          🌓
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="app-main">
+      {pageTitle && (
+        <div class="app-main__header">
+          <span class="app-main__title">{pageTitle}</span>
+        </div>
+      )}
+
+      {hasPanel ? (
+        <div class="app-split">
+          <div class="app-split__main">
+            <slot />
+          </div>
+          <div class="app-split__panel">
+            <slot name="panel" />
+          </div>
+        </div>
+      ) : (
+        <div class="app-main__content">
+          <slot />
+        </div>
+      )}
+    </div>
+  </div>
+
+  <script is:inline>
+    // Theme toggle
+    document.getElementById('theme-toggle')?.addEventListener('click', () => {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'light' ? null : 'light';
+      if (next) {
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('cb-theme', 'light');
+      } else {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('cb-theme', 'dark');
+      }
+    });
+
+    // Recent questions
+    (function renderRecent() {
+      const el = document.getElementById('recent-questions');
+      if (!el) return;
+      try {
+        const items = JSON.parse(localStorage.getItem('cb-recent-questions') || '[]');
+        if (!items.length) return;
+        el.innerHTML = items.slice(0, 5).map(function(item) {
+          const q = item.question || '';
+          const short = q.length > 45 ? q.slice(0, 45) + '...' : q;
+          const cls = (item.ddcClass || '').toLowerCase();
+          const dot = cls === 'clean' ? '#22c55e' : cls === 'incomplete' ? '#eab308' : cls === 'missing' ? '#ef4444' : '#475569';
+          return '<a href="/?q=' + encodeURIComponent(q) + '" class="app-sidebar-nav__recent-item" title="' + q.replace(/"/g, '&quot;') + '">'
+            + '<span style="width:6px;height:6px;border-radius:50%;background:' + dot + ';flex-shrink:0"></span>'
+            + '<span>' + short.replace(/</g, '&lt;') + '</span></a>';
+        }).join('');
+      } catch(e) {}
+    })();
+  </script>
+</body>
+</html>

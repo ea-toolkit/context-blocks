@@ -1,0 +1,17 @@
+---
+/**
+ * Stat card — single metric display (value + label).
+ */
+interface Props {
+  value: string | number;
+  label: string;
+  icon?: string;
+}
+
+const { value, label, icon } = Astro.props;
+---
+<div class="card" style="text-align: center; min-width: 120px;">
+  {icon && <div style="font-size: var(--cb-font-size-lg); margin-bottom: var(--cb-space-xs);">{icon}</div>}
+  <div class="stat-item__value">{value}</div>
+  <div class="stat-item__label">{label}</div>
+</div>

@@ -1,0 +1,71 @@
+---
+/**
+ * Map Page — entity graph visualization.
+ *
+ * Serializes entity + edge data at build time and passes to
+ * the DomainMap React island (client:only="react").
+ *
+ * client:only is required — ReactFlow uses browser-only APIs.
+ */
+import Layout from '../layouts/Layout.astro';
+import DomainMap from '../components/map/DomainMap';
+import { entities, edges } from '../data/registry';
+import { loadMetaModel } from '../config/meta-model-loader';
+
+const config = loadMetaModel();
+
+// ── Build layer metadata from config (vocabulary-agnostic) ──
+const layers = Object.entries(config.layers).map(([key, lc]) => ({
+  key,
+  label: lc.label,
+  color: lc.color,
+}));
+
+// ── Build entity type metadata from config ──
+const entityTypes = Object.entries(config.entity_types).map(([key, tc]) => ({
+  key,
+  label: tc.label,
+  layer: tc.layer,
+}));
+
+// ── Pre-compute incoming edge counts ──
+const incomingCounts = new Map<string, number>();
+for (const edge of edges) {
+  incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+}
+
+// ── Serialize entity data (strip non-serializable fields like body) ──
+const serializedEntities = [...entities.values()].map(e => ({
+  id: e.id,
+  name: e.name,
+  type: e.type,
+  typeLabel: e.typeLabel,
+  typeIcon: e.typeIcon,
+  layer: e.layer,
+  layerColor: e.layerColor,
+  confidence: e.confidence,
+  description: e.description,
+  outgoingCount: e.relationships.length,
+  incomingCount: incomingCounts.get(e.id) ?? 0,
+  relationshipCount: e.relationships.length + (incomingCounts.get(e.id) ?? 0),
+}));
+
+// ── Serialize edges ──
+const serializedEdges = edges.map(e => ({
+  source: e.source,
+  target: e.target,
+  type: e.type,
+}));
+---
+
+<Layout title="Map" activePage="map" pageTitle="Map">
+  <div style="height: 100%; overflow: hidden; display: flex; flex-direction: column; margin: calc(-1 * var(--cb-space-xl)); margin-top: 0;">
+    <DomainMap
+      client:only="react"
+      entities={serializedEntities}
+      edges={serializedEdges}
+      layers={layers}
+      entityTypes={entityTypes}
+    />
+  </div>
+</Layout>

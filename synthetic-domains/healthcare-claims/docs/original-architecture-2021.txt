@@ -1,0 +1,103 @@
+Claims Platform Architecture (Original)
+Created: 2021-03-15 by Samir Patel
+Last updated: 2022-01-10
+
+*** NOTE: This page describes the architecture as of 2021. Much has changed since then. ***
+*** See "Claims Platform — Architecture Overview" for the current architecture. ***
+*** Keeping this page for historical reference only. ***
+
+---
+
+Overview:
+
+Clearview Health Plans' claims processing system was migrated from the legacy ClaimsPro monolith to a microservices architecture in Q4 2020 through Q1 2021. This document describes the initial architecture post-migration.
+
+The migration was led by Samir Patel (Principal Architect) with engineering work done by the Claims Platform team. The monolith (ClaimsPro) was a .NET application running on on-premises Windows servers that had been in production since 2014. By 2020 it was struggling with scale (~500K members at the time, growing to 800K projected) and the vendor (ClaimsPro Inc.) had effectively stopped development on the product.
+
+
+System Components (2021):
+
+  1. Claims Gateway — new, built as part of the migration
+     - Java 11, Spring Boot 2.x
+     - Deployed on GKE
+     - Replaced ClaimsPro's intake module
+
+  2. Rules Engine — HealthLogic Adjudicator 3.8
+     - Vendor product, licensed in 2019
+     - Replaced ClaimsPro's built-in adjudication rules
+     - At the time we evaluated three options: HealthLogic, Facets (TriZetto), and building our own
+     - Chose HealthLogic for fastest time-to-market. Building our own was estimated at 18 months vs. 4 months for HealthLogic integration.
+     - In hindsight, this was a mistake. See ADR-2024-007.
+
+  3. Eligibility Service — extracted from ClaimsPro
+     - The eligibility module was the first piece extracted from the monolith
+     - Java 11, Spring Boot 2.x (later migrated to Quarkus for startup time improvements)
+     - Initially shared the ClaimsPro database via a database view layer. This was a temporary measure during migration — we ran dual-write for 6 months before cutting over to the new database.
+
+  4. Payment Engine — extracted from ClaimsPro
+     - The payment module was the hardest extraction. ClaimsPro's payment logic was deeply entangled with its adjudication module.
+     - We ended up rewriting most of the payment logic rather than extracting it.
+     - Nina Petrovich led the rewrite. The void/reissue workflow was designed during this phase.
+
+  5. Member Portal — existed before the migration
+     - Was a .NET web application connected directly to ClaimsPro's database
+     - Re-pointed to the new microservices APIs post-migration
+     - Frontend was rewritten in React in 2022
+
+  6. Provider Directory — extracted from ClaimsPro
+     - Provider data was the messiest part of ClaimsPro. No clear separation between provider demographics, credentialing, and contracting data.
+     - We spent 3 months just cleaning the data before extracting.
+
+Systems that did NOT exist yet in 2021:
+  - Fraud Detection (added Q3 2022 — initially post-payment only)
+  - Pre-Auth Service (added Q1 2023 — prior auths were handled manually before this)
+
+
+Infrastructure (2021):
+
+  - GKE cluster in us-central1 (single cluster for everything — no separate prod/nonprod yet)
+  - Cloud SQL for PostgreSQL (single instance, no HA failover — yes, really)
+  - RabbitMQ for async messaging (later replaced with Kafka in Q2 2022)
+  - No service mesh (Istio was added later)
+  - CI/CD: Jenkins (migrated to GitHub Actions in 2023)
+  - Monitoring: CloudWatch + custom Grafana dashboards (migrated to Datadog in Q3 2022)
+  - Secrets: stored in Kubernetes secrets (migrated to Vault in 2023)
+
+The infrastructure has been significantly upgraded since then. The original single-cluster, single-database-instance setup would not survive the volume we process today.
+
+
+Known issues at the time (most have been addressed):
+
+  1. No circuit breakers between services — if one service went down, cascading failures across the platform. [NOTE: this is STILL not fully addressed as of 2024. See CLV-3904.]
+
+  2. Single database instance for all services — the initial migration put all service databases on one Cloud SQL instance. This was fixed in Q2 2022 when we moved to separate instances per service.
+
+  3. RabbitMQ message loss — under heavy load, RabbitMQ would drop messages if the queue depth exceeded the memory limit. This caused claims to disappear without a trace. Moving to Kafka (persistent, replicated) fixed this.
+
+  4. No HIPAA-compliant log partition — all logs went to the same index, including clinical data from the rules engine. The compliance team flagged this in the 2022 audit. Fixed by creating separate log indexes with access controls.
+
+  5. Provider data quality — the ClaimsPro extraction left us with ~15% of provider records having data quality issues (duplicate NPIs, incorrect specialties, expired credentials not flagged). James Whitfield's team spent most of 2021-2022 cleaning this up.
+
+
+Team structure (2021):
+
+  Claims Platform team (combined — not yet split into Claims Ops, Member Services, Provider Network):
+    - Samir Patel — Principal Architect (led the migration, left in Q2 2022)
+    - Marcus Reeves — Engineering Manager (now Claims Ops lead)
+    - Tom Nguyen — Senior Engineer (left in Q1 2023)
+    - Nina Petrovich — Senior Engineer (left in Q4 2022)
+    - Dana Okafor — Engineer (now Member Services lead)
+    - James Whitfield — Engineer (now Provider Network lead)
+    - Priya Anand — joined mid-2021 (now Engineering Lead for Claims Ops)
+
+The team was split into three teams (Claims Ops, Member Services, Provider Network) in late 2022 as the platform grew. The split was Samir's recommendation before he left.
+
+
+Architecture diagrams (2021 — outdated):
+  https://lucidchart.com/clearview/claims-platform-v1 (if this link still works)
+  https://lucidchart.com/clearview/claimspro-migration-plan
+
+
+Contact:
+  This page was authored by Samir Patel who is no longer with Clearview.
+  For current architecture questions, contact Priya Anand or Marcus Reeves.

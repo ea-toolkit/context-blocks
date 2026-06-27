@@ -1,0 +1,61 @@
+Design Session — Payment Reconciliation Rework
+2025-06-10
+
+Attendees: Marcus Reeves, Priya Anand, Leo Chen, Nadia Volkov
+
+We started by reviewing the current reconciliation issues. Leo walked through the three major problems with the existing Payment Engine reconciliation process.
+
+Problem 1: Timing mismatch between ERA 835 generation and actual EFT settlement. The Payment Engine generates the remittance advice when we batch the payments, but the actual EFT settlement happens 2-3 days later. In between, things can change — a fraud hold might be placed, a claim might be voided. So the ERA 835 says we paid $X but the actual settlement amount might be different.
+
+Marcus: this is causing real problems with provider offices. They get the 835, post it to their AR, and then the deposit doesn't match.
+
+Problem 2: Void/reissue tracking. When the Rules Engine reprocesses a claim (e.g., due to retroactive enrollment change from Eligibility Service), the Payment Engine voids the original payment and creates a new one. But the linkage between the voided payment and the reissued payment isn't tracked cleanly. Leo showed a query where we have orphaned void records.
+
+Problem 3: Recoupment spreading. We spread recoupments over multiple payment cycles when they exceed 50% of the payment amount. But the spreading logic doesn't account for other recoupments in flight. So you can end up with a provider getting basically no payment for 3 cycles because multiple recoupments hit at the same time.
+
+---
+
+Proposals discussed:
+
+For problem 1 — Leo suggested a two-phase approach:
+  - Generate a "provisional" 835 at batch time
+  - Generate the "final" 835 after EFT settlement confirms
+  - Providers who want real-time data get the provisional one, but they know it's subject to change
+  - Priya: does the EDI 835 standard even support provisional vs final?
+  - Leo: not really. We'd have to use a custom field or send two separate 835s
+  - Marcus: providers hate getting two 835s. Let's just delay the 835 until settlement confirms. What's the actual delay?
+  - Leo: 2-3 business days
+  - Marcus: that's acceptable. Providers already wait longer for paper checks.
+
+Decision on problem 1: delay ERA 835 generation until EFT settlement confirmation. This means we need a settlement confirmation feed from our banking partner. Leo will investigate what the bank provides.
+
+For problem 2 — Nadia suggested adding a void_reason and linked_payment_id to the payment record:
+
+  payments table changes:
+    ADD void_reason VARCHAR(100)
+    ADD linked_payment_id BIGINT REFERENCES payments(id)
+    ADD void_type ENUM('REPROCESS', 'FRAUD', 'MANUAL', 'RECOUP')
+
+  This way every void points to its replacement and vice versa. When generating reports or 835s we can show the full chain.
+
+Marcus: what about existing voids? Do we backfill?
+
+Nadia: we could, but it's messy. Some voids from 2024 don't have clear audit trails. I'd say we start clean — new voids get the linkage, old ones stay as-is.
+
+Decision on problem 2: add void linkage fields. No backfill. Priya will create the migration.
+
+For problem 3 — no decision reached. We ran out of time. The spreading logic is more complex than we thought because it also interacts with the minimum payment threshold ($5). If spreading a recoupment brings the payment below $5, do we still send it? Or do we hold? Current behavior is to send a $0 payment which is... not ideal.
+
+Leo: we also need to think about the provider experience. A provider with $50K in monthly payments from us shouldn't be zeroed out because of two $30K recoupments hitting the same cycle.
+
+Marcus: agreed. Let's schedule a follow-up to work through the recoupment logic specifically. Bring Tariq too — if there's a fraud hold on top of a recoupment, things get really complicated.
+
+---
+
+Action items:
+  [ ] Leo — investigate settlement confirmation feed from banking partner. What format, what latency, how do we consume it.
+  [ ] Priya — create DB migration for void linkage fields. PR by end of sprint.
+  [ ] Nadia — write tests for void/reissue payment chain tracking.
+  [ ] Marcus — schedule follow-up for recoupment spreading logic. Include Tariq.
+
+Next session: TBD (Marcus will send invite)

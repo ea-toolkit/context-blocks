@@ -1,0 +1,327 @@
+---
+/**
+ * Digest Page — executive diagnosis of the domain knowledge base.
+ *
+ * Not a data dump. A consultant's debrief:
+ * - Health verdict (one-line assessment)
+ * - Coverage heatmap (layers × confidence tiers)
+ * - Eval health (CLEAN/INCOMPLETE/MISSING if eval data exists)
+ * - Domain narrative (trimmed prose)
+ * - Top knowledge gaps by severity
+ */
+import Layout from '../layouts/Layout.astro';
+import DomainNarrative from '../components/digest/DomainNarrative.astro';
+import { stats, domainSummary, byLayer, health } from '../data/registry';
+import { loadMetaModel } from '../config/meta-model-loader';
+import { loadEvalData } from '../data/eval-loader';
+
+const config = loadMetaModel();
+const evalData = loadEvalData();
+
+// ── Health verdict ──
+const totalEntities = stats.totalEntities;
+const highPct = totalEntities > 0 ? Math.round(stats.highConfidence / totalEntities * 100) : 0;
+const lowPct = totalEntities > 0 ? Math.round(stats.lowConfidence / totalEntities * 100) : 0;
+
+let verdictText: string;
+let verdictLevel: string;
+if (highPct >= 60) {
+  verdictText = `Strong coverage — ${highPct}% of entities at high confidence`;
+  verdictLevel = 'strong';
+} else if (highPct >= 30) {
+  verdictText = `Developing — ${highPct}% high confidence, ${lowPct}% needs attention`;
+  verdictLevel = 'developing';
+} else {
+  verdictText = `Early stage — only ${highPct}% at high confidence, most entities need curation`;
+  verdictLevel = 'early';
+}
+
+// ── Coverage: layers with entity type breakdown ──
+interface TypeBreakdown {
+  key: string;
+  label: string;
+  icon: string;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
+interface LayerCoverage {
+  key: string;
+  label: string;
+  color: string;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+  highPct: number;
+  types: TypeBreakdown[];
+}
+
+const coverageData: LayerCoverage[] = Object.entries(config.layers).map(([key, layerConfig]) => {
+  const typeMap = byLayer.get(key);
+  const layerEntities = typeMap ? [...typeMap.values()].flat() : [];
+
+  const high = layerEntities.filter(e => e.confidence >= 0.85).length;
+  const medium = layerEntities.filter(e => e.confidence >= 0.55 && e.confidence < 0.85).length;
+  const low = layerEntities.filter(e => e.confidence < 0.55).length;
+  const total = layerEntities.length;
+
+  const types: TypeBreakdown[] = typeMap
+    ? [...typeMap.entries()]
+        .map(([typeKey, ents]) => {
+          const typeConfig = config.entity_types[typeKey];
+          return {
+            key: typeKey,
+            label: typeConfig?.label ?? typeKey,
+            icon: typeConfig?.icon ?? '?',
+            high: ents.filter(e => e.confidence >= 0.85).length,
+            medium: ents.filter(e => e.confidence >= 0.55 && e.confidence < 0.85).length,
+            low: ents.filter(e => e.confidence < 0.55).length,
+            total: ents.length,
+          };
+        })
+        .filter(t => t.total > 0)
+        .sort((a, b) => b.total - a.total)
+    : [];
+
+  return {
+    key,
+    label: layerConfig.label,
+    color: layerConfig.color,
+    high,
+    medium,
+    low,
+    total,
+    highPct: total > 0 ? Math.round(high / total * 100) : 0,
+    types,
+  };
+}).filter(l => l.total > 0);
+
+// ── Gap aggregation from entity health ──
+const gapCounts = {
+  noDescription: 0,
+  orphan: 0,
+  lowConfidence: 0,
+  noSources: 0,
+  brokenRefs: 0,
+};
+let totalGapEntityCount = 0;
+const gapEntityIds = new Set<string>();
+
+for (const [id, h] of health) {
+  const hasIssue = !h.hasDescription || h.isOrphan || h.isLowConfidence || !h.hasSourceDocuments || h.brokenRefs.length > 0;
+  if (hasIssue) gapEntityIds.add(id);
+  if (!h.hasDescription) gapCounts.noDescription++;
+  if (h.isOrphan) gapCounts.orphan++;
+  if (h.isLowConfidence) gapCounts.lowConfidence++;
+  if (!h.hasSourceDocuments) gapCounts.noSources++;
+  if (h.brokenRefs.length > 0) gapCounts.brokenRefs++;
+}
+totalGapEntityCount = gapEntityIds.size;
+
+const gaps = [
+  { label: 'Missing description', count: gapCounts.noDescription, severity: 'high' },
+  { label: 'Orphaned — no relationships', count: gapCounts.orphan, severity: 'high' },
+  { label: 'Low confidence', count: gapCounts.lowConfidence, severity: 'medium' },
+  { label: 'No source documents', count: gapCounts.noSources, severity: 'medium' },
+  { label: 'Broken references', count: gapCounts.brokenRefs, severity: 'low' },
+].filter(g => g.count > 0).sort((a, b) => b.count - a.count);
+---
+<Layout title="Digest" activePage="digest">
+  <div class="digest">
+    <!-- Health Verdict -->
+    <div class={`digest__verdict digest__verdict--${verdictLevel}`}>
+      <span class="digest__verdict-dot"></span>
+      <span class="digest__verdict-text">{verdictText}</span>
+    </div>
+
+    <div class="digest__subtitle">
+      {stats.totalEntities} entities from {stats.totalDocuments} documents · {stats.totalEdges} connections
+    </div>
+
+    <!-- Coverage by Layer -->
+    <div class="digest__section">
+      <h2 class="digest__section-title">Coverage by Layer</h2>
+      <p class="digest__section-desc">
+        Click a layer to see entity type breakdown
+      </p>
+
+      <div class="digest__coverage">
+        {coverageData.map(layer => (
+          <details class="digest__layer">
+            <summary class="digest__layer-summary">
+              <div class="digest__layer-header">
+                <span class="digest__layer-chevron">›</span>
+                <span class="digest__layer-dot" style={`background: ${layer.color}`}></span>
+                <span class="digest__layer-name">{layer.label}</span>
+                <span class="digest__layer-types-hint">{layer.types.length} types</span>
+                <span class="digest__layer-count">{layer.total}</span>
+                <span class={`digest__layer-pct digest__layer-pct--${layer.highPct >= 60 ? 'high' : layer.highPct >= 30 ? 'mid' : 'low'}`}>
+                  {layer.highPct}% high
+                </span>
+              </div>
+              <div class="digest__bar">
+                {layer.high > 0 && (
+                  <div
+                    class="digest__bar-seg digest__bar-seg--high"
+                    style={`width: ${layer.high / layer.total * 100}%`}
+                    title={`High confidence: ${layer.high}`}
+                  />
+                )}
+                {layer.medium > 0 && (
+                  <div
+                    class="digest__bar-seg digest__bar-seg--medium"
+                    style={`width: ${layer.medium / layer.total * 100}%`}
+                    title={`Medium confidence: ${layer.medium}`}
+                  />
+                )}
+                {layer.low > 0 && (
+                  <div
+                    class="digest__bar-seg digest__bar-seg--low"
+                    style={`width: ${layer.low / layer.total * 100}%`}
+                    title={`Low confidence: ${layer.low}`}
+                  />
+                )}
+              </div>
+            </summary>
+
+            <div class="digest__types">
+              {layer.types.map(t => (
+                <div class="digest__type">
+                  <div class="digest__type-header">
+                    <span class="digest__type-icon">{t.icon}</span>
+                    <a href={`/explorer?type=${t.key}`} class="digest__type-name">{t.label}</a>
+                    <span class="digest__type-count">{t.total}</span>
+                    <span class="digest__type-tiers">
+                      {t.high > 0 && <span class="digest__tier digest__tier--high">{t.high}</span>}
+                      {t.medium > 0 && <span class="digest__tier digest__tier--medium">{t.medium}</span>}
+                      {t.low > 0 && <span class="digest__tier digest__tier--low">{t.low}</span>}
+                    </span>
+                  </div>
+                  <div class="digest__bar digest__bar--sm">
+                    {t.high > 0 && (
+                      <div
+                        class="digest__bar-seg digest__bar-seg--high"
+                        style={`width: ${t.high / t.total * 100}%`}
+                      />
+                    )}
+                    {t.medium > 0 && (
+                      <div
+                        class="digest__bar-seg digest__bar-seg--medium"
+                        style={`width: ${t.medium / t.total * 100}%`}
+                      />
+                    )}
+                    {t.low > 0 && (
+                      <div
+                        class="digest__bar-seg digest__bar-seg--low"
+                        style={`width: ${t.low / t.total * 100}%`}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+
+      <!-- Legend -->
+      <div class="digest__bar-legend">
+        <span class="digest__bar-legend-item">
+          <span class="digest__bar-legend-swatch digest__bar-legend-swatch--high"></span>
+          High ≥85% ({stats.highConfidence})
+        </span>
+        <span class="digest__bar-legend-item">
+          <span class="digest__bar-legend-swatch digest__bar-legend-swatch--medium"></span>
+          Medium ({stats.mediumConfidence})
+        </span>
+        <span class="digest__bar-legend-item">
+          <span class="digest__bar-legend-swatch digest__bar-legend-swatch--low"></span>
+          Low &lt;55% ({stats.lowConfidence})
+        </span>
+      </div>
+    </div>
+
+    <!-- Eval Health (if eval data exists) -->
+    {evalData && (
+      <div class="digest__section">
+        <h2 class="digest__section-title">Eval Health</h2>
+        <p class="digest__section-desc">
+          How well the KB answers {evalData.stats.total} test questions
+        </p>
+
+        <div class="digest__eval-bar">
+          {evalData.stats.cleanPct > 0 && (
+            <div
+              class="digest__eval-segment digest__eval-segment--clean"
+              style={`width: ${evalData.stats.cleanPct}%`}
+              title={`CLEAN: ${evalData.stats.clean} (${evalData.stats.cleanPct}%)`}
+            >
+              {evalData.stats.cleanPct >= 8 ? `${evalData.stats.cleanPct}%` : ''}
+            </div>
+          )}
+          {evalData.stats.incompletePct > 0 && (
+            <div
+              class="digest__eval-segment digest__eval-segment--incomplete"
+              style={`width: ${evalData.stats.incompletePct}%`}
+              title={`INCOMPLETE: ${evalData.stats.incomplete} (${evalData.stats.incompletePct}%)`}
+            >
+              {evalData.stats.incompletePct >= 8 ? `${evalData.stats.incompletePct}%` : ''}
+            </div>
+          )}
+          {evalData.stats.missingPct > 0 && (
+            <div
+              class="digest__eval-segment digest__eval-segment--missing"
+              style={`width: ${evalData.stats.missingPct}%`}
+              title={`MISSING: ${evalData.stats.missing} (${evalData.stats.missingPct}%)`}
+            >
+              {evalData.stats.missingPct >= 8 ? `${evalData.stats.missingPct}%` : ''}
+            </div>
+          )}
+        </div>
+        <div class="digest__eval-legend">
+          <span class="digest__eval-legend-item">
+            <span class="digest__eval-swatch digest__eval-swatch--clean"></span>
+            CLEAN {evalData.stats.clean}
+          </span>
+          <span class="digest__eval-legend-item">
+            <span class="digest__eval-swatch digest__eval-swatch--incomplete"></span>
+            INCOMPLETE {evalData.stats.incomplete}
+          </span>
+          <span class="digest__eval-legend-item">
+            <span class="digest__eval-swatch digest__eval-swatch--missing"></span>
+            MISSING {evalData.stats.missing}
+          </span>
+        </div>
+      </div>
+    )}
+
+    <!-- Domain Narrative -->
+    <DomainNarrative narrative={domainSummary.narrative} />
+
+    <!-- Knowledge Gaps -->
+    {gaps.length > 0 && (
+      <div class="digest__section">
+        <h2 class="digest__section-title">Knowledge Gaps</h2>
+        <p class="digest__section-desc">
+          {totalGapEntityCount} of {stats.totalEntities} entities have at least one issue
+        </p>
+
+        <div class="digest__gaps">
+          {gaps.map(gap => (
+            <div class={`digest__gap digest__gap--${gap.severity}`}>
+              <span class="digest__gap-count">{gap.count}</span>
+              <span class="digest__gap-label">{gap.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div class="digest__gap-link">
+          <a href="/gaps">View all gaps →</a>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>

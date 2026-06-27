@@ -1,0 +1,49 @@
+---
+/**
+ * Workbench — everything that needs human attention.
+ *
+ * Four tabs (via React island):
+ * 1. Coverage  — eval-driven CLEAN/INCOMPLETE/MISSING gap cards
+ * 2. Questions — unresolved questions from entity extraction
+ * 3. Health    — entity lint issues (orphans, broken refs, etc.)
+ * 4. Review    — entities tagged `needs-review`
+ *
+ * Replaces the old separate Gaps + Workbench pages.
+ */
+import Layout from '../layouts/Layout.astro';
+import WorkbenchView from '../components/workbench/WorkbenchView';
+import { allQuestions, getLintIssues, entities } from '../data/registry';
+import { loadEvalData } from '../data/eval-loader';
+
+// Lint issues with entity ownership resolved from relationships
+const rawLintIssues = getLintIssues();
+const lintIssues = rawLintIssues.map(row => {
+  const ownerRel = row.entity.relationships.find(r => r.type === 'owned_by');
+  const ownerEntity = ownerRel ? entities.get(ownerRel.targetId) : null;
+  return {
+    entity: row.entity,
+    issues: row.issues,
+    owner: ownerEntity?.name,
+  };
+});
+
+// Review queue: entities tagged needs-review
+const reviewQueue = [...entities.values()].filter(e =>
+  e.tags.includes('needs-review')
+);
+
+// Eval data (may be null if no eval-results.json)
+const evalData = loadEvalData();
+const evalResults = evalData?.results ?? [];
+const evalStats = evalData?.stats ?? null;
+---
+<Layout title="Workbench" activePage="workbench" pageTitle="Workbench">
+  <WorkbenchView
+    client:load
+    questions={allQuestions}
+    lintIssues={lintIssues}
+    reviewQueue={reviewQueue}
+    evalResults={evalResults}
+    evalStats={evalStats}
+  />
+</Layout>

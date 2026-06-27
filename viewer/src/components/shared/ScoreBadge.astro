@@ -1,0 +1,20 @@
+---
+/**
+ * Score badge — CLEAN / INCOMPLETE / MISSING.
+ * Uses CSS classes from global.css, vocabulary-agnostic.
+ */
+interface Props {
+  score: 'CLEAN' | 'INCOMPLETE' | 'MISSING';
+}
+
+const { score } = Astro.props;
+
+const classMap: Record<string, string> = {
+  CLEAN: 'score-badge--clean',
+  INCOMPLETE: 'score-badge--incomplete',
+  MISSING: 'score-badge--missing',
+};
+---
+<span class:list={['score-badge', classMap[score] || 'score-badge--missing']}>
+  {score}
+</span>

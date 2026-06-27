@@ -1,0 +1,16 @@
+Member Enrollment Workflow
+
+TODO: Document the end-to-end enrollment workflow including:
+  - New member enrollment
+  - Open enrollment / plan changes
+  - Qualifying life events (marriage, birth, job change)
+  - COBRA enrollment
+  - Retroactive enrollment changes and their impact on claims reprocessing
+  - EDI 834 enrollment file processing
+
+This should cover both the business process and the technical implementation in the Eligibility Service.
+
+Assigned to: Dana Okafor
+Target: Q4 2025
+
+(Page created by Marcus Reeves, 2025-06-01 — "Dana, please fill this in when you get a chance. New engineers keep asking about the enrollment flow and there's nothing written down.")

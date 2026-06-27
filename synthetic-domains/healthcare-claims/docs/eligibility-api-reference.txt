@@ -1,0 +1,183 @@
+Eligibility Check API — Reference
+Version: 2.3
+Last updated: 2025-08-30
+
+Base URL: https://api.clearviewhealth.internal/eligibility/v2
+
+Authentication: OAuth 2.0 Bearer token. Request tokens from the IAM service:
+  POST https://auth.clearviewhealth.internal/oauth/token
+  Body: { "client_id": "<your-client-id>", "client_secret": "<secret>", "grant_type": "client_credentials", "scope": "eligibility.read" }
+
+Rate limits:
+  - Real-time endpoints: 500 req/sec per client
+  - Batch endpoint: 10 req/min, max 5000 records per batch
+
+
+== Endpoints ==
+
+1. GET /eligibility/{memberId}
+
+   Check current eligibility and benefits for a member.
+
+   Path params:
+     memberId (string, required) — Clearview member ID (format: CLV-XXXXXXXXX)
+
+   Query params:
+     includeAccumulators (boolean, default: false) — include deductible/OOP balances
+     includeCOB (boolean, default: false) — include coordination of benefits data
+
+   Response 200:
+     {
+       "member_id": "CLV-000284715",
+       "status": "active",
+       "plan_id": "GOLD-PPO-2025",
+       "plan_name": "Clearview Gold PPO",
+       "effective_date": "2025-01-01",
+       "termination_date": null,
+       "subscriber_id": "CLV-000284710",
+       "relationship": "dependent",
+       "accumulators": {
+         "individual_deductible": { "limit": 1500.00, "met": 823.50 },
+         "family_deductible": { "limit": 3000.00, "met": 1547.00 },
+         "individual_oop_max": { "limit": 6000.00, "met": 1200.00 },
+         "family_oop_max": { "limit": 12000.00, "met": 3800.00 }
+       },
+       "cob": null
+     }
+
+   Response 404:
+     { "error": "MEMBER_NOT_FOUND", "message": "No member found with ID CLV-000284715" }
+
+   Notes:
+     - If the member is terminated, status will be "terminated" and termination_date will be set
+     - Claims Gateway calls this at intake without accumulators (fast path)
+     - Rules Engine calls this with includeAccumulators=true during adjudication
+
+
+2. GET /eligibility/{memberId}/asof/{date}
+
+   Point-in-time eligibility lookup. Returns eligibility status as of a specific date.
+   This is the endpoint the Rules Engine uses during adjudication — it evaluates coverage as of the claim's date of service.
+
+   Path params:
+     memberId (string, required)
+     date (string, required) — ISO 8601 date (YYYY-MM-DD)
+
+   Response 200: same shape as current eligibility, but reflects status as of the given date.
+
+   Notes:
+     - Supports dates up to 2 years in the past
+     - Returns 400 if date is in the future
+     - Used for retroactive claim processing scenarios
+
+
+3. GET /eligibility/{memberId}/accumulators
+
+   Returns current benefit accumulator balances.
+
+   Path params:
+     memberId (string, required)
+
+   Response 200:
+     {
+       "member_id": "CLV-000284715",
+       "plan_year": "2025",
+       "accumulators": {
+         "individual_deductible": { "limit": 1500.00, "met": 823.50, "remaining": 676.50 },
+         "family_deductible": { "limit": 3000.00, "met": 1547.00, "remaining": 1453.00 },
+         "individual_oop_max": { "limit": 6000.00, "met": 1200.00, "remaining": 4800.00 },
+         "family_oop_max": { "limit": 12000.00, "met": 3800.00, "remaining": 8200.00 }
+       },
+       "pending_reservations": [
+         {
+           "claim_id": "CLM-20250814-002847",
+           "reserved_amount": 150.00,
+           "accumulator": "individual_deductible",
+           "reserved_at": "2025-08-14T10:23:00Z"
+         }
+       ]
+     }
+
+   Notes:
+     - pending_reservations shows soft reservations from claims currently being adjudicated
+     - Reservations prevent over-application during concurrent claim processing
+     - Reservations are released if the claim is denied or finalized
+
+
+4. POST /eligibility/batch
+
+   Batch eligibility verification. Accepts EDI 270 format or JSON array.
+
+   Headers:
+     Content-Type: application/edi-x12 (for EDI 270)
+     Content-Type: application/json (for JSON format)
+
+   JSON request body:
+     {
+       "requests": [
+         { "member_id": "CLV-000284715", "date_of_service": "2025-08-10" },
+         { "member_id": "CLV-000399201", "date_of_service": "2025-08-10" }
+       ]
+     }
+
+   Response 200:
+     {
+       "batch_id": "BATCH-20250814-001",
+       "results": [
+         { "member_id": "CLV-000284715", "status": "active", "plan_id": "GOLD-PPO-2025" },
+         { "member_id": "CLV-000399201", "status": "terminated", "termination_date": "2025-06-30" }
+       ],
+       "processed": 2,
+       "errors": 0
+     }
+
+   EDI 270 submissions return EDI 271 response format.
+
+   Notes:
+     - Max 5000 records per batch
+     - Batch requests are processed asynchronously — poll GET /eligibility/batch/{batchId}/status
+     - Clearinghouses primarily use the EDI 270/271 format
+
+
+== Error Codes ==
+
+  MEMBER_NOT_FOUND        — no member with this ID exists
+  PLAN_NOT_FOUND          — member exists but has no active plan assignment
+  INVALID_DATE_FORMAT     — date parameter not in YYYY-MM-DD format
+  DATE_OUT_OF_RANGE       — as-of date is more than 2 years in the past or in the future
+  BATCH_SIZE_EXCEEDED     — batch request exceeds 5000 records
+  RATE_LIMIT_EXCEEDED     — too many requests, back off and retry
+  INTERNAL_ERROR          — something broke on our side, contact Member Services engineering
+
+
+== Usage by Internal Systems ==
+
+  Claims Gateway:
+    - Calls GET /eligibility/{memberId} at intake (no accumulators, fast path)
+    - Purpose: verify member has active coverage on date of service
+
+  Rules Engine:
+    - Calls GET /eligibility/{memberId}/asof/{date} during adjudication
+    - Calls GET /eligibility/{memberId}/accumulators for deductible/OOP calculation
+    - Purpose: point-in-time eligibility + accumulator data for cost-sharing calculation
+
+  Pre-Auth Service:
+    - Calls GET /eligibility/{memberId} to verify member coverage before processing auth request
+    - Purpose: no point processing an auth if the member isn't eligible
+
+  Member Portal:
+    - Calls GET /eligibility/{memberId} with includeAccumulators=true
+    - Purpose: display benefit balances to member in their dashboard
+
+
+== Known Issues ==
+
+  - Accumulator soft reservations are not cleaned up if the Rules Engine crashes mid-adjudication.
+    Workaround: a batch job runs every 6 hours to expire reservations older than 4 hours.
+    Tracking: JIRA CLV-4521
+
+  - The batch endpoint occasionally returns partial results under heavy load. The "errors" count
+    in the response will be >0. Retry the failed records individually.
+    Tracking: JIRA CLV-4890
+
+TODO: document the new real-time WebSocket eligibility feed for the Member Portal (shipping Q1 2026)
