@@ -21,6 +21,8 @@ Every other tool in this space extracts what's there. Context Blocks measures wh
 
 **The gap is the product.** Every unanswered question becomes a curation target.
 
+Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowledge bases — directories of Markdown files with YAML frontmatter that any agent, Obsidian vault, or LLM can read directly. No vendor lock-in, no proprietary format.
+
 ## How it works
 
 ```
