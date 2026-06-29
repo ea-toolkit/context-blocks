@@ -728,5 +728,34 @@ def export_skill_cmd(
     console.print()
 
 
+@app.command("mcp")
+def mcp_serve(
+    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory with entities/"),
+    block: str = typer.Option(None, "--block", "-b", help="Serve a single block (omit to serve all blocks)"),
+) -> None:
+    """Start the MCP server for AI agents to query the KB (stdio transport).
+
+    Without --block: serves all blocks, agents discover them via list_blocks().
+    With --block: serves a single block directly.
+    """
+    try:
+        from context_blocks.mcp_server import run_server
+    except ImportError:
+        console.print("[red]MCP dependencies not installed.[/red]")
+        console.print("Install with: pip install 'context-blocks[mcp]'")
+        raise typer.Exit(1)
+
+    if block:
+        output = _resolve_output(block, output)
+        entity_dir = output / "entities"
+        if not entity_dir.exists():
+            console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
+            console.print("Run phase1 first to extract entities.")
+            raise typer.Exit(1)
+        run_server(output_dir=str(output))
+    else:
+        run_server()
+
+
 if __name__ == "__main__":
     app()

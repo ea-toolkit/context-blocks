@@ -161,6 +161,33 @@ cb export-skill --block my-domain --title "My Domain KB"
 cb export-skill --block my-domain --max-tokens 10000
 ```
 
+## MCP Server (Agent Integration)
+
+Let AI agents query your KB directly via the [Model Context Protocol](https://modelcontextprotocol.io):
+
+```bash
+pip install 'context-blocks[mcp]'
+cb mcp                    # serve all blocks — agents discover via list_blocks()
+cb mcp --block my-domain  # serve a single block
+```
+
+**6 tools exposed:** `list_blocks`, `get_overview`, `search_entities`, `get_entity`, `ask_kb`, `get_gap_report`
+
+Block-aware: agents call `list_blocks()` first to discover available domains, then pass the block name to any tool. Single-block projects work automatically without specifying.
+
+Add to Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "context-blocks": {
+      "command": "cb",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 ## Meta-Model
 
 18 entity types organized in 6 knowledge layers:
@@ -210,6 +237,7 @@ Capabilities you get without configuring anything:
 | `cb reformat` | Regenerate entity markdown from JSON (no API) |
 | `cb export-obsidian` | Export as Obsidian vault with wikilinks |
 | `cb export-skill` | Export as single markdown for agent context |
+| `cb mcp` | Start MCP server for AI agent integration (stdio) |
 
 All commands accept `--block <name>` or `-b`. Set `CB_BLOCK` env var as default.
 
