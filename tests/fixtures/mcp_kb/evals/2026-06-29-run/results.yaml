@@ -1,0 +1,29 @@
+questions:
+  - question: "How does claim routing work?"
+    ddc_class: CLEAN
+    source: developer
+    gaps: []
+  - question: "What happens when a claim is denied?"
+    ddc_class: INCOMPLETE
+    source: developer
+    gaps:
+      - type: missing_detail
+        description: "Denial workflow not fully documented"
+  - question: "How does the appeals process work?"
+    ddc_class: MISSING
+    source: architect
+    gaps:
+      - type: missing_entity
+        description: "Appeals process not documented at all"
+  - question: "What systems does a new joiner need access to?"
+    ddc_class: INCOMPLETE
+    source: new-joiner
+    gaps:
+      - type: missing_detail
+        description: "Onboarding access requirements not listed"
+  - question: "What are the SLAs for claim processing?"
+    ddc_class: MISSING
+    source: product-owner
+    gaps:
+      - type: missing_entity
+        description: "SLA definitions not in KB"
