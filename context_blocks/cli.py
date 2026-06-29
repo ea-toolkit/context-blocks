@@ -168,12 +168,20 @@ def phase1(
     console.print("[dim]Step 2: Deep reading with accumulated knowledge...[/dim]")
     console.print()
 
-    results = asyncio.run(run_phase1(
-        docs_dir=docs,
-        seed_context_path=seed,
-        output_dir=output,
-        max_documents=max_docs,
-    ))
+    try:
+        results = asyncio.run(run_phase1(
+            docs_dir=docs,
+            seed_context_path=seed,
+            output_dir=output,
+            max_documents=max_docs,
+        ))
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted. Progress has been saved — re-run to resume.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"\n[red]Phase 1 failed: {e}[/red]")
+        console.print("[dim]Progress has been saved. Fix the issue and re-run — processed docs will be skipped.[/dim]")
+        raise typer.Exit(1)
 
     total_entities = sum(len(r.entities) for r in results)
     console.print(f"\n[bold green]Done![/bold green]")
@@ -356,7 +364,15 @@ def ask(
 
         console.print()
 
-    asyncio.run(_ask())
+    try:
+        asyncio.run(_ask())
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"\n[red]Retrieval failed: {e}[/red]")
+        console.print("[dim]Check your API keys (LLM_API_KEY, OPENAI_API_KEY) and try again.[/dim]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -648,7 +664,15 @@ def eval(
         console.print(f"  JSON:   {json_path}")
         console.print()
 
-    asyncio.run(_eval())
+    try:
+        asyncio.run(_eval())
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted. Partial results may have been saved.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"\n[red]Eval failed: {e}[/red]")
+        console.print("[dim]Check your API keys and try again.[/dim]")
+        raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------

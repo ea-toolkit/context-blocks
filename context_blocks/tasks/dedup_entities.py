@@ -110,11 +110,15 @@ Decide:
 Return JSON: {{"action": "merge"|"keep", "reason": "brief explanation", "keep_id": "id of the more complete entity if merging"}}
 Return ONLY the JSON, no other text."""
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        logger.error("dedup_judge_api_error", a=a["name"], b=b["name"], error=str(e))
+        return {"action": "keep", "reason": f"API error: {e}", "keep_id": a["id"]}
 
     text = response.content[0].text.strip()
     if text.startswith("```"):

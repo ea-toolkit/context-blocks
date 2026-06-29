@@ -214,20 +214,26 @@ async def run_phase1(
             # Write entity markdown files (cheap render from the JSON above)
             write_extraction_results(result, output_dir)
 
-            # Rewrite knowledge summary (fixed size — replaces previous)
-            knowledge_summary = await summarize_knowledge(
-                previous_summary=knowledge_summary,
-                extraction_result=result,
-                seed_context=seed_context,
-            )
-
-            # Mark as analyzed in state
+            # Mark as analyzed BEFORE summary — entities are already saved
             entity_ids = [e.id for e in result.entities]
             mark_document_analyzed(state, document.filename, entity_ids)
-
             all_results.append(result)
             total_entities += len(result.entities)
             consecutive_failures = 0  # Reset on success
+
+            # Rewrite knowledge summary (non-fatal — stale summary is better than re-extracting)
+            try:
+                knowledge_summary = await summarize_knowledge(
+                    previous_summary=knowledge_summary,
+                    extraction_result=result,
+                    seed_context=seed_context,
+                )
+            except Exception as summary_err:
+                logger.warning(
+                    "phase1_summary_update_failed",
+                    document=document.filename,
+                    error=str(summary_err),
+                )
 
             # Save state after each document (resume-safe)
             state.knowledge_summary = knowledge_summary

@@ -485,16 +485,22 @@ class RetrievalPipeline:
         if self.embed_fn:
             async def _vector():
                 nonlocal query_embedding, vector_results
-                query_embedding = await self.embed_fn(understanding.original_question)
-                vector_results = await self.backend.vector_search(query_embedding, self.vector_top_k)
+                try:
+                    query_embedding = await self.embed_fn(understanding.original_question)
+                    vector_results = await self.backend.vector_search(query_embedding, self.vector_top_k)
+                except Exception as e:
+                    logger.warning("vector_search_failed", error=str(e))
             tasks.append(_vector())
 
         # Keyword search
         async def _keyword():
             nonlocal keyword_results
-            keyword_results = await self.backend.keyword_search(
-                understanding.original_question, self.keyword_top_k,
-            )
+            try:
+                keyword_results = await self.backend.keyword_search(
+                    understanding.original_question, self.keyword_top_k,
+                )
+            except Exception as e:
+                logger.warning("keyword_search_failed", error=str(e))
         tasks.append(_keyword())
 
         # Run vector + keyword in parallel

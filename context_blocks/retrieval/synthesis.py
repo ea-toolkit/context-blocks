@@ -111,11 +111,19 @@ async def synthesize_with_anthropic(
     )
 
     settings = get_settings()
-    response = client.messages.create(
-        model=_get_anthropic_model_id(model),
-        max_tokens=settings.synthesis_max_tokens,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        response = client.messages.create(
+            model=_get_anthropic_model_id(model),
+            max_tokens=settings.synthesis_max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        logger.error("synthesis_api_error", error=str(e))
+        return (
+            f"[Synthesis failed: {e}] Retrieved entities are shown below:\n\n{context[:1000]}",
+            AnswerScore.NOT_ANSWERABLE,
+            [],
+        )
 
     answer = response.content[0].text
     score = _extract_score(answer)
