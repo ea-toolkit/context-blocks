@@ -290,7 +290,18 @@ cd viewer && npm run dev      # Viewer (terminal 2)
 
 ## Input Formats
 
-Markdown (.md), plain text (.txt), PDF (.pdf via pypdf).
+| Format | Extension | Install |
+|---|---|---|
+| Markdown | `.md` | Built-in |
+| Plain text | `.txt` | Built-in |
+| HTML | `.html`, `.htm` | Built-in |
+| PDF | `.pdf` | `pip install 'context-blocks[pdf]'` |
+| Word | `.docx` | `pip install 'context-blocks[docx]'` |
+| PowerPoint | `.pptx` | `pip install 'context-blocks[pptx]'` |
+
+Or install everything: `pip install 'context-blocks[all]'`
+
+Confluence exports (HTML) and Notion exports (Markdown) work out of the box.
 
 ## Configuration
 

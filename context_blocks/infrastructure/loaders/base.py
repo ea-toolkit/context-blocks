@@ -47,6 +47,12 @@ async def load_document(filepath: Path) -> LoadedDocument:
                 raise DocumentLoadError(f"Cannot decode {filepath}: {e}") from e
     elif suffix == ".pdf":
         content = _extract_pdf_text(filepath)
+    elif suffix == ".docx":
+        content = _extract_docx_text(filepath)
+    elif suffix == ".pptx":
+        content = _extract_pptx_text(filepath)
+    elif suffix in (".html", ".htm"):
+        content = _extract_html_text(filepath)
     else:
         raise DocumentLoadError(f"Unsupported file type: {suffix}")
 
@@ -82,6 +88,101 @@ def _extract_pdf_text(filepath: Path) -> str:
         raise DocumentLoadError(f"Failed to extract PDF text: {e}") from e
 
 
+def _extract_docx_text(filepath: Path) -> str:
+    """Extract text from a Word document."""
+    from context_blocks.exceptions import DocumentLoadError
+
+    try:
+        from docx import Document
+
+        doc = Document(str(filepath))
+        parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                parts.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    parts.append(" | ".join(cells))
+        return "\n\n".join(parts)
+    except ImportError:
+        raise DocumentLoadError(
+            "python-docx not installed. Install with: pip install 'context-blocks[docx]'"
+        )
+    except Exception as e:
+        raise DocumentLoadError(f"Failed to extract DOCX text: {e}") from e
+
+
+def _extract_pptx_text(filepath: Path) -> str:
+    """Extract text from a PowerPoint presentation."""
+    from context_blocks.exceptions import DocumentLoadError
+
+    try:
+        from pptx import Presentation
+
+        prs = Presentation(str(filepath))
+        parts = []
+        for i, slide in enumerate(prs.slides, 1):
+            slide_texts = []
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        if para.text.strip():
+                            slide_texts.append(para.text.strip())
+                if shape.has_table:
+                    for row in shape.table.rows:
+                        cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if cells:
+                            slide_texts.append(" | ".join(cells))
+            if slide_texts:
+                parts.append(f"## Slide {i}\n\n" + "\n\n".join(slide_texts))
+        return "\n\n".join(parts)
+    except ImportError:
+        raise DocumentLoadError(
+            "python-pptx not installed. Install with: pip install 'context-blocks[pptx]'"
+        )
+    except Exception as e:
+        raise DocumentLoadError(f"Failed to extract PPTX text: {e}") from e
+
+
+def _extract_html_text(filepath: Path) -> str:
+    """Extract text from an HTML file (strips tags, nav, scripts)."""
+    from context_blocks.exceptions import DocumentLoadError
+
+    try:
+        from html.parser import HTMLParser
+
+        raw = filepath.read_text(encoding="utf-8")
+
+        class _TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.parts: list[str] = []
+                self._skip = False
+                self._skip_tags = {"script", "style", "nav", "footer", "header"}
+
+            def handle_starttag(self, tag, attrs):
+                if tag in self._skip_tags:
+                    self._skip = True
+
+            def handle_endtag(self, tag):
+                if tag in self._skip_tags:
+                    self._skip = False
+
+            def handle_data(self, data):
+                if not self._skip:
+                    text = data.strip()
+                    if text:
+                        self.parts.append(text)
+
+        extractor = _TextExtractor()
+        extractor.feed(raw)
+        return "\n\n".join(extractor.parts)
+    except Exception as e:
+        raise DocumentLoadError(f"Failed to extract HTML text: {e}") from e
+
+
 async def load_documents_from_directory(directory: Path) -> list[LoadedDocument]:
     """Load all supported documents from a directory (recursive).
 
@@ -102,7 +203,7 @@ async def load_documents_from_directory(directory: Path) -> list[LoadedDocument]
     if not directory.is_dir():
         raise DocumentLoadError(f"Not a directory: {directory}")
 
-    supported_extensions = {".md", ".txt", ".pdf"}
+    supported_extensions = {".md", ".txt", ".pdf", ".docx", ".pptx", ".html", ".htm"}
     files = sorted(
         f for f in directory.rglob("*")
         if f.is_file()
