@@ -167,10 +167,13 @@ Let AI agents query your KB directly via the [Model Context Protocol](https://mo
 
 ```bash
 pip install 'context-blocks[mcp]'
-cb mcp --block my-domain
+cb mcp                    # serve all blocks — agents discover via list_blocks()
+cb mcp --block my-domain  # serve a single block
 ```
 
-**5 tools exposed:** `get_overview`, `search_entities`, `get_entity`, `ask_kb`, `get_gap_report`
+**6 tools exposed:** `list_blocks`, `get_overview`, `search_entities`, `get_entity`, `ask_kb`, `get_gap_report`
+
+Block-aware: agents call `list_blocks()` first to discover available domains, then pass the block name to any tool. Single-block projects work automatically without specifying.
 
 Add to Claude Desktop (`claude_desktop_config.json`):
 
@@ -179,7 +182,7 @@ Add to Claude Desktop (`claude_desktop_config.json`):
   "mcpServers": {
     "context-blocks": {
       "command": "cb",
-      "args": ["mcp", "--block", "my-domain"]
+      "args": ["mcp"]
     }
   }
 }
