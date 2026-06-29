@@ -167,15 +167,24 @@ Let AI agents query your KB directly via the [Model Context Protocol](https://mo
 
 ```bash
 pip install 'context-blocks[mcp]'
-cb mcp                    # serve all blocks — agents discover via list_blocks()
-cb mcp --block my-domain  # serve a single block
+cb mcp                                  # stdio (Claude Desktop, local CLI)
+cb mcp --transport streamable-http      # HTTP (Copilot, remote agents, web tools)
+cb mcp --block my-domain                # serve a single block
 ```
 
 **6 tools exposed:** `list_blocks`, `get_overview`, `search_entities`, `get_entity`, `ask_kb`, `get_gap_report`
 
 Block-aware: agents call `list_blocks()` first to discover available domains, then pass the block name to any tool. Single-block projects work automatically without specifying.
 
-Add to Claude Desktop (`claude_desktop_config.json`):
+Configure via env vars or CLI flags:
+
+| Setting | Env var | CLI flag | Default |
+|---|---|---|---|
+| Transport | `CB_MCP_TRANSPORT` | `--transport` | `stdio` |
+| Host | `CB_MCP_HOST` | `--host` | `127.0.0.1` |
+| Port | `CB_MCP_PORT` | `--port` | `8000` |
+
+**Claude Desktop** (`claude_desktop_config.json`):
 
 ```json
 {
@@ -186,6 +195,17 @@ Add to Claude Desktop (`claude_desktop_config.json`):
     }
   }
 }
+```
+
+**Remote agents** (Copilot, web tools):
+
+```bash
+cb mcp --transport streamable-http --host 0.0.0.0 --port 8080
+# or
+export CB_MCP_TRANSPORT=streamable-http
+export CB_MCP_HOST=0.0.0.0
+export CB_MCP_PORT=8080
+cb mcp
 ```
 
 ## Meta-Model
