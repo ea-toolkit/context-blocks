@@ -92,7 +92,7 @@ async def run_phase1(
             write_extraction_results(seed_result, output_dir)
 
             entity_ids = [e.id for e in seed_result.entities]
-            mark_document_scanned(state, "seed-context", seed_context_path)
+            mark_document_scanned(state, "seed-context", seed_context_path, output_dir=output_dir)
             mark_document_analyzed(state, "seed-context", entity_ids)
             state.total_entities = len(seed_result.entities)
             state.total_documents_analyzed = 1
@@ -149,7 +149,7 @@ async def run_phase1(
         to_process = [doc for doc in ordered_all if doc.filename in unread_filenames]
 
         for i, doc in enumerate(ordered_all):
-            mark_document_scanned(state, doc.filename, doc.filepath, reading_priority=i + 1)
+            mark_document_scanned(state, doc.filename, doc.filepath, reading_priority=i + 1, output_dir=output_dir)
         save_state(state, output_dir)
 
     # Apply max_documents limit after reordering
