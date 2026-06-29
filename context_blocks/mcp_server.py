@@ -451,7 +451,12 @@ def get_gap_report(block: str = "", persona: str = "") -> dict:
     }
 
 
-def run_server(output_dir: str = ""):
+def run_server(
+    output_dir: str = "",
+    transport: str = "",
+    host: str = "",
+    port: int = 0,
+):
     """Entry point for the CLI command."""
     global _single_output, _project_root
     if output_dir:
@@ -460,7 +465,16 @@ def run_server(output_dir: str = ""):
     else:
         from context_blocks.blocks import find_project_root
         _project_root = find_project_root()
-    mcp.run(transport="stdio")
+
+    resolved_transport = transport or os.environ.get("CB_MCP_TRANSPORT", "stdio")
+    resolved_host = host or os.environ.get("CB_MCP_HOST", "127.0.0.1")
+    resolved_port = port or int(os.environ.get("CB_MCP_PORT", "8000"))
+
+    if resolved_transport in ("streamable-http", "sse"):
+        mcp.settings.host = resolved_host
+        mcp.settings.port = resolved_port
+
+    mcp.run(transport=resolved_transport)
 
 
 if __name__ == "__main__":

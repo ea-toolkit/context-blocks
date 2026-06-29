@@ -732,11 +732,19 @@ def export_skill_cmd(
 def mcp_serve(
     output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory with entities/"),
     block: str = typer.Option(None, "--block", "-b", help="Serve a single block (omit to serve all blocks)"),
+    transport: str = typer.Option(None, "--transport", "-t", help="Transport: stdio (default), streamable-http, sse. Env: CB_MCP_TRANSPORT"),
+    host: str = typer.Option(None, "--host", help="Host for HTTP transport. Env: CB_MCP_HOST"),
+    port: int = typer.Option(None, "--port", "-p", help="Port for HTTP transport. Env: CB_MCP_PORT"),
 ) -> None:
-    """Start the MCP server for AI agents to query the KB (stdio transport).
+    """Start the MCP server for AI agents to query the KB.
 
     Without --block: serves all blocks, agents discover them via list_blocks().
     With --block: serves a single block directly.
+
+    Transport defaults to stdio. For remote agents (Copilot, web tools), use:
+        cb mcp --transport streamable-http
+
+    Configure via env vars: CB_MCP_TRANSPORT, CB_MCP_HOST, CB_MCP_PORT.
     """
     try:
         from context_blocks.mcp_server import run_server
@@ -745,6 +753,14 @@ def mcp_serve(
         console.print("Install with: pip install 'context-blocks[mcp]'")
         raise typer.Exit(1)
 
+    kwargs = {}
+    if transport:
+        kwargs["transport"] = transport
+    if host:
+        kwargs["host"] = host
+    if port:
+        kwargs["port"] = port
+
     if block:
         output = _resolve_output(block, output)
         entity_dir = output / "entities"
@@ -752,9 +768,9 @@ def mcp_serve(
             console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
             console.print("Run phase1 first to extract entities.")
             raise typer.Exit(1)
-        run_server(output_dir=str(output))
+        run_server(output_dir=str(output), **kwargs)
     else:
-        run_server()
+        run_server(**kwargs)
 
 
 if __name__ == "__main__":

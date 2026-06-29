@@ -428,3 +428,77 @@ class TestGetGapReport:
         result = get_gap_report()
         gap_classes = {g["ddc_class"] for g in result["gaps"]}
         assert "CLEAN" not in gap_classes
+
+
+# ── run_server config ──
+
+
+class TestRunServerConfig:
+    def test_defaults_to_stdio(self, monkeypatch):
+        """run_server resolves to stdio when no transport is specified."""
+        import context_blocks.mcp_server as mod
+
+        resolved = []
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: resolved.append(transport))
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        mod.run_server(output_dir=str(FIXTURES))
+        assert resolved == ["stdio"]
+
+    def test_transport_from_env(self, monkeypatch):
+        """CB_MCP_TRANSPORT env var is respected."""
+        import context_blocks.mcp_server as mod
+
+        resolved = []
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: resolved.append(transport))
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        monkeypatch.setenv("CB_MCP_TRANSPORT", "streamable-http")
+        mod.run_server(output_dir=str(FIXTURES))
+        assert resolved == ["streamable-http"]
+
+    def test_cli_transport_overrides_env(self, monkeypatch):
+        """Explicit transport param takes precedence over env var."""
+        import context_blocks.mcp_server as mod
+
+        resolved = []
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: resolved.append(transport))
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        monkeypatch.setenv("CB_MCP_TRANSPORT", "sse")
+        mod.run_server(output_dir=str(FIXTURES), transport="streamable-http")
+        assert resolved == ["streamable-http"]
+
+    def test_host_port_from_env(self, monkeypatch):
+        """CB_MCP_HOST and CB_MCP_PORT env vars configure HTTP transport."""
+        import context_blocks.mcp_server as mod
+
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: None)
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        monkeypatch.setenv("CB_MCP_TRANSPORT", "streamable-http")
+        monkeypatch.setenv("CB_MCP_HOST", "0.0.0.0")
+        monkeypatch.setenv("CB_MCP_PORT", "9090")
+        mod.run_server(output_dir=str(FIXTURES))
+        assert mod.mcp.settings.host == "0.0.0.0"
+        assert mod.mcp.settings.port == 9090
+
+    def test_cli_host_port_overrides_env(self, monkeypatch):
+        """Explicit host/port params take precedence over env vars."""
+        import context_blocks.mcp_server as mod
+
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: None)
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        monkeypatch.setenv("CB_MCP_HOST", "0.0.0.0")
+        monkeypatch.setenv("CB_MCP_PORT", "9090")
+        mod.run_server(output_dir=str(FIXTURES), transport="streamable-http", host="10.0.0.1", port=3000)
+        assert mod.mcp.settings.host == "10.0.0.1"
+        assert mod.mcp.settings.port == 3000
+
+    def test_stdio_does_not_set_host_port(self, monkeypatch):
+        """stdio transport should not touch host/port settings."""
+        import context_blocks.mcp_server as mod
+
+        original_host = mod.mcp.settings.host
+        original_port = mod.mcp.settings.port
+        monkeypatch.setattr(mod.mcp, "run", lambda transport: None)
+        monkeypatch.setattr(mod, "_single_output", str(FIXTURES))
+        mod.run_server(output_dir=str(FIXTURES), transport="stdio")
+        assert mod.mcp.settings.host == original_host
+        assert mod.mcp.settings.port == original_port
