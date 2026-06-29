@@ -68,25 +68,28 @@ def _load_entities(entity_dir: Path) -> list[dict]:
         if not type_dir.is_dir():
             continue
         for filepath in sorted(type_dir.glob("*.md")):
-            raw = filepath.read_text(encoding="utf-8")
-            fm, body = _parse_frontmatter(raw)
-            if not fm:
+            try:
+                raw = filepath.read_text(encoding="utf-8")
+                fm, body = _parse_frontmatter(raw)
+                if not fm:
+                    continue
+                eid = fm.get("id", filepath.stem)
+                etype = fm.get("type", type_dir.name)
+                entities.append({
+                    "id": eid,
+                    "name": fm.get("name", eid),
+                    "type": etype,
+                    "layer": LAYER_MAP.get(etype, "Other"),
+                    "description": fm.get("description", ""),
+                    "status": fm.get("status", "active"),
+                    "confidence": fm.get("confidence", 1.0),
+                    "relationships": _extract_rels(fm),
+                    "source_documents": fm.get("source_documents", []),
+                    "body": body.strip(),
+                    "file": str(filepath),
+                })
+            except Exception:
                 continue
-            eid = fm.get("id", filepath.stem)
-            etype = fm.get("type", type_dir.name)
-            entities.append({
-                "id": eid,
-                "name": fm.get("name", eid),
-                "type": etype,
-                "layer": LAYER_MAP.get(etype, "Other"),
-                "description": fm.get("description", ""),
-                "status": fm.get("status", "active"),
-                "confidence": fm.get("confidence", 1.0),
-                "relationships": _extract_rels(fm),
-                "source_documents": fm.get("source_documents", []),
-                "body": body.strip(),
-                "file": str(filepath),
-            })
     return entities
 
 
@@ -343,22 +346,29 @@ def ask_kb(question: str, block: str = "") -> dict:
     from context_blocks.retrieval.synthesis import get_synthesizer
 
     if cache_key not in _block_cache:
-        backend = InMemoryBackend()
-        backend.load_from_entity_dir(entity_dir)
+        try:
+            backend = InMemoryBackend()
+            backend.load_from_entity_dir(entity_dir)
 
-        openai_key = os.environ.get("OPENAI_API_KEY")
-        emb = get_embedder(provider="auto", api_key=openai_key)
-        asyncio.get_event_loop().run_until_complete(index_entities(backend, emb))
+            openai_key = os.environ.get("OPENAI_API_KEY")
+            emb = get_embedder(provider="auto", api_key=openai_key)
+            asyncio.get_event_loop().run_until_complete(index_entities(backend, emb))
 
-        synth = get_synthesizer(provider="anthropic", api_key=llm_key)
-        pipeline = RetrievalPipeline(backend, embed_fn=emb.embed, synthesize_fn=synth)
+            synth = get_synthesizer(provider="anthropic", api_key=llm_key)
+            pipeline = RetrievalPipeline(backend, embed_fn=emb.embed, synthesize_fn=synth)
 
-        _block_cache[cache_key] = {"pipeline": pipeline}
+            _block_cache[cache_key] = {"pipeline": pipeline}
+        except Exception as e:
+            return {"error": f"Failed to initialize pipeline for block '{block_name}': {e}"}
 
     pipeline = _block_cache[cache_key]["pipeline"]
-    result = asyncio.get_event_loop().run_until_complete(
-        pipeline.retrieve(question)
-    )
+
+    try:
+        result = asyncio.get_event_loop().run_until_complete(
+            pipeline.retrieve(question)
+        )
+    except Exception as e:
+        return {"error": f"Retrieval failed: {e}", "block": block_name}
 
     ddc_map = {"answerable": "CLEAN", "partial": "INCOMPLETE", "not_answerable": "MISSING"}
 

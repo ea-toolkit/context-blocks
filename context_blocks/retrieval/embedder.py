@@ -135,7 +135,15 @@ async def index_entities(backend, embedder) -> int:
     text_list = [texts[eid] for eid in entity_ids]
 
     logger.info("embedding_entities", count=len(text_list))
-    embeddings_list = await embedder.embed_batch(text_list)
+    try:
+        embeddings_list = await embedder.embed_batch(text_list)
+    except Exception as e:
+        logger.error(
+            "embedding_failed_falling_back_to_keyword_only",
+            error=str(e),
+            entities=len(text_list),
+        )
+        return 0
 
     # Index in backend
     embeddings = {eid: emb for eid, emb in zip(entity_ids, embeddings_list)}

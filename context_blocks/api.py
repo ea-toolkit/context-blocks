@@ -186,7 +186,16 @@ def create_app(
             AnswerScore.NOT_ANSWERABLE: "MISSING",
         }
 
-        result = await pipeline.retrieve(req.question, debug=req.debug, full_trace=req.full_trace)
+        try:
+            result = await pipeline.retrieve(req.question, debug=req.debug, full_trace=req.full_trace)
+        except Exception as e:
+            logger.error("ask_retrieval_error", question=req.question[:100], error=str(e))
+            return AskResponse(
+                answer=f"Retrieval failed: {e}",
+                score="not_answerable", ddc_class="MISSING",
+                citations=[], hops=[], gaps=[],
+                entities_retrieved=0, total_ms=0,
+            )
 
         hops = [
             HopResponse(

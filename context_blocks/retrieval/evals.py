@@ -414,10 +414,7 @@ async def _generate_from_prompt(
         )
     except Exception as e:
         logger.error("question_generation_api_error", source=source_file, error=str(e))
-        raise RuntimeError(
-            f"API call failed for question generation ({source_file}): {e}. "
-            "Check your LLM_API_KEY and credit balance."
-        ) from e
+        return []
 
     text = response.content[0].text.strip()
 
