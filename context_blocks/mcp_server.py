@@ -119,7 +119,7 @@ def _ensure_loaded():
 
 @mcp.tool()
 def get_overview() -> dict:
-    """Get an overview of the knowledge base: entity counts by type, layer breakdown, relationship count, and coverage summary."""
+    """Use this FIRST when starting a conversation about a domain. Returns the KB structure: total entity count, entities per type (system, process, team, etc.), entities per knowledge layer (Structural, Behavioral, Organizational, Language, Decision, Reference), total relationships, and average confidence score. Use this to understand what the KB covers before drilling into specific entities. Returns a dict with keys: total_entities, total_relationships, average_confidence, entities_by_type, entities_by_layer, entity_types, layers."""
     _ensure_loaded()
     entities = _state.get("entities", [])
 
@@ -149,7 +149,7 @@ def search_entities(
     layer: str = "",
     limit: int = 10,
 ) -> list[dict]:
-    """Search for entities by text query. Optionally filter by entity type (e.g. 'system', 'process') or knowledge layer (e.g. 'Structural', 'Behavioral'). Returns matching entities sorted by relevance."""
+    """Find entities matching a text query. Use when you need to discover what the KB knows about a topic — e.g. 'claims routing', 'authentication', 'payment processing'. Filter by entity_type (system, process, api, data-model, team, persona, capability, business-event, domain-logic, jargon-business, jargon-tech, etc.) or layer (Structural, Behavioral, Organizational, Language, Decision, Reference). Returns up to `limit` results sorted by relevance, each with: id, name, type, layer, confidence, description, and top 5 relationships. Use get_entity() with the returned id for full detail."""
     _ensure_loaded()
     entities = _state.get("entities", [])
 
@@ -195,7 +195,7 @@ def search_entities(
 
 @mcp.tool()
 def get_entity(entity_id: str) -> dict:
-    """Get full details for a single entity by ID. Returns frontmatter, body content, relationships, and source documents."""
+    """Get the complete detail for one entity. Use after search_entities() returns an id you want to explore, or when you already know the entity id (kebab-case, e.g. 'claims-gateway', 'claim-routing-process'). Returns: id, name, type, layer, status, confidence score (0-1), description, full markdown body, all relationships (type + target_id), and source documents that created this entity. Returns {error: '...'} if the id doesn't exist."""
     _ensure_loaded()
     index = _state.get("entity_index", {})
     e = index.get(entity_id)
@@ -218,7 +218,7 @@ def get_entity(entity_id: str) -> dict:
 
 @mcp.tool()
 def ask_kb(question: str) -> dict:
-    """Ask a question against the knowledge base using the full DAR retrieval pipeline. Returns a grounded answer with citations, retrieved entities, and detected gaps. Requires LLM_API_KEY to be set."""
+    """Ask a natural language question and get a grounded answer from the KB. This runs the full Domain-Aware Retrieval (DAR) pipeline: intent classification, parallel search (vector + keyword + graph), RRF fusion, LLM synthesis, and gap detection. Use for complex questions like 'How does claim routing work?', 'What systems depend on the claims gateway?', 'Who owns the payment processing flow?'. Returns: answer (grounded text), ddc_class (CLEAN = fully answerable, INCOMPLETE = partial, MISSING = not answerable), citations (entity ids used), entities_retrieved count, gaps (knowledge gaps detected with suggested actions), and total_ms. Requires LLM_API_KEY env var. First call is slow (~5s) as it loads embeddings; subsequent calls are fast."""
     _ensure_loaded()
     output_dir = _state.get("output_dir", Path("output"))
     entity_dir = output_dir / "entities"
@@ -278,7 +278,7 @@ def ask_kb(question: str) -> dict:
 
 @mcp.tool()
 def get_gap_report(persona: str = "") -> dict:
-    """Get the gap report from the most recent evaluation run. Optionally filter by persona (developer, architect, product-owner, new-joiner). Shows knowledge gaps with severity, type, and suggested curation actions."""
+    """Get knowledge coverage gaps from the most recent cb eval run. Use when someone asks 'What's missing from the KB?', 'How complete is the documentation?', or 'What does a new developer need that isn't documented?'. Filter by persona to get role-specific gaps (developer, architect, product-owner, new-joiner). Returns: total_questions evaluated, coverage breakdown (CLEAN/INCOMPLETE/MISSING counts), gap_count, and up to 20 gap details each with the question, ddc_class, source persona, and detected gaps. Returns {error: '...'} if cb eval hasn't been run yet."""
     _ensure_loaded()
     output_dir = _state.get("output_dir", Path("output"))
 
