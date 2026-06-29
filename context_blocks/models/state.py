@@ -16,7 +16,7 @@ class DocumentReadState(BaseModel):
     """Track the read state of a single document."""
 
     filename: str
-    filepath: str
+    filepath: str  # relative to output directory
     file_hash: str  # MD5 hash to detect content changes
     status: str = Field(
         default="unread",
@@ -54,6 +54,7 @@ def load_state(output_dir: Path) -> PipelineState:
     """Load pipeline state from disk, or create new if not found.
 
     Handles corrupted state files gracefully — backs up and starts fresh.
+    Migrates absolute paths to relative on load (backwards compat).
     """
     import json
     import shutil
@@ -66,9 +67,10 @@ def load_state(output_dir: Path) -> PipelineState:
     if state_path.exists():
         try:
             data = json.loads(state_path.read_text(encoding="utf-8"))
-            return PipelineState.model_validate(data)
+            state = PipelineState.model_validate(data)
+            _migrate_absolute_paths(state, output_dir, logger)
+            return state
         except Exception as e:
-            # State file corrupted — back up and start fresh
             backup_path = state_path.with_suffix(".json.corrupted")
             shutil.copy2(state_path, backup_path)
             logger.warning(
@@ -79,6 +81,23 @@ def load_state(output_dir: Path) -> PipelineState:
             return PipelineState()
 
     return PipelineState()
+
+
+def _migrate_absolute_paths(
+    state: PipelineState, output_dir: Path, logger: object
+) -> None:
+    """Convert any absolute filepaths to relative. Idempotent."""
+    migrated = 0
+    for doc_state in state.documents.values():
+        p = Path(doc_state.filepath)
+        if p.is_absolute():
+            try:
+                doc_state.filepath = str(p.relative_to(output_dir))
+            except ValueError:
+                doc_state.filepath = p.name
+            migrated += 1
+    if migrated and hasattr(logger, "info"):
+        logger.info("state_migrated_absolute_paths", count=migrated)  # type: ignore[union-attr]
 
 
 def save_state(state: PipelineState, output_dir: Path) -> None:
@@ -147,15 +166,23 @@ def mark_document_scanned(
     filename: str,
     filepath: Path,
     reading_priority: int | None = None,
+    output_dir: Path | None = None,
 ) -> None:
     """Mark a document as scanned (Pass 1 complete)."""
     from datetime import datetime, timezone
 
     file_hash = compute_file_hash(filepath)
 
+    stored_path = str(filepath)
+    if output_dir and filepath.is_absolute():
+        try:
+            stored_path = str(filepath.relative_to(output_dir))
+        except ValueError:
+            stored_path = filepath.name
+
     state.documents[filename] = DocumentReadState(
         filename=filename,
-        filepath=str(filepath),
+        filepath=stored_path,
         file_hash=file_hash,
         status="scanned",
         scanned_at=datetime.now(timezone.utc),
