@@ -46,34 +46,115 @@ Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowle
 | **Persona evaluation** | "60% complete for a developer, 20% for an architect" | No evaluation at all |
 | **Research-backed** | Built on DDC methodology with empirical evidence that demand-driven curation lifts agent quality | No theoretical foundation |
 
-## Quick Start
+## Quick Start — Clone to AI Agent in 10 Minutes
+
+### 1. Install
 
 ```bash
-pip install context-blocks
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install 'context-blocks[all,mcp]'
 ```
 
+This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and the MCP server.
+
+### 2. Set API keys
+
 ```bash
-export LLM_API_KEY=your-anthropic-key       # Required
+export LLM_API_KEY=your-anthropic-key       # Required (Claude API key)
 export OPENAI_API_KEY=your-openai-key       # Optional (embeddings; falls back to local)
 ```
 
-```bash
-cb init my-domain --seed seed.md            # Create a context block
-cb phase1 ./docs --seed seed.md -b my-domain # Extract entities
-cb dedup -b my-domain                       # Merge duplicates
-cb eval -b my-domain --seed seed.md --personas # Evaluate coverage
+### 3. Prepare your docs
+
+Create a folder anywhere with your company docs. Context Blocks reads Markdown, TXT, HTML, PDF, DOCX, and PPTX. Unsupported files are silently skipped.
+
+```text
+my-project/
+  seed.md          ← you write this (see below)
+  docs/
+    architecture.md
+    api-spec.pdf
+    onboarding.docx
+    process-flow.pptx
 ```
 
-## Try the Demo
+**The seed context** (`seed.md`) is a short markdown file describing your domain — systems, teams, processes, and terminology your AI agent should know about. Think of it as "the onboarding doc you'd give a new engineer on day one." See `synthetic-domains/healthcare-claims/seed-context.md` for an example.
 
-A synthetic healthcare claims domain ships with 410 pre-extracted entities — no API keys needed:
+### 4. Run the pipeline
+
+Run all commands from the directory that contains `my-project/`:
 
 ```bash
+# Initialize a context block (creates an output directory)
+cb init my-project --seed my-project/seed.md
+
+# Extract entities from your docs
+cb phase1 my-project/docs --seed my-project/seed.md --block my-project
+
+# Merge duplicate entities
+cb dedup --block my-project
+
+# Evaluate coverage from multiple perspectives
+cb eval --block my-project --seed my-project/seed.md --personas
+```
+
+After each command, here's what success looks like:
+
+| Command | What it creates |
+|---|---|
+| `cb init` | `.context-blocks/my-project/` directory with config |
+| `cb phase1` | Entity markdown files in `.context-blocks/my-project/entities/`, an `analysis-report.md`, and pipeline state for resume |
+| `cb dedup` | Merges duplicate entities, updates files in place |
+| `cb eval` | `evals/` directory with coverage scores per persona and gap classifications (CLEAN / INCOMPLETE / MISSING / TRIBAL) |
+
+### 5. Ask questions
+
+```bash
+cb ask --block my-project "How does payment authorization work?"
+cb ask --block my-project "What happens when a chargeback is filed?"
+```
+
+### 6. Connect to Claude Desktop (or any MCP client)
+
+Start the MCP server:
+
+```bash
+cb mcp --block my-project
+```
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "context-blocks": {
+      "command": "/absolute/path/to/your/.venv/bin/cb",
+      "args": ["mcp", "--block", "my-project"]
+    }
+  }
+}
+```
+
+> **Important:** Use the full path to `cb` inside your virtualenv, not just `"command": "cb"`. Claude Desktop doesn't inherit your shell's PATH or virtualenv. Find it with `which cb`.
+
+Restart Claude Desktop. Your KB is now available as 6 tools: `list_blocks`, `get_overview`, `search_entities`, `get_entity`, `ask_kb`, `get_gap_report`.
+
+## Try the Demo (No API Keys Needed)
+
+A synthetic healthcare claims domain ships with 410 pre-extracted entities:
+
+```bash
+# Browse the pre-built KB in the viewer (uses shipped demo data, no cb serve needed)
 cd viewer && npm install && npm run dev
-# Open http://localhost:4321 — browse entities, layers, gaps, and graph
+# Open http://localhost:4321
 ```
 
-Or run the full pipeline yourself:
+To browse *your own* block in the viewer, start `cb serve --block my-project` first, then run the viewer.
+
+> `cb serve` powers the web viewer. `cb mcp` powers AI agents (Claude Desktop, Copilot). They are separate — you don't need `cb serve` for Claude Desktop.
+
+Or run the full pipeline yourself on the demo data:
 
 ```bash
 cb phase1 synthetic-domains/healthcare-claims/docs \
@@ -85,17 +166,22 @@ cb phase1 synthetic-domains/healthcare-claims/docs \
 
 ### Context Blocks (Bounded Contexts)
 
-Organize knowledge into scoped blocks — one per domain, team, or product area:
+Organize knowledge into scoped blocks — one per domain, team, or product area. Each block is independent with its own entities, relationships, and eval scope:
 
 ```bash
 cb init payments --seed payments-seed.md
 cb init identity --seed identity-seed.md
+cb init compliance --seed compliance-seed.md
 
-cb phase1 ./docs --seed seed.md --block payments
-cb eval --block payments --seed seed.md --personas
+# Work on a specific block
+cb phase1 ./payments-docs --seed payments-seed.md --block payments
+cb eval --block payments --seed payments-seed.md --personas
 
-# Or set a default
+# Set a default so you don't have to pass --block every time
 export CB_BLOCK=payments
+
+# MCP server discovers all blocks automatically
+cb mcp    # agents call list_blocks() to see what's available
 ```
 
 ### Evaluate
@@ -118,16 +204,23 @@ Ask questions against your KB with Domain-Aware Retrieval — the same typed ret
 - Confidence-weighted RRF fusion with layer priority boosts
 - Full retrieval traces — see exactly which entities contributed and why
 
-### Export
+### Export to Obsidian
+
+Your KB works natively as an [Obsidian](https://obsidian.md) vault — entities become interlinked notes with wikilinks, organized by type with a Map of Content:
 
 ```bash
-# Obsidian vault — wikilinks, Map of Content, organized by type
 cb export-obsidian --block my-domain
+# Opens as a vault in Obsidian — graph view, backlinks, and search work out of the box
+```
 
-# Single markdown for AI agent context windows
+### Export for AI Agents
+
+Pack your entire KB into a single markdown file sized for an LLM context window:
+
+```bash
 cb export-skill --block my-domain --title "My Domain KB"
 
-# With token budget
+# With token budget (useful for smaller context windows)
 cb export-skill --block my-domain --max-tokens 10000
 ```
 
@@ -154,18 +247,7 @@ Configure via env vars or CLI flags:
 | Host | `CB_MCP_HOST` | `--host` | `127.0.0.1` |
 | Port | `CB_MCP_PORT` | `--port` | `8000` |
 
-**Claude Desktop** (`claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "context-blocks": {
-      "command": "cb",
-      "args": ["mcp"]
-    }
-  }
-}
-```
+**Claude Desktop** — see [Quick Start step 6](#6-connect-to-claude-desktop-or-any-mcp-client) for full setup instructions with virtualenv path.
 
 **Remote agents** (Copilot, web tools):
 
