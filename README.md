@@ -4,13 +4,15 @@
 
 **Know what your AI agents don't know.**
 
+</div>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/context-blocks-hero-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/images/context-blocks-hero-light.png">
   <img alt="Context Blocks — Feed → Structure → Evaluate → Diagnose" src="docs/images/context-blocks-hero-dark.png" width="100%">
 </picture>
 
-<br>
+<div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
