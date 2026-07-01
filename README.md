@@ -2,7 +2,15 @@
 
 # Context Blocks
 
-**Turn your docs into a domain knowledge base. Then find what's missing.**
+**Know what your AI agents don't know.**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/context-blocks-hero-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/context-blocks-hero-light.png">
+  <img alt="Context Blocks — Feed → Structure → Evaluate → Diagnose" src="docs/images/context-blocks-hero-dark.png" width="100%">
+</picture>
+
+<br>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -22,49 +30,6 @@ Every other tool in this space extracts what's there. Context Blocks measures wh
 **The gap is the product.** Every unanswered question becomes a curation target.
 
 Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowledge bases — directories of Markdown files with YAML frontmatter that any agent, Obsidian vault, or LLM can read directly. No vendor lock-in, no proprietary format.
-
-## How it works
-
-```
- Documents + Seed Context
-          │
-          ▼
- ┌─────────────────────┐
- │   Extract (Phase 1)  │  LLM reads docs → typed entities with
- │                      │  confidence scores, relationships,
- │                      │  source provenance, open questions
- └──────────┬───────────┘
-            │
-            ▼
- ┌─────────────────────┐
- │   Dedup              │  LLM-judged duplicate merging
- └──────────┬───────────┘
-            │
-            ▼
- ┌─────────────────────┐
- │   Entity KB          │  Markdown files + YAML frontmatter
- │   (18 types,         │  Human-readable AND machine-parseable
- │    6 layers)         │
- └──────────┬───────────┘
-            │
-     ┌──────┴──────┐
-     ▼             ▼
- ┌────────┐   ┌─────────┐
- │  Ask   │   │  Eval   │  4 question sources × persona views
- │  (DAR) │   │         │  → coverage scores
- └────┬───┘   └────┬────┘
-      │            │
-      ▼            ▼
- ┌─────────────────────┐
- │   Gaps               │  CLEAN · INCOMPLETE · MISSING
- │                      │  Every gap = a curation target
- └──────────┬───────────┘
-            │
-            ▼
- ┌─────────────────────┐
- │   Curate → Re-eval  │  Coverage improves each cycle
- └─────────────────────┘
-```
 
 ## What makes this different
 
