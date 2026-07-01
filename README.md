@@ -4,18 +4,22 @@
 
 **Know what your AI agents don't know.**
 
+</div>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/context-blocks-hero-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/images/context-blocks-hero-light.png">
   <img alt="Context Blocks — Feed → Structure → Evaluate → Diagnose" src="docs/images/context-blocks-hero-dark.png" width="100%">
 </picture>
 
-<br>
+<div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-**18 entity types · 6 knowledge layers · 55 relationship types · gap detection built in**
+**18 entity types · 6 knowledge layers · 55 relationship types · gap detection first-class, not an afterthought**
+
+*Every other tool extracts what's there. Context Blocks measures what's not there.*
 
 </div>
 
@@ -23,23 +27,24 @@
 
 ## What is Context Blocks?
 
-Context Blocks reads your company's documentation and builds a typed, structured knowledge base — systems, processes, teams, APIs, business rules, jargon, decisions. Then it evaluates that knowledge base from multiple perspectives (developer, architect, product owner, new joiner) and tells you exactly where the gaps are.
+Context Blocks turns your existing documentation into a typed, layered knowledge base — systems, processes, teams, APIs, business rules, jargon, and decisions. Then it does what standard RAG can't: it stress-tests that knowledge from the point of view of a developer, architect, product owner, and new joiner, and returns a concrete gap report — not a fuzzy "it kind of works."
 
-Every other tool in this space extracts what's there. Context Blocks measures what's *not* there.
+It can tell you *"this KB is 60% complete for a developer, 20% for an architect"* rather than just retrieving more text.
 
-**The gap is the product.** Every unanswered question becomes a curation target.
+**The gap is the product.** Every unanswered question becomes an explicit curation target with a type, severity, and remediation path — not just "LLM couldn't answer."
 
-Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowledge bases — directories of Markdown files with YAML frontmatter that any agent, Obsidian vault, or LLM can read directly. No vendor lock-in, no proprietary format.
+Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowledge bases — directories of Markdown files with YAML frontmatter that any agent, Obsidian vault, or LLM can read directly. No vendor lock-in — because pre-trained agents already understand Markdown + YAML. You shouldn't have to negotiate a proprietary format to see your own knowledge.
 
 ## What makes this different
 
 | | Context Blocks | Typical knowledge tools |
 |---|---|---|
-| **Gap detection** | Scores every question as CLEAN / INCOMPLETE / MISSING | Extract what's there, hope it's enough |
-| **Typed ontology** | 18 entity types constrained by a meta-model | Freeform nodes or generic "entity" |
+| **Bounded contexts** | Knowledge organized into independent blocks — each with its own ontology, entities, and eval scope | One monolithic graph or index |
+| **Gap detection** | Scores every question as CLEAN / INCOMPLETE / MISSING / TRIBAL | Extract what's there, hope it's enough |
+| **Per-block ontology** | Each block gets its own meta-model — payments block and compliance block have different entity types | One-size-fits-all schema or no schema |
+| **Typed ontology** | 18 entity types constrained by a meta-model, organized in 6 knowledge layers | Freeform nodes or generic "entity" |
 | **Persona evaluation** | "60% complete for a developer, 20% for an architect" | No evaluation at all |
-| **Knowledge layers** | Structural · Behavioral · Reference · Organizational · Language · Decision | Flat graph |
-| **Research-backed** | Built on DDC methodology with published empirical findings | No theoretical foundation |
+| **Research-backed** | Built on DDC methodology with empirical evidence that demand-driven curation lifts agent quality | No theoretical foundation |
 
 ## Quick Start
 
@@ -95,7 +100,7 @@ export CB_BLOCK=payments
 
 ### Evaluate
 
-Generate questions from four sources, measure how well the KB answers them:
+Most tools stop at "search works." **Eval is where Context Blocks starts.** Generate questions from four sources and measure how well the KB actually answers them:
 
 | Source | What it tests |
 |---|---|
@@ -106,7 +111,7 @@ Generate questions from four sources, measure how well the KB answers them:
 
 ### Retrieve (DAR Pipeline)
 
-Ask questions against your KB with Domain-Aware Retrieval:
+Ask questions against your KB with Domain-Aware Retrieval — the same typed retrieval pipeline that backs the DCR paper, productionized and exposed via CLI and MCP:
 
 - Typed intent classification — knows if you're asking about a process, system, or relationship
 - Parallel search — vector + keyword + typed graph traversal
@@ -274,10 +279,12 @@ Customize eval personas in `context_blocks/config/persona-templates.yaml`. Entit
 
 ## Research
 
-Built on the Demand-Driven Context (DDC) methodology.
+Built on the Demand-Driven Context (DDC) methodology — empirical evidence that demand-driven curation lifts agent quality where adding more documents alone doesn't.
 
 - **Paper**: [arxiv.org/abs/2603.14057](https://arxiv.org/abs/2603.14057)
-- **Conference**: CreateWith London 2026
+- **Talks**:
+  - [AI.Engineer London 2026](https://www.youtube.com/watch?v=_QAVExf_1uw) — "Demand-Driven Context for AI Agents"
+  - CreateWith Brighton 2026 — "Demand-Driven Context for AI Agents" (video coming soon)
 
 ## License
 
