@@ -51,10 +51,12 @@ Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowle
 ### 1. Install
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install 'context-blocks[all,mcp]'
 ```
 
-This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and the MCP server. Use a virtualenv — don't install globally.
+This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and the MCP server.
 
 ### 2. Set API keys
 
@@ -80,6 +82,8 @@ my-project/
 **The seed context** (`seed.md`) is a short markdown file describing your domain — systems, teams, processes, and terminology your AI agent should know about. Think of it as "the onboarding doc you'd give a new engineer on day one." See `synthetic-domains/healthcare-claims/seed-context.md` for an example.
 
 ### 4. Run the pipeline
+
+Run all commands from the directory that contains `my-project/`:
 
 ```bash
 # Initialize a context block (creates an output directory)
@@ -141,10 +145,14 @@ Restart Claude Desktop. Your KB is now available as 6 tools: `list_blocks`, `get
 A synthetic healthcare claims domain ships with 410 pre-extracted entities:
 
 ```bash
-# Browse the pre-built KB in the viewer
+# Browse the pre-built KB in the viewer (uses shipped demo data, no cb serve needed)
 cd viewer && npm install && npm run dev
 # Open http://localhost:4321
 ```
+
+To browse *your own* block in the viewer, start `cb serve --block my-project` first, then run the viewer.
+
+> `cb serve` powers the web viewer. `cb mcp` powers AI agents (Claude Desktop, Copilot). They are separate — you don't need `cb serve` for Claude Desktop.
 
 Or run the full pipeline yourself on the demo data:
 
@@ -196,16 +204,23 @@ Ask questions against your KB with Domain-Aware Retrieval — the same typed ret
 - Confidence-weighted RRF fusion with layer priority boosts
 - Full retrieval traces — see exactly which entities contributed and why
 
-### Export
+### Export to Obsidian
+
+Your KB works natively as an [Obsidian](https://obsidian.md) vault — entities become interlinked notes with wikilinks, organized by type with a Map of Content:
 
 ```bash
-# Obsidian vault — wikilinks, Map of Content, organized by type
 cb export-obsidian --block my-domain
+# Opens as a vault in Obsidian — graph view, backlinks, and search work out of the box
+```
 
-# Single markdown for AI agent context windows
+### Export for AI Agents
+
+Pack your entire KB into a single markdown file sized for an LLM context window:
+
+```bash
 cb export-skill --block my-domain --title "My Domain KB"
 
-# With token budget
+# With token budget (useful for smaller context windows)
 cb export-skill --block my-domain --max-tokens 10000
 ```
 
