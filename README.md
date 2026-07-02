@@ -50,10 +50,22 @@ Outputs [OKF-compatible](https://github.com/google/open-knowledge-format) knowle
 
 ### 1. Install
 
+**From PyPI:**
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install 'context-blocks[all,mcp]'
+```
+
+**From source:**
+
+```bash
+git clone https://github.com/ea-toolkit/context-blocks.git
+cd context-blocks
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e '.[all,mcp]'
 ```
 
 This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and the MCP server.
