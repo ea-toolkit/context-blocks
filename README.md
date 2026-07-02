@@ -147,7 +147,18 @@ cb ask --block my-project "How does payment authorization work?"
 cb ask --block my-project "What happens when a chargeback is filed?"
 ```
 
-### 6. Connect to Claude Desktop (or any MCP client)
+### 6. Browse in the viewer
+
+```bash
+cb serve --block my-project                                         # Terminal 1: API server
+CB_OUTPUT_DIR=.context-blocks/my-project cd viewer && npm run dev   # Terminal 2: Viewer
+```
+
+Opens a web UI at `http://localhost:4321` with 8 pages: Digest, Explorer, Map, Workbench, Evals, Glossary, Gaps, and Ask.
+
+> **Important:** The viewer loads entities from `CB_OUTPUT_DIR` at build time. Without it, it falls back to the demo data. Set it to your block's output directory.
+
+### 7. Connect to Claude Desktop (or any MCP client)
 
 Start the MCP server:
 
@@ -357,26 +368,6 @@ Capabilities you get without configuring anything:
 | `cb mcp` | Start MCP server for AI agent integration (stdio) |
 
 All commands accept `--block <name>` or `-b`. Set `CB_BLOCK` env var as default.
-
-## Viewer
-
-Web UI with 8 pages (requires Node >= 18):
-
-**Ask** — question input with grounded answers and retrieval traces
-**Digest** — domain overview, knowledge layers, top questions
-**Explorer** — browse entities by type with detail panel
-**Map** — interactive entity relationship graph
-**Workbench** — coverage, questions, health checks, review queue
-**Evals** — run explorer with KPI strip and breakdowns
-**Glossary** — searchable domain terminology
-**Gaps** — coverage summary with actionable gap cards
-
-```bash
-cb serve --block my-domain                                      # Terminal 1: API server
-CB_OUTPUT_DIR=.context-blocks/my-domain cd viewer && npm run dev # Terminal 2: Viewer
-```
-
-> **Important:** The viewer loads entities from `CB_OUTPUT_DIR` at build time. Without it, it falls back to the demo data. Set it to your block's output directory (e.g., `.context-blocks/my-domain` or wherever `cb init` created it).
 
 ## Cost & Performance
 
