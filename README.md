@@ -72,8 +72,26 @@ This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and
 
 ### 2. Set API keys
 
+Context Blocks works with multiple LLM providers. Set the key for whichever you use:
+
 ```bash
-export LLM_API_KEY=your-anthropic-key       # Required (Claude API key)
+# Anthropic (default)
+export LLM_API_KEY=your-anthropic-key
+
+# Or use OpenAI
+export LLM_PROVIDER=openai
+export LLM_MODEL=gpt-4o
+export LLM_API_KEY=your-openai-key
+
+# Or use Gemini
+export LLM_PROVIDER=gemini
+export LLM_MODEL=gemini-2.5-flash
+export LLM_API_KEY=your-google-key
+```
+
+Optionally, set an OpenAI key for embeddings (used in retrieval). Without it, Context Blocks falls back to local embeddings automatically:
+
+```bash
 export OPENAI_API_KEY=your-openai-key       # Optional (embeddings; falls back to local)
 ```
 
@@ -272,6 +290,19 @@ export CB_MCP_PORT=8080
 cb mcp
 ```
 
+## Supported LLM Providers
+
+Context Blocks is not locked to any single provider. Set `LLM_PROVIDER` and `LLM_MODEL` to switch:
+
+| Provider | `LLM_PROVIDER` | Example `LLM_MODEL` | Strategy |
+|---|---|---|---|
+| **Anthropic** | `anthropic` (default) | `claude-sonnet-4-6` | Streaming + prompt caching + 3-tier repair |
+| **OpenAI** | `openai` | `gpt-4o`, `gpt-4o-mini` | Instructor (structured output) |
+| **Google Gemini** | `gemini` | `gemini-2.5-flash`, `gemini-2.5-pro` | Native JSON schema (constrained decoding) |
+| **Any litellm provider** | `ollama`, `groq`, `together`, `azure`, ... | Provider-specific | Instructor via litellm |
+
+The Anthropic path is the most battle-tested (prompt caching, smart retry, per-entity salvage). OpenAI and Gemini work well. Any provider supported by [litellm](https://docs.litellm.ai/docs/providers) should work via the Instructor fallback — including local models via Ollama.
+
 ## Meta-Model
 
 18 entity types organized in 6 knowledge layers:
@@ -293,7 +324,7 @@ Capabilities you get without configuring anything:
 
 | Capability | What it does |
 |---|---|
-| Prompt caching | Anthropic `cache_control` on system prompts — reduces cost on repeated calls |
+| Prompt caching | Anthropic prompt caching + Gemini implicit caching — reduces cost on repeated calls |
 | Crash-safe resume | Pipeline state saved per-document with file hashes — resume after crash without re-processing |
 | 3-tier repair ladder | Parse JSON → smart retry (broken JSON only, ~5K tokens) → full retry — maximizes entity salvage |
 | Per-entity validation | Valid entities saved even when some fail — no all-or-nothing batches |
