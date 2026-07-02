@@ -182,7 +182,7 @@ cd viewer && npm install && npm run dev
 # Open http://localhost:4321
 ```
 
-To browse *your own* block in the viewer, start `cb serve --block my-project` first, then run the viewer.
+To browse *your own* block in the viewer, start `cb serve --block my-project` first, then run the viewer with `CB_OUTPUT_DIR` pointing at your block's output directory.
 
 > `cb serve` powers the web viewer. `cb mcp` powers AI agents (Claude Desktop, Copilot). They are separate — you don't need `cb serve` for Claude Desktop.
 
@@ -372,9 +372,11 @@ Web UI with 8 pages (requires Node >= 18):
 **Gaps** — coverage summary with actionable gap cards
 
 ```bash
-cb serve --block my-domain    # API server (terminal 1)
-cd viewer && npm run dev      # Viewer (terminal 2)
+cb serve --block my-domain                                      # Terminal 1: API server
+CB_OUTPUT_DIR=.context-blocks/my-domain cd viewer && npm run dev # Terminal 2: Viewer
 ```
+
+> **Important:** The viewer loads entities from `CB_OUTPUT_DIR` at build time. Without it, it falls back to the demo data. Set it to your block's output directory (e.g., `.context-blocks/my-domain` or wherever `cb init` created it).
 
 ## Cost & Performance
 
