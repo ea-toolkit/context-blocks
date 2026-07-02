@@ -123,10 +123,8 @@ async def generate_questions(
     api_key: str | None = None,
 ) -> list[EvalQuestion]:
     """Generate eval questions from seed context and source documents."""
-    import anthropic
-
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+    client = None  # uses litellm via _generate_from_prompt
 
     questions: list[EvalQuestion] = []
 
@@ -299,12 +297,10 @@ async def generate_persona_questions(
         personas: Optional list of persona keys to use (default: all).
         questions_per_persona: Number of questions per persona.
         existing_questions: Already-generated questions to avoid overlap with.
-        api_key: Anthropic API key.
+        api_key: LLM API key.
     """
-    import anthropic
-
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+    client = None  # uses litellm via _generate_from_prompt
 
     config = load_persona_templates(config_path)
     all_personas = config.get("personas", {})
@@ -404,19 +400,30 @@ async def _generate_from_prompt(
     source: str,
     source_file: str,
 ) -> list[EvalQuestion]:
-    """Call LLM to generate questions from a prompt."""
+    """Call LLM to generate questions from a prompt.
+
+    Uses litellm for provider-agnostic LLM calls. The client parameter
+    is ignored (kept for backwards compatibility).
+    """
+    import litellm
+
+    provider = os.environ.get("LLM_PROVIDER", "anthropic")
     model = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+    api_key = os.environ.get("LLM_API_KEY", "")
+    litellm_model = model if provider == "openai" else f"{provider}/{model}"
+
     try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=2000,
+        response = litellm.completion(
+            model=litellm_model,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            api_key=api_key,
         )
     except Exception as e:
         logger.error("question_generation_api_error", source=source_file, error=str(e))
         return []
 
-    text = response.content[0].text.strip()
+    text = response.choices[0].message.content.strip()
 
     # Parse JSON — handle markdown code fences
     if text.startswith("```"):

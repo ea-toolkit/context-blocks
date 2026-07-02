@@ -91,18 +91,20 @@ def _extract_score(answer: str) -> AnswerScore:
     return AnswerScore.NOT_ANSWERABLE
 
 
-async def synthesize_with_anthropic(
+async def synthesize_with_llm(
     question: str,
     context: str,
     intent_weights: dict[str, float],
-    model: str = "claude-sonnet-4-6",
+    model: str | None = None,
     api_key: str | None = None,
 ) -> tuple[str, AnswerScore, list[str]]:
-    """Synthesize answer using Anthropic Claude."""
-    import anthropic
+    """Synthesize answer using any LLM provider via litellm."""
+    import litellm
 
+    provider = os.environ.get("LLM_PROVIDER", "anthropic")
+    model = model or os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+    litellm_model = model if provider == "openai" else f"{provider}/{model}"
 
     prompt = SYNTHESIS_PROMPT.format(
         intent_summary=_format_intent_summary(intent_weights),
@@ -112,10 +114,11 @@ async def synthesize_with_anthropic(
 
     settings = get_settings()
     try:
-        response = client.messages.create(
-            model=_get_anthropic_model_id(model),
-            max_tokens=settings.synthesis_max_tokens,
+        response = litellm.completion(
+            model=litellm_model,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=settings.synthesis_max_tokens,
+            api_key=api_key,
         )
     except Exception as e:
         logger.error("synthesis_api_error", error=str(e))
@@ -125,33 +128,26 @@ async def synthesize_with_anthropic(
             [],
         )
 
-    answer = response.content[0].text
+    answer = response.choices[0].message.content
     score = _extract_score(answer)
     citations = _extract_citations(answer)
 
-    # Remove score lines from the answer (may be in last few lines)
     lines = answer.strip().split("\n")
     score_keywords = ["ANSWERABLE", "PARTIAL", "NOT_ANSWERABLE", "NOT ANSWERABLE"]
     while lines and any(s in lines[-1].upper() for s in score_keywords):
         lines.pop()
     answer = "\n".join(lines).strip()
 
+    usage = response.usage
     logger.info(
         "synthesis_complete",
         score=score.value,
         citations=len(citations),
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
+        input_tokens=getattr(usage, "prompt_tokens", 0),
+        output_tokens=getattr(usage, "completion_tokens", 0),
     )
 
     return answer, score, citations
-
-
-def _get_anthropic_model_id(model: str) -> str:
-    """Convert config model name to Anthropic API model ID."""
-    from context_blocks.infrastructure.llm.gateway import ANTHROPIC_MODEL_MAP
-
-    return ANTHROPIC_MODEL_MAP.get(model, model)
 
 
 async def synthesize_without_llm(
@@ -177,12 +173,11 @@ def get_synthesizer(provider: str = "anthropic", api_key: str | None = None):
     """Get a synthesis function based on provider.
 
     Returns an async function: (question, context, intent_weights) -> (answer, score, citations)
+    All providers go through litellm. Use provider="none" to skip LLM synthesis.
     """
-    if provider == "anthropic":
-        async def _synth(q, c, i):
-            return await synthesize_with_anthropic(q, c, i, api_key=api_key)
-        return _synth
-    elif provider == "none":
+    if provider == "none":
         return synthesize_without_llm
-    else:
-        return synthesize_without_llm
+
+    async def _synth(q, c, i):
+        return await synthesize_with_llm(q, c, i, api_key=api_key)
+    return _synth
