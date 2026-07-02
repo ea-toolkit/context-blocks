@@ -454,8 +454,8 @@ async def _generate_from_prompt(
         "questions_parsed",
         source=source_file,
         count=len(questions),
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
+        input_tokens=getattr(response.usage, "prompt_tokens", 0),
+        output_tokens=getattr(response.usage, "completion_tokens", 0),
     )
 
     return questions
