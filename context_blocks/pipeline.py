@@ -8,6 +8,7 @@ Each document prompt = seed context (fixed)
 This scales to any number of documents without context window bloat.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import structlog
@@ -39,6 +40,7 @@ async def run_phase1(
     seed_context_path: Path,
     output_dir: Path,
     max_documents: int | None = None,
+    on_progress: "Callable[[int, int, str], None] | None" = None,
 ) -> list[DocumentExtractionResult]:
     """Run Phase 1: Analyze documents and generate entity files.
 
@@ -198,6 +200,8 @@ async def run_phase1(
             progress=f"{i}/{len(to_process)}",
             entities_so_far=total_entities,
         )
+        if on_progress:
+            on_progress(i, len(to_process), document.filename)
 
         try:
             # Analyze the document (with summary + retrieved entities)

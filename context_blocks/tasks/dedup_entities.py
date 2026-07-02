@@ -76,16 +76,26 @@ def find_candidates(entity_dir: Path, threshold: float = 0.5) -> list[tuple[dict
 def judge_pair(
     a: dict, b: dict,
     api_key: str | None = None,
-    model: str = "claude-4-sonnet-20250514",
+    model: str | None = None,
+    provider: str | None = None,
 ) -> dict:
     """Ask LLM whether two entities should be merged.
 
+    Uses litellm for provider-agnostic LLM calls. Respects LLM_PROVIDER
+    and LLM_MODEL environment variables.
+
     Returns: {"action": "merge"|"keep", "reason": str, "keep_id": str}
     """
-    import anthropic
+    import litellm
 
+    provider = provider or os.environ.get("LLM_PROVIDER", "anthropic")
+    model = model or os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+
+    if provider == "openai":
+        litellm_model = model
+    else:
+        litellm_model = f"{provider}/{model}"
 
     prompt = f"""You are reviewing two entities from a domain knowledge base to determine if they are duplicates that should be merged.
 
@@ -111,16 +121,17 @@ Return JSON: {{"action": "merge"|"keep", "reason": "brief explanation", "keep_id
 Return ONLY the JSON, no other text."""
 
     try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=200,
+        response = litellm.completion(
+            model=litellm_model,
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            api_key=api_key,
         )
     except Exception as e:
         logger.error("dedup_judge_api_error", a=a["name"], b=b["name"], error=str(e))
         return {"action": "keep", "reason": f"API error: {e}", "keep_id": a["id"]}
 
-    text = response.content[0].text.strip()
+    text = response.choices[0].message.content.strip()
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1])
@@ -131,14 +142,15 @@ Return ONLY the JSON, no other text."""
         logger.warning("dedup_judge_parse_failed", text=text[:100])
         result = {"action": "keep", "reason": "parse error", "keep_id": a["id"]}
 
+    usage = response.usage
     logger.info(
         "dedup_judged",
         a=a["name"],
         b=b["name"],
         action=result.get("action"),
         reason=result.get("reason", "")[:60],
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
+        input_tokens=getattr(usage, "prompt_tokens", 0),
+        output_tokens=getattr(usage, "completion_tokens", 0),
     )
 
     return result

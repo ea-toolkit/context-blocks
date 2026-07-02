@@ -122,7 +122,7 @@ Run all commands from the directory that contains `my-project/`:
 cb init my-project --seed my-project/seed.md
 
 # Extract entities from your docs
-cb phase1 my-project/docs --seed my-project/seed.md --block my-project
+cb extract my-project/docs --seed my-project/seed.md --block my-project
 
 # Merge duplicate entities
 cb dedup --block my-project
@@ -136,7 +136,7 @@ After each command, here's what success looks like:
 | Command | What it creates |
 |---|---|
 | `cb init` | `.context-blocks/my-project/` directory with config |
-| `cb phase1` | Entity markdown files in `.context-blocks/my-project/entities/`, an `analysis-report.md`, and pipeline state for resume |
+| `cb extract` | Entity markdown files in `.context-blocks/my-project/entities/`, an `analysis-report.md`, and pipeline state for resume |
 | `cb dedup` | Merges duplicate entities, updates files in place |
 | `cb eval` | `evals/` directory with coverage scores per persona and gap classifications (CLEAN / INCOMPLETE / MISSING / TRIBAL) |
 
@@ -189,7 +189,7 @@ To browse *your own* block in the viewer, start `cb serve --block my-project` fi
 Or run the full pipeline yourself on the demo data:
 
 ```bash
-cb phase1 synthetic-domains/healthcare-claims/docs \
+cb extract synthetic-domains/healthcare-claims/docs \
   --seed synthetic-domains/healthcare-claims/seed-context.md \
   --output synthetic-domains/healthcare-claims/output
 ```
@@ -206,7 +206,7 @@ cb init identity --seed identity-seed.md
 cb init compliance --seed compliance-seed.md
 
 # Work on a specific block
-cb phase1 ./payments-docs --seed payments-seed.md --block payments
+cb extract ./payments-docs --seed payments-seed.md --block payments
 cb eval --block payments --seed payments-seed.md --personas
 
 # Set a default so you don't have to pass --block every time
@@ -344,7 +344,7 @@ Capabilities you get without configuring anything:
 |---|---|
 | `cb init <name>` | Initialize a new context block |
 | `cb blocks` | List all context blocks |
-| `cb phase1` | Extract entities from documents |
+| `cb extract` | Extract entities from documents |
 | `cb dedup` | Merge duplicate entities |
 | `cb eval` | Run coverage evaluation |
 | `cb eval --personas` | Include persona-driven completeness checks |
@@ -376,14 +376,23 @@ cb serve --block my-domain    # API server (terminal 1)
 cd viewer && npm run dev      # Viewer (terminal 2)
 ```
 
-## Cost
+## Cost & Performance
 
-| Operation | Typical cost |
-|---|---|
-| Extract 50 docs | ~$7 |
-| Eval 30 questions | ~$0.60 |
-| Dedup 400 entities | ~$0.05 |
-| Single Ask query | ~$0.02 |
+| Operation | Typical cost | Sonnet time | Haiku time |
+|---|---|---|---|
+| Extract 50 docs | ~$7 | ~3-5 hrs | ~30-60 min |
+| Extract 6 docs | ~$1 | ~30-40 min | ~5-10 min |
+| Eval 30 questions | ~$0.60 | ~10 min | ~3 min |
+| Dedup 400 entities | ~$0.05 | ~2 min | ~1 min |
+| Single Ask query | ~$0.02 | ~5s | ~2s |
+
+Sonnet (default) produces higher-quality entities with richer relationships but is slower. For a quick first pass or large document sets, use Haiku:
+
+```bash
+export LLM_MODEL=claude-haiku-4-5    # 5-10x faster, lower cost
+```
+
+Documents are processed sequentially (each builds on accumulated knowledge from previous docs). The CLI shows progress as `[1/6] Extracting: filename.md`.
 
 ## Input Formats
 

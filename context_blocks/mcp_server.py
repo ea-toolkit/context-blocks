@@ -153,7 +153,7 @@ def _resolve_block(block: str) -> dict:
     available = _get_available_blocks()
 
     if not available:
-        return {"error": "No blocks found. Run cb init or cb phase1 first."}
+        return {"error": "No blocks found. Run cb init or cb extract first."}
 
     if not block:
         if len(available) == 1:
@@ -196,7 +196,7 @@ def list_blocks() -> list[dict]:
     """List all available context blocks (domains). Call this first to discover what knowledge bases are available. Each block is an independent domain with its own entities, relationships, and evaluations. Returns a list of blocks with: name, description, entity_count, and whether entities have been extracted. Pass the block name to other tools to query a specific domain."""
     available = _get_available_blocks()
     if not available:
-        return [{"message": "No blocks found. Run cb init or cb phase1 first."}]
+        return [{"message": "No blocks found. Run cb init or cb extract first."}]
 
     results = []
     for b in available:
@@ -334,7 +334,7 @@ def ask_kb(question: str, block: str = "") -> dict:
     cache_key = f"pipeline_{block_name}"
 
     if not entity_dir.exists():
-        return {"error": f"No entities found in block '{block_name}'. Run cb phase1 first."}
+        return {"error": f"No entities found in block '{block_name}'. Run cb extract first."}
 
     llm_key = os.environ.get("LLM_API_KEY", "")
     if not llm_key:

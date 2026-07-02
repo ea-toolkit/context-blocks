@@ -104,7 +104,7 @@ def init(
     console.print(f"  Registry:  {registry.registry_path}")
     console.print(f"\n[bold green]Block '{name}' created.[/bold green]")
     console.print(f"\nNext steps:")
-    console.print(f"  1. Add documents:  cb phase1 ./docs/ --seed {seed or '<seed-file>'} --block {name}")
+    console.print(f"  1. Add documents:  cb extract ./docs/ --seed {seed or '<seed-file>'} --block {name}")
     console.print(f"  2. Run evals:      cb eval --block {name} --seed {seed or '<seed-file>'} --personas")
     console.print(f"  3. Start viewer:   cb serve --block {name}")
     console.print()
@@ -144,29 +144,28 @@ def blocks(
     console.print()
 
 
-@app.command()
-def phase1(
-    docs: Path = typer.Argument(..., help="Directory containing documents to analyze"),
-    seed: Path = typer.Option(..., "--seed", "-s", help="Path to seed context file"),
-    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory"),
-    block: str = typer.Option(None, "--block", "-b", help="Context block name (overrides --output)"),
-    max_docs: int | None = typer.Option(None, "--max", "-m", help="Max documents to process"),
+def _run_extract(
+    docs: Path,
+    seed: Path,
+    output: Path,
+    block: str | None,
+    max_docs: int | None,
 ) -> None:
-    """Run Phase 1: Analyze documents and generate structured domain entities."""
+    """Shared implementation for extract (and its phase1 alias)."""
     from context_blocks.pipeline import run_phase1
 
     output = _resolve_output(block, output)
 
-    console.print(f"\n[bold]Context Blocks — Phase 1: Making Sense of Domain[/bold]\n")
+    console.print(f"\n[bold]Context Blocks — Extract Entities[/bold]\n")
     console.print(f"  Documents:    {docs}")
     console.print(f"  Seed context: {seed}")
     console.print(f"  Output:       {output}")
     if max_docs:
         console.print(f"  Max docs:     {max_docs}")
     console.print()
-    console.print("[dim]Step 1: Scanning documents to determine reading order...[/dim]")
-    console.print("[dim]Step 2: Deep reading with accumulated knowledge...[/dim]")
-    console.print()
+
+    def _on_progress(current: int, total: int, filename: str) -> None:
+        console.print(f"  [bold cyan][{current}/{total}][/bold cyan] Extracting: {filename}")
 
     try:
         results = asyncio.run(run_phase1(
@@ -174,12 +173,13 @@ def phase1(
             seed_context_path=seed,
             output_dir=output,
             max_documents=max_docs,
+            on_progress=_on_progress,
         ))
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted. Progress has been saved — re-run to resume.[/yellow]")
         raise typer.Exit(1)
     except Exception as e:
-        console.print(f"\n[red]Phase 1 failed: {e}[/red]")
+        console.print(f"\n[red]Extraction failed: {e}[/red]")
         console.print("[dim]Progress has been saved. Fix the issue and re-run — processed docs will be skipped.[/dim]")
         raise typer.Exit(1)
 
@@ -189,6 +189,30 @@ def phase1(
     console.print(f"  Entities extracted: {total_entities}")
     console.print(f"  Output: {output}/")
     console.print()
+
+
+@app.command()
+def extract(
+    docs: Path = typer.Argument(..., help="Directory containing documents to analyze"),
+    seed: Path = typer.Option(..., "--seed", "-s", help="Path to seed context file"),
+    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory"),
+    block: str = typer.Option(None, "--block", "-b", help="Context block name (overrides --output)"),
+    max_docs: int | None = typer.Option(None, "--max", "-m", help="Max documents to process"),
+) -> None:
+    """Extract structured domain entities from documents."""
+    _run_extract(docs, seed, output, block, max_docs)
+
+
+@app.command(hidden=True)
+def phase1(
+    docs: Path = typer.Argument(..., help="Directory containing documents to analyze"),
+    seed: Path = typer.Option(..., "--seed", "-s", help="Path to seed context file"),
+    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory"),
+    block: str = typer.Option(None, "--block", "-b", help="Context block name (overrides --output)"),
+    max_docs: int | None = typer.Option(None, "--max", "-m", help="Max documents to process"),
+) -> None:
+    """(Alias for 'extract') Extract structured domain entities from documents."""
+    _run_extract(docs, seed, output, block, max_docs)
 
 
 @app.command()
@@ -209,7 +233,7 @@ def reformat(
     total = reformat_all_entities(output)
 
     if total == 0:
-        console.print("[yellow]No extraction JSON files found. Run phase1 first.[/yellow]")
+        console.print("[yellow]No extraction JSON files found. Run 'cb extract' first.[/yellow]")
     else:
         console.print(f"\n[bold green]Done![/bold green]")
         console.print(f"  Entities regenerated: {total}")
@@ -299,7 +323,7 @@ def ask(
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-        console.print("Run phase1 first to extract entities.")
+        console.print("Run 'cb extract' first to extract entities.")
         raise typer.Exit(1)
 
     console.print(f"\n[bold]Context Blocks — Domain-Aware Retrieval[/bold]\n")
@@ -398,7 +422,7 @@ def serve(
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-        console.print("Run phase1 first to extract entities.")
+        console.print("Run 'cb extract' first to extract entities.")
         raise typer.Exit(1)
 
     console.print(f"\n[bold]Context Blocks — API Server[/bold]\n")
@@ -461,7 +485,7 @@ def eval(
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-        console.print("Run phase1 first to extract entities.")
+        console.print("Run 'cb extract' first to extract entities.")
         raise typer.Exit(1)
 
     if questions_file and not questions_file.exists():
@@ -691,7 +715,7 @@ def export_obsidian(
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-        console.print("Run phase1 first to extract entities.")
+        console.print("Run 'cb extract' first to extract entities.")
         raise typer.Exit(1)
 
     vault_dir = dest or (output / "obsidian-vault")
@@ -730,7 +754,7 @@ def export_skill_cmd(
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-        console.print("Run phase1 first to extract entities.")
+        console.print("Run 'cb extract' first to extract entities.")
         raise typer.Exit(1)
 
     out_file = dest or (output / "domain-kb.md")
@@ -790,7 +814,7 @@ def mcp_serve(
         entity_dir = output / "entities"
         if not entity_dir.exists():
             console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
-            console.print("Run phase1 first to extract entities.")
+            console.print("Run 'cb extract' first to extract entities.")
             raise typer.Exit(1)
         run_server(output_dir=str(output), **kwargs)
     else:
