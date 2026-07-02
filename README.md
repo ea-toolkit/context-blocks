@@ -150,13 +150,13 @@ cb ask --block my-project "What happens when a chargeback is filed?"
 ### 6. Browse in the viewer
 
 ```bash
-cb serve --block my-project                                         # Terminal 1: API server
-CB_OUTPUT_DIR=.context-blocks/my-project cd viewer && npm run dev   # Terminal 2: Viewer
+cb serve --block my-project                                    # Terminal 1: API server
+cd viewer && CB_OUTPUT_DIR=../.context-blocks/my-project npm run dev   # Terminal 2: Viewer
 ```
 
 Opens a web UI at `http://localhost:4321` with 8 pages: Digest, Explorer, Map, Workbench, Evals, Glossary, Gaps, and Ask.
 
-> **Important:** The viewer loads entities from `CB_OUTPUT_DIR` at build time. Without it, it falls back to the demo data. Set it to your block's output directory.
+> **Important:** The viewer loads entities from `CB_OUTPUT_DIR` at build time. Without it, it falls back to the demo data. The path is relative to the `viewer/` directory — point it at your block's output (e.g., `../.context-blocks/my-project`).
 
 ### 7. Connect to Claude Desktop (or any MCP client)
 
