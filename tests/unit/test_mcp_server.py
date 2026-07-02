@@ -1,6 +1,7 @@
 """Tests for the MCP server — block discovery, entity querying, search, gap reports."""
 
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import yaml
@@ -12,6 +13,7 @@ from context_blocks.mcp_server import (
     _load_entities,
     _parse_frontmatter,
     _resolve_block,
+    ask_kb,
     get_entity,
     get_gap_report,
     get_overview,
@@ -502,3 +504,198 @@ class TestRunServerConfig:
         mod.run_server(output_dir=str(FIXTURES), transport="stdio")
         assert mod.mcp.settings.host == original_host
         assert mod.mcp.settings.port == original_port
+
+
+# ── ask_kb ──
+
+
+class TestAskKb:
+    def _make_mock_result(self, with_synthesis=False):
+        from context_blocks.retrieval.types import (
+            AnswerScore,
+            Gap,
+            RetrievalHop,
+            RetrievalResult,
+            RetrievalTrace,
+        )
+
+        hops = [
+            RetrievalHop(
+                entity_id="claims-gateway",
+                entity_name="Claims Gateway",
+                entity_type="system",
+                layer="Structural",
+                confidence=0.92,
+                hop_number=0,
+                matched_by="vector",
+                fused_score=0.85,
+                found_by=["vector", "keyword"],
+            ),
+            RetrievalHop(
+                entity_id="claim-routing-process",
+                entity_name="Claim Routing Process",
+                entity_type="process",
+                layer="Behavioral",
+                confidence=0.78,
+                hop_number=1,
+                matched_by="graph",
+                fused_score=0.62,
+                found_by=["graph"],
+                relationship_from="claims-gateway",
+                relationship_type="triggers",
+            ),
+        ]
+        trace = RetrievalTrace(
+            question="How does claim routing work?",
+            sub_queries=[],
+            intent_weights={"process": 0.7, "entity": 0.3},
+            hops=hops,
+            total_entities_retrieved=2,
+            total_ms=150,
+        )
+        gaps = [
+            Gap(
+                gap_type="thin_coverage",
+                entity_id="claim-routing-process",
+                description="Process entity has limited detail",
+                suggested_action="Add routing rules documentation",
+                severity="medium",
+                source_question="How does claim routing work?",
+            )
+        ]
+
+        if with_synthesis:
+            answer = "The Claims Gateway routes claims based on type and priority."
+            score = AnswerScore.ANSWERABLE
+            citations = ["claims-gateway", "claim-routing-process"]
+        else:
+            answer = "(No synthesis function configured — retrieval only)"
+            score = AnswerScore.PARTIAL
+            citations = []
+
+        return RetrievalResult(
+            answer=answer,
+            citations=citations,
+            score=score,
+            trace=trace,
+            gaps=gaps,
+            context_text="Entity: Claims Gateway (system)\nCentral ingress...",
+        )
+
+    def _inject_mock_pipeline(self, block_name="mcp_kb", has_llm=False):
+        """Pre-populate _block_cache with a mocked pipeline."""
+        mock_result = self._make_mock_result(with_synthesis=has_llm)
+        mock_pipeline = MagicMock()
+        mock_pipeline.retrieve = AsyncMock(return_value=mock_result)
+        suffix = "synth" if has_llm else "retrieval"
+        _block_cache[f"pipeline_{block_name}_{suffix}"] = {"pipeline": mock_pipeline}
+        return mock_pipeline
+
+    # ── Retrieval mode (no API key) ──
+
+    def test_retrieval_mode_without_api_key(self, single_block, monkeypatch):
+        """ask_kb works without LLM_API_KEY — returns retrieval mode."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("mcp_kb", has_llm=False)
+
+        result = ask_kb("How does claim routing work?")
+
+        assert "error" not in result
+        assert result["mode"] == "retrieval"
+        assert len(result["entities"]) == 2
+        assert result["entities"][0]["id"] == "claims-gateway"
+        assert result["entities"][0]["score"] == 0.85
+        assert result["entities"][0]["found_by"] == ["vector", "keyword"]
+        assert "context_text" in result
+        assert result["intent"] == {"process": 0.7, "entity": 0.3}
+        assert "answer" not in result
+        assert "ddc_class" not in result
+        assert "citations" not in result
+
+    def test_retrieval_mode_returns_gaps(self, single_block, monkeypatch):
+        """Retrieval mode still returns gap detection results."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("mcp_kb", has_llm=False)
+
+        result = ask_kb("test")
+        assert len(result["gaps"]) == 1
+        assert result["gaps"][0]["type"] == "thin_coverage"
+        assert result["gaps"][0]["severity"] == "medium"
+
+    def test_retrieval_mode_context_text(self, single_block, monkeypatch):
+        """Retrieval mode returns assembled context for the calling agent."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("mcp_kb", has_llm=False)
+
+        result = ask_kb("test")
+        assert result["context_text"] == "Entity: Claims Gateway (system)\nCentral ingress..."
+
+    # ── Synthesis mode (with API key) ──
+
+    def test_synthesis_mode_with_api_key(self, single_block, monkeypatch):
+        """ask_kb synthesizes answer when LLM_API_KEY is set."""
+        monkeypatch.setenv("LLM_API_KEY", "test-key")
+        self._inject_mock_pipeline("mcp_kb", has_llm=True)
+
+        result = ask_kb("How does claim routing work?")
+
+        assert "error" not in result
+        assert result["mode"] == "synthesis"
+        assert "answer" in result
+        assert result["ddc_class"] == "CLEAN"
+        assert result["citations"] == ["claims-gateway", "claim-routing-process"]
+        assert len(result["entities"]) == 2
+
+    def test_synthesis_mode_still_returns_entities(self, single_block, monkeypatch):
+        """Synthesis mode also returns entities and context_text."""
+        monkeypatch.setenv("LLM_API_KEY", "test-key")
+        self._inject_mock_pipeline("mcp_kb", has_llm=True)
+
+        result = ask_kb("test")
+        assert "entities" in result
+        assert "context_text" in result
+        assert "intent" in result
+
+    # ── Common behavior ──
+
+    def test_no_entities_error(self, tmp_path, monkeypatch):
+        """ask_kb returns error when no entities exist."""
+        import context_blocks.mcp_server as mod
+
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path))
+        result = ask_kb("anything")
+        assert "error" in result
+        assert "No entities" in result["error"]
+
+    def test_includes_block_and_question(self, single_block, monkeypatch):
+        """ask_kb includes block name and original question."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("mcp_kb", has_llm=False)
+
+        result = ask_kb("test question")
+        assert "block" in result
+        assert result["question"] == "test question"
+
+    def test_entity_fields(self, single_block, monkeypatch):
+        """Each entity has the expected fields."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("mcp_kb", has_llm=False)
+
+        result = ask_kb("test")
+        entity = result["entities"][0]
+        assert "id" in entity
+        assert "name" in entity
+        assert "type" in entity
+        assert "layer" in entity
+        assert "confidence" in entity
+        assert "score" in entity
+        assert "found_by" in entity
+
+    def test_multi_block(self, multi_block, monkeypatch):
+        """ask_kb works with explicit block name in multi-block setup."""
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        self._inject_mock_pipeline("healthcare", has_llm=False)
+
+        result = ask_kb("test", block="healthcare")
+        assert "error" not in result
+        assert result["block"] == "healthcare"
