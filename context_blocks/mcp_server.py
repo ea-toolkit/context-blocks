@@ -5,7 +5,7 @@
 - get_overview: KB stats and structure for a block
 - search_entities: find entities by text query
 - get_entity: full detail for one entity
-- ask_kb: full DAR retrieval pipeline (requires API keys)
+- ask_kb: DAR retrieval pipeline (with LLM synthesis if API key set, retrieval-only otherwise)
 - get_gap_report: coverage gaps, optionally per persona
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
@@ -323,7 +323,7 @@ def get_entity(entity_id: str, block: str = "") -> dict:
 
 @mcp.tool()
 def ask_kb(question: str, block: str = "") -> dict:
-    """Ask a natural language question and get a grounded answer from a block's KB. This runs the full Domain-Aware Retrieval (DAR) pipeline: intent classification, parallel search (vector + keyword + graph), RRF fusion, LLM synthesis, and gap detection. Use for complex questions like 'How does claim routing work?', 'What systems depend on the claims gateway?', 'Who owns the payment processing flow?'. Pass block name from list_blocks(). Returns: answer (grounded text), ddc_class (CLEAN = fully answerable, INCOMPLETE = partial, MISSING = not answerable), citations (entity ids used), entities_retrieved count, gaps (knowledge gaps detected with suggested actions), and total_ms. Requires LLM_API_KEY env var. First call per block is slow (~5s) as it loads embeddings; subsequent calls are fast."""
+    """Ask a natural language question against a block's knowledge base. Runs the Domain-Aware Retrieval (DAR) pipeline: intent classification, parallel search (vector + keyword + graph), RRF fusion, and gap detection. Use for questions like 'How does claim routing work?', 'What systems depend on the claims gateway?'. Pass block name from list_blocks(). If LLM_API_KEY is set, returns a synthesized answer with citations. If not (typical for MCP integrations like Copilot, Claude Desktop, Cursor), returns ranked entities and assembled context so the calling agent can synthesize the answer itself. No API key required for retrieval mode. First call per block is slow (~5s) as it loads embeddings; subsequent calls are fast. Returns: mode ('synthesis' or 'retrieval'), entities (ranked with scores), context_text (assembled domain context), intent (query classification), gaps (knowledge gaps with severity), and total_ms. In synthesis mode also returns: answer, ddc_class, citations."""
     data = _resolve_block(block)
     if "error" in data:
         return data
@@ -331,19 +331,17 @@ def ask_kb(question: str, block: str = "") -> dict:
     output_dir = data["output_dir"]
     entity_dir = output_dir / "entities"
     block_name = data["name"]
-    cache_key = f"pipeline_{block_name}"
 
     if not entity_dir.exists():
         return {"error": f"No entities found in block '{block_name}'. Run cb extract first."}
 
     llm_key = os.environ.get("LLM_API_KEY", "")
-    if not llm_key:
-        return {"error": "LLM_API_KEY not set. Required for ask_kb."}
+    has_llm = bool(llm_key)
+    cache_key = f"pipeline_{block_name}_{'synth' if has_llm else 'retrieval'}"
 
     from context_blocks.retrieval.backend import InMemoryBackend
     from context_blocks.retrieval.embedder import get_embedder, index_entities
     from context_blocks.retrieval.pipeline import RetrievalPipeline
-    from context_blocks.retrieval.synthesis import get_synthesizer
 
     if cache_key not in _block_cache:
         try:
@@ -354,9 +352,12 @@ def ask_kb(question: str, block: str = "") -> dict:
             emb = get_embedder(provider="auto", api_key=openai_key)
             asyncio.get_event_loop().run_until_complete(index_entities(backend, emb))
 
-            synth = get_synthesizer(provider="anthropic", api_key=llm_key)
-            pipeline = RetrievalPipeline(backend, embed_fn=emb.embed, synthesize_fn=synth)
+            synth_fn = None
+            if has_llm:
+                from context_blocks.retrieval.synthesis import get_synthesizer
+                synth_fn = get_synthesizer(provider="anthropic", api_key=llm_key)
 
+            pipeline = RetrievalPipeline(backend, embed_fn=emb.embed, synthesize_fn=synth_fn)
             _block_cache[cache_key] = {"pipeline": pipeline}
         except Exception as e:
             return {"error": f"Failed to initialize pipeline for block '{block_name}': {e}"}
@@ -371,12 +372,26 @@ def ask_kb(question: str, block: str = "") -> dict:
         return {"error": f"Retrieval failed: {e}", "block": block_name}
 
     ddc_map = {"answerable": "CLEAN", "partial": "INCOMPLETE", "not_answerable": "MISSING"}
+    hops = result.trace.hops
 
-    return {
+    response = {
         "block": block_name,
-        "answer": result.answer,
-        "ddc_class": ddc_map.get(result.score.value, "MISSING"),
-        "citations": result.citations,
+        "question": question,
+        "mode": "synthesis" if has_llm else "retrieval",
+        "entities": [
+            {
+                "id": h.entity_id,
+                "name": h.entity_name,
+                "type": h.entity_type,
+                "layer": h.layer,
+                "confidence": h.confidence,
+                "score": h.fused_score,
+                "found_by": h.found_by or [h.matched_by],
+            }
+            for h in hops
+        ],
+        "context_text": result.context_text,
+        "intent": result.trace.intent_weights,
         "entities_retrieved": result.trace.total_entities_retrieved,
         "gaps": [
             {
@@ -389,6 +404,13 @@ def ask_kb(question: str, block: str = "") -> dict:
         ],
         "total_ms": result.trace.total_ms,
     }
+
+    if has_llm:
+        response["answer"] = result.answer
+        response["ddc_class"] = ddc_map.get(result.score.value, "MISSING")
+        response["citations"] = result.citations
+
+    return response
 
 
 @mcp.tool()
