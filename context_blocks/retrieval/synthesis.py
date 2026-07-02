@@ -101,9 +101,11 @@ async def synthesize_with_llm(
     """Synthesize answer using any LLM provider via litellm."""
     import litellm
 
+    settings = get_settings()
     provider = os.environ.get("LLM_PROVIDER", "anthropic")
     model = model or os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
+    litellm.request_timeout = int(settings.llm_request_timeout)
     litellm_model = model if provider == "openai" else f"{provider}/{model}"
 
     prompt = SYNTHESIS_PROMPT.format(
