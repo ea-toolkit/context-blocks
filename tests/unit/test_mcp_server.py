@@ -593,12 +593,13 @@ class TestAskKb:
 
     # ── Retrieval mode (no API key) ──
 
-    def test_retrieval_mode_without_api_key(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_retrieval_mode_without_api_key(self, single_block, monkeypatch):
         """ask_kb works without LLM_API_KEY — returns retrieval mode."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("mcp_kb", has_llm=False)
 
-        result = ask_kb("How does claim routing work?")
+        result = await ask_kb("How does claim routing work?")
 
         assert "error" not in result
         assert result["mode"] == "retrieval"
@@ -612,32 +613,35 @@ class TestAskKb:
         assert "ddc_class" not in result
         assert "citations" not in result
 
-    def test_retrieval_mode_returns_gaps(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_retrieval_mode_returns_gaps(self, single_block, monkeypatch):
         """Retrieval mode still returns gap detection results."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("mcp_kb", has_llm=False)
 
-        result = ask_kb("test")
+        result = await ask_kb("test")
         assert len(result["gaps"]) == 1
         assert result["gaps"][0]["type"] == "thin_coverage"
         assert result["gaps"][0]["severity"] == "medium"
 
-    def test_retrieval_mode_context_text(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_retrieval_mode_context_text(self, single_block, monkeypatch):
         """Retrieval mode returns assembled context for the calling agent."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("mcp_kb", has_llm=False)
 
-        result = ask_kb("test")
+        result = await ask_kb("test")
         assert result["context_text"] == "Entity: Claims Gateway (system)\nCentral ingress..."
 
     # ── Synthesis mode (with API key) ──
 
-    def test_synthesis_mode_with_api_key(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_synthesis_mode_with_api_key(self, single_block, monkeypatch):
         """ask_kb synthesizes answer when LLM_API_KEY is set."""
         monkeypatch.setenv("LLM_API_KEY", "test-key")
         self._inject_mock_pipeline("mcp_kb", has_llm=True)
 
-        result = ask_kb("How does claim routing work?")
+        result = await ask_kb("How does claim routing work?")
 
         assert "error" not in result
         assert result["mode"] == "synthesis"
@@ -646,42 +650,46 @@ class TestAskKb:
         assert result["citations"] == ["claims-gateway", "claim-routing-process"]
         assert len(result["entities"]) == 2
 
-    def test_synthesis_mode_still_returns_entities(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_synthesis_mode_still_returns_entities(self, single_block, monkeypatch):
         """Synthesis mode also returns entities and context_text."""
         monkeypatch.setenv("LLM_API_KEY", "test-key")
         self._inject_mock_pipeline("mcp_kb", has_llm=True)
 
-        result = ask_kb("test")
+        result = await ask_kb("test")
         assert "entities" in result
         assert "context_text" in result
         assert "intent" in result
 
     # ── Common behavior ──
 
-    def test_no_entities_error(self, tmp_path, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_no_entities_error(self, tmp_path, monkeypatch):
         """ask_kb returns error when no entities exist."""
         import context_blocks.mcp_server as mod
 
         monkeypatch.setattr(mod, "_single_output", str(tmp_path))
-        result = ask_kb("anything")
+        result = await ask_kb("anything")
         assert "error" in result
         assert "No entities" in result["error"]
 
-    def test_includes_block_and_question(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_includes_block_and_question(self, single_block, monkeypatch):
         """ask_kb includes block name and original question."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("mcp_kb", has_llm=False)
 
-        result = ask_kb("test question")
+        result = await ask_kb("test question")
         assert "block" in result
         assert result["question"] == "test question"
 
-    def test_entity_fields(self, single_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_entity_fields(self, single_block, monkeypatch):
         """Each entity has the expected fields."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("mcp_kb", has_llm=False)
 
-        result = ask_kb("test")
+        result = await ask_kb("test")
         entity = result["entities"][0]
         assert "id" in entity
         assert "name" in entity
@@ -691,11 +699,12 @@ class TestAskKb:
         assert "score" in entity
         assert "found_by" in entity
 
-    def test_multi_block(self, multi_block, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_multi_block(self, multi_block, monkeypatch):
         """ask_kb works with explicit block name in multi-block setup."""
         monkeypatch.delenv("LLM_API_KEY", raising=False)
         self._inject_mock_pipeline("healthcare", has_llm=False)
 
-        result = ask_kb("test", block="healthcare")
+        result = await ask_kb("test", block="healthcare")
         assert "error" not in result
         assert result["block"] == "healthcare"
