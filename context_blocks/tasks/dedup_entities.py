@@ -87,10 +87,13 @@ def judge_pair(
     Returns: {"action": "merge"|"keep", "reason": str, "keep_id": str}
     """
     import litellm
+    from context_blocks.config import get_settings
 
+    settings = get_settings()
     provider = provider or os.environ.get("LLM_PROVIDER", "anthropic")
     model = model or os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     api_key = api_key or os.environ.get("LLM_API_KEY", "")
+    litellm.request_timeout = int(settings.llm_request_timeout)
 
     if provider == "openai":
         litellm_model = model

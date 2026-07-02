@@ -406,10 +406,13 @@ async def _generate_from_prompt(
     is ignored (kept for backwards compatibility).
     """
     import litellm
+    from context_blocks.config import get_settings
 
+    settings = get_settings()
     provider = os.environ.get("LLM_PROVIDER", "anthropic")
     model = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     api_key = os.environ.get("LLM_API_KEY", "")
+    litellm.request_timeout = int(settings.llm_request_timeout)
     litellm_model = model if provider == "openai" else f"{provider}/{model}"
 
     try:
