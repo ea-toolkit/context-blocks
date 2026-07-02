@@ -322,7 +322,7 @@ def get_entity(entity_id: str, block: str = "") -> dict:
 
 
 @mcp.tool()
-def ask_kb(question: str, block: str = "") -> dict:
+async def ask_kb(question: str, block: str = "") -> dict:
     """Ask a natural language question against a block's knowledge base. Runs the Domain-Aware Retrieval (DAR) pipeline: intent classification, parallel search (vector + keyword + graph), RRF fusion, and gap detection. Use for questions like 'How does claim routing work?', 'What systems depend on the claims gateway?'. Pass block name from list_blocks(). If LLM_API_KEY is set, returns a synthesized answer with citations. If not (typical for MCP integrations like Copilot, Claude Desktop, Cursor), returns ranked entities and assembled context so the calling agent can synthesize the answer itself. No API key required for retrieval mode. First call per block is slow (~5s) as it loads embeddings; subsequent calls are fast. Returns: mode ('synthesis' or 'retrieval'), entities (ranked with scores), context_text (assembled domain context), intent (query classification), gaps (knowledge gaps with severity), and total_ms. In synthesis mode also returns: answer, ddc_class, citations."""
     data = _resolve_block(block)
     if "error" in data:
@@ -350,7 +350,7 @@ def ask_kb(question: str, block: str = "") -> dict:
 
             openai_key = os.environ.get("OPENAI_API_KEY")
             emb = get_embedder(provider="auto", api_key=openai_key)
-            asyncio.get_event_loop().run_until_complete(index_entities(backend, emb))
+            await index_entities(backend, emb)
 
             synth_fn = None
             if has_llm:
@@ -365,9 +365,7 @@ def ask_kb(question: str, block: str = "") -> dict:
     pipeline = _block_cache[cache_key]["pipeline"]
 
     try:
-        result = asyncio.get_event_loop().run_until_complete(
-            pipeline.retrieve(question)
-        )
+        result = await pipeline.retrieve(question)
     except Exception as e:
         return {"error": f"Retrieval failed: {e}", "block": block_name}
 
