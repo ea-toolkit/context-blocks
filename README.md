@@ -75,8 +75,10 @@ This installs the CLI (`cb`), all document format support (PDF, DOCX, PPTX), and
 Context Blocks works with multiple LLM providers. Set the key for whichever you use:
 
 ```bash
-# Anthropic (default)
+# Anthropic (default — uses claude-sonnet-4-6)
 export LLM_API_KEY=your-anthropic-key
+export LLM_MODEL=claude-haiku-4-5          # optional: cheaper/faster
+export LLM_MODEL=claude-opus-4-6           # optional: most capable
 
 # Or use OpenAI
 export LLM_PROVIDER=openai
