@@ -26,6 +26,7 @@ output/
 # Generated exports (can be recreated from entities)
 **/obsidian-vault/
 **/domain-kb.md
+**/gap-report.html
 
 # Private data (real domain data — never commit)
 .private/

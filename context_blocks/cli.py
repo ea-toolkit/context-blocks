@@ -700,6 +700,50 @@ def eval(
 
 
 # ---------------------------------------------------------------------------
+# cb report
+# ---------------------------------------------------------------------------
+@app.command()
+def report(
+    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory with eval-results.json"),
+    block: str = typer.Option(None, "--block", "-b", help="Context block name (overrides --output)"),
+    dest: Path = typer.Option(None, "--dest", "-d", help="Output HTML file path (default: <output>/gap-report.html)"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open report in browser after generation"),
+) -> None:
+    """Generate a shareable HTML gap report from eval results."""
+    from context_blocks.report import generate_report
+
+    output = _resolve_output(block, output)
+    eval_json = output / "eval-results.json"
+    if not eval_json.exists():
+        console.print(f"[red]Eval results not found: {eval_json}[/red]")
+        console.print("Run 'cb eval' first to generate eval results.")
+        raise typer.Exit(1)
+
+    report_path = dest or (output / "gap-report.html")
+    block_name = block or output.name
+
+    console.print(f"\n[bold]Context Blocks — Gap Report[/bold]\n")
+    console.print(f"  Eval data: {eval_json}")
+    console.print(f"  Output:    {report_path}")
+    console.print()
+
+    stats = generate_report(eval_json, report_path, block_name)
+
+    console.print(f"[bold green]Done![/bold green]")
+    console.print(f"  Questions: {stats['total']}")
+    console.print(f"  CLEAN: {stats['clean']} | INCOMPLETE: {stats['incomplete']} | MISSING: {stats['missing']}")
+    console.print(f"  Personas: {stats['personas']}")
+    console.print(f"  Gaps detected: {stats['gaps']}")
+    console.print(f"  Report: {report_path}")
+    console.print()
+
+    if open_browser:
+        import webbrowser
+
+        webbrowser.open(f"file://{report_path.resolve()}")
+
+
+# ---------------------------------------------------------------------------
 # cb export-obsidian
 # ---------------------------------------------------------------------------
 @app.command("export-obsidian")
