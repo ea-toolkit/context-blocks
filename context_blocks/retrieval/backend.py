@@ -14,6 +14,7 @@ import numpy as np
 import structlog
 import yaml
 
+from context_blocks.ontology import Ontology, load_ontology
 from context_blocks.retrieval.types import ScoredEntity
 
 logger = structlog.get_logger(__name__)
@@ -58,19 +59,23 @@ class InMemoryBackend(StorageBackend):
     Graph: dict adjacency list from frontmatter relationships
     """
 
-    def __init__(self):
+    def __init__(self, ontology: Ontology | None = None):
         self.entities: dict[str, ScoredEntity] = {}
         self.embeddings: dict[str, np.ndarray] = {}
         self.embedding_matrix: np.ndarray | None = None
         self.embedding_ids: list[str] = []
         self.graph: dict[str, list[dict]] = defaultdict(list)  # entity_id → [{type, target_id}]
         self.reverse_graph: dict[str, list[dict]] = defaultdict(list)  # target_id → [{type, source_id}]
+        self._ontology = ontology
 
     def load_from_entity_dir(self, entity_dir: Path):
         """Load all entity markdown files into memory."""
         if not entity_dir.exists():
             logger.warning("entity_dir_not_found", path=str(entity_dir))
             return
+
+        if self._ontology is None:
+            self._ontology = load_ontology(entity_dir)
 
         count = 0
         for type_dir in sorted(entity_dir.iterdir()):
@@ -264,15 +269,13 @@ class InMemoryBackend(StorageBackend):
 
             body = parts[2].strip()
 
-            # Meta-model layer mapping (loaded once)
-            layer = self._get_layer_for_type(fm.get("type", type_dir_name))
+            entity_type = fm.get("type", type_dir_name)
+            layer = self._ontology.get_layer(entity_type) if self._ontology else "unknown"
 
-            # Extract relationships
-            standard_fields = {"type", "id", "name", "description", "status", "tags",
-                               "source_documents", "confidence"}
+            # Extract relationships — only fields declared in the ontology
             relationships = []
             for key, value in fm.items():
-                if key not in standard_fields:
+                if self._ontology and self._ontology.is_relationship_field(key):
                     targets = value if isinstance(value, list) else [value]
                     for target in targets:
                         if isinstance(target, str) and len(target) > 0:
@@ -281,11 +284,11 @@ class InMemoryBackend(StorageBackend):
             return ScoredEntity(
                 entity_id=fm.get("id", filepath.stem),
                 name=fm.get("name", filepath.stem),
-                entity_type=fm.get("type", type_dir_name),
+                entity_type=entity_type,
                 layer=layer,
                 confidence=fm.get("confidence", 0.5) if isinstance(fm.get("confidence"), (int, float)) else 0.5,
                 description=fm.get("description", ""),
-                overview="",  # extracted from body if needed
+                overview="",
                 body=body,
                 relationships=relationships,
                 source_documents=fm.get("source_documents", []) if isinstance(fm.get("source_documents"), list) else [],
@@ -293,32 +296,3 @@ class InMemoryBackend(StorageBackend):
         except Exception as e:
             logger.warning("entity_parse_failed", filepath=str(filepath), error=str(e))
             return None
-
-    _layer_cache: dict[str, str] = {}
-
-    def _get_layer_for_type(self, entity_type: str) -> str:
-        """Map entity type to knowledge layer."""
-        if not self._layer_cache:
-            # Try loading from viewer config
-            config_path = Path("viewer/src/config/meta-model.yaml")
-            if config_path.exists():
-                config = yaml.safe_load(config_path.read_text())
-                for type_key, type_config in config.get("entity_types", {}).items():
-                    self._layer_cache[type_key] = type_config.get("layer", "unknown")
-
-            # Fallback mapping
-            if not self._layer_cache:
-                self._layer_cache = {
-                    "system": "structural", "software-component": "structural",
-                    "api": "structural", "data-model": "structural",
-                    "data-product": "structural", "platform": "structural",
-                    "process": "behavioral", "business-event": "behavioral",
-                    "domain-logic": "behavioral", "reference-data": "reference",
-                    "team": "organizational", "persona": "organizational",
-                    "capability": "organizational", "offering": "organizational",
-                    "external-party": "organizational",
-                    "jargon-business": "language", "jargon-tech": "language",
-                    "decision": "decision",
-                }
-
-        return self._layer_cache.get(entity_type, "unknown")
