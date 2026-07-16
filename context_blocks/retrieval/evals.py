@@ -590,6 +590,48 @@ def build_coverage_report(
     )
 
 
+async def run_coverage_eval(
+    entity_dir: Path,
+    questions: list[EvalQuestion],
+    output_dir: Path,
+    *,
+    llm_provider: str = "anthropic",
+    embedder_provider: str = "auto",
+    llm_api_key: str = "",
+    openai_api_key: str | None = None,
+) -> CoverageReport:
+    """Load the KB + embeddings, run questions through retrieval, and write the coverage report.
+
+    Writes ``eval-report.md`` and ``eval-results.json`` into ``output_dir`` and returns the
+    :class:`CoverageReport`. Shared orchestration used by both ``cb eval`` and ``cb health-check``.
+    """
+    # Imported lazily to avoid a circular import at module load time.
+    from context_blocks.retrieval.backend import InMemoryBackend
+    from context_blocks.retrieval.embedder import get_embedder, index_entities
+    from context_blocks.retrieval.pipeline import RetrievalPipeline
+    from context_blocks.retrieval.synthesis import get_synthesizer
+
+    start = time.time()
+
+    backend = InMemoryBackend()
+    backend.load_from_entity_dir(entity_dir)
+
+    emb = get_embedder(provider=embedder_provider, api_key=openai_api_key)
+    await index_entities(backend, emb)
+
+    synth = get_synthesizer(provider=llm_provider, api_key=llm_api_key)
+    pipeline = RetrievalPipeline(backend, embed_fn=emb.embed, synthesize_fn=synth)
+
+    results = await run_eval(questions, pipeline)
+    report = build_coverage_report(results, time.time() - start)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_eval_report(report, output_dir / "eval-report.md")
+    write_eval_json(results, output_dir / "eval-results.json")
+
+    return report
+
+
 # ── Report Writer ──
 
 def write_eval_report(report: CoverageReport, output_path: Path) -> None:

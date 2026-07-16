@@ -777,6 +777,178 @@ def report(
 
 
 # ---------------------------------------------------------------------------
+# cb health-check
+# ---------------------------------------------------------------------------
+@app.command("health-check")
+def health_check(
+    docs: Path = typer.Argument(..., help="Directory of documents to analyze"),
+    seed: Path = typer.Option(None, "--seed", "-s", help="Seed context file (improves extraction + questions)"),
+    output: Path = typer.Option(Path("health-check-output"), "--output", "-o", help="Output directory for entities + report"),
+    threshold: int = typer.Option(70, "--threshold", "-t", help="Minimum CLEAN coverage %% for exit code 0"),
+    questions: int = typer.Option(30, "--questions", "-q", help="Target number of eval questions"),
+    max_docs: int | None = typer.Option(None, "--max", "-m", help="Max documents to process"),
+    provider: str = typer.Option("anthropic", "--provider", "-p", help="LLM provider for synthesis (anthropic/none)"),
+    embedder: str = typer.Option("auto", "--embedder", "-e", help="Embedding provider (openai/fastembed/auto)"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open HTML report after generation"),
+) -> None:
+    """Run a full knowledge health check in one command: extract -> eval -> gap report.
+
+    Takes a folder of documents and produces a complete knowledge health report — no prior
+    'cb init' required. Exit code 0 if CLEAN coverage >= threshold, else 1.
+    """
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    if not docs.exists() or not docs.is_dir():
+        console.print(f"[red]Documents directory not found: {docs}[/red]")
+        raise typer.Exit(1)
+
+    output.mkdir(parents=True, exist_ok=True)
+
+    # Extraction requires a seed context; synthesize a minimal one if none was provided.
+    seed_path = seed
+    if seed_path is None:
+        seed_path = output / "_generated-seed.md"
+        seed_path.write_text(
+            "# Domain Knowledge Base\n\n"
+            "General domain knowledge extracted for a health check. "
+            "No seed context was provided.\n",
+            encoding="utf-8",
+        )
+    elif not seed_path.exists():
+        console.print(f"[red]Seed context file not found: {seed_path}[/red]")
+        raise typer.Exit(1)
+
+    console.print("\n[bold]Context Blocks — Knowledge Health Check[/bold]\n")
+    console.print(f"  Documents: {docs}")
+    console.print(f"  Output:    {output}")
+    console.print(f"  Threshold: {threshold}% CLEAN")
+    console.print()
+
+    async def _health_check() -> None:
+        from context_blocks.pipeline import run_phase1
+        from context_blocks.report import generate_report
+        from context_blocks.retrieval.evals import (
+            generate_persona_questions,
+            generate_questions,
+            run_coverage_eval,
+        )
+
+        llm_key = os.environ.get("LLM_API_KEY", "")
+        openai_key = os.environ.get("OPENAI_API_KEY")
+
+        # ── Step 1: Extract ──
+        console.print("[dim]Step 1/3: Extracting entities...[/dim]")
+
+        def _on_progress(current: int, total: int, filename: str) -> None:
+            console.print(f"  [{current}/{total}] {filename}")
+
+        extraction = await run_phase1(
+            docs_dir=docs,
+            seed_context_path=seed_path,
+            output_dir=output,
+            max_documents=max_docs,
+            on_progress=_on_progress,
+        )
+        total_entities = sum(len(r.entities) for r in extraction)
+        console.print(f"  Extracted [bold]{total_entities}[/bold] entities from {len(extraction)} docs")
+
+        entity_dir = output / "entities"
+        if not entity_dir.exists() or total_entities == 0:
+            console.print("[red]No entities extracted — cannot run health check.[/red]")
+            raise typer.Exit(1)
+
+        # ── Step 2: Generate questions + run coverage eval ──
+        console.print("\n[dim]Step 2/3: Generating questions + evaluating coverage...[/dim]")
+        eval_questions = await generate_questions(
+            seed_path=seed_path,
+            docs_dir=docs,
+            target_count=questions,
+            seed_questions=min(10, questions // 3),
+            docs_sample_size=min(15, questions),
+            api_key=llm_key,
+        )
+        persona_qs = await generate_persona_questions(
+            seed_path=seed_path,
+            config_path=None,
+            existing_questions=eval_questions,
+            api_key=llm_key,
+        )
+        eval_questions.extend(persona_qs)
+        console.print(f"  Generated [bold]{len(eval_questions)}[/bold] questions")
+
+        report = await run_coverage_eval(
+            entity_dir=entity_dir,
+            questions=eval_questions,
+            output_dir=output,
+            llm_provider=provider,
+            embedder_provider=embedder,
+            llm_api_key=llm_key,
+            openai_api_key=openai_key,
+        )
+
+        # ── Step 3: HTML gap report ──
+        console.print("\n[dim]Step 3/3: Generating gap report...[/dim]")
+        html_path = output / "health-check-report.html"
+        generate_report(output / "eval-results.json", html_path, "health-check")
+
+        # ── Summary ──
+        console.print("\n[bold]Knowledge Health Summary[/bold]\n")
+        console.print(f"  Entities:  {total_entities}")
+        console.print(
+            f"  Coverage:  [bold]{report.clean_pct}%[/bold] CLEAN  "
+            f"({report.incomplete_pct}% partial, {report.missing_pct}% missing)"
+        )
+
+        if report.per_persona:
+            console.print("\n  [bold]Per persona:[/bold]")
+            for persona, counts in sorted(report.per_persona.items()):
+                total = sum(counts.values())
+                pct = round(counts.get("CLEAN", 0) / total * 100) if total else 0
+                console.print(f"    {persona:20s} {pct:3d}% CLEAN ({counts.get('CLEAN', 0)}/{total})")
+
+        if report.all_gaps:
+            console.print("\n  [bold]Top gaps:[/bold]")
+            sev_rank = {"high": 0, "medium": 1, "low": 2}
+            top = sorted(report.all_gaps, key=lambda g: sev_rank.get(g.severity, 3))[:5]
+            for g in top:
+                console.print(f"    [{g.severity:6s}] {g.description[:70]}")
+
+        console.print()
+        console.print(f"  Time: {report.total_time_s}s | Est. eval cost: ${report.total_cost_estimate:.2f}")
+        console.print(f"  Report: {html_path}")
+
+        if open_browser:
+            import webbrowser
+
+            webbrowser.open(f"file://{html_path.resolve()}")
+
+        # Deployment gate: exit code reflects whether coverage met the threshold.
+        if report.clean_pct >= threshold:
+            console.print(f"\n[bold green]PASS[/bold green] — coverage {report.clean_pct}% >= threshold {threshold}%\n")
+        else:
+            console.print(
+                f"\n[bold yellow]BELOW THRESHOLD[/bold yellow] — coverage {report.clean_pct}% < {threshold}%\n"
+            )
+            raise typer.Exit(1)
+
+    try:
+        asyncio.run(_health_check())
+    except typer.Exit:
+        raise
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"\n[red]Health check failed: {e}[/red]")
+        console.print("[dim]Check your API keys and try again.[/dim]")
+        raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
 # cb export-obsidian
 # ---------------------------------------------------------------------------
 @app.command("export-obsidian")
