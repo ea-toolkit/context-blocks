@@ -32,6 +32,10 @@ output/
 .private/
 test-data/
 
+# Real-data context blocks + local block registry (never commit real domain data)
+/incidents/
+blocks.yaml
+
 # Builder tooling (not consumer-facing)
 .claude/
 CLAUDE.md
