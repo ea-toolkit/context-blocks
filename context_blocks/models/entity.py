@@ -1,8 +1,9 @@
 """Pydantic models for entity extraction — used with Instructor for structured LLM output."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from context_blocks.meta_model import EntityType, RelationshipType
+from context_blocks.meta_model import EntityType
+from context_blocks.ontology import get_active_ontology
 
 
 class ExtractedRelationship(BaseModel):
@@ -26,8 +27,8 @@ class ExtractedRelationship(BaseModel):
 class ExtractedEntity(BaseModel):
     """A single entity extracted from a document."""
 
-    entity_type: EntityType = Field(
-        description="One of the 17 entity types from the meta-model"
+    entity_type: str = Field(
+        description="The entity type — MUST be one of the types defined in the meta-model above"
     )
     id: str = Field(
         description="Unique kebab-case identifier (e.g., 'order-processor', 'payment-workflow')"
@@ -69,6 +70,23 @@ class ExtractedEntity(BaseModel):
         default="",
         description="Why this was classified as this entity type and not another"
     )
+
+    @model_validator(mode="after")
+    def _validate_entity_type(self) -> "ExtractedEntity":
+        """Reject types outside the active meta-model (default 18, or a block's custom ontology).
+
+        Raising here surfaces as a validation error that triggers the gateway's smart-retry, so
+        the LLM is re-prompted with the valid types — same guardrail the EntityType enum gave,
+        but dynamic per block.
+        """
+        ont = get_active_ontology()
+        known = ont.types if ont is not None else {e.value for e in EntityType}
+        if self.entity_type not in known:
+            raise ValueError(
+                f"entity_type '{self.entity_type}' is not defined in the meta-model. "
+                f"Use one of: {', '.join(sorted(known))}."
+            )
+        return self
 
 
 class EntityDecision(BaseModel):

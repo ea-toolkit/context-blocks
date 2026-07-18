@@ -41,6 +41,7 @@ async def run_phase1(
     output_dir: Path,
     max_documents: int | None = None,
     on_progress: "Callable[[int, int, str], None] | None" = None,
+    ontology=None,
 ) -> list[DocumentExtractionResult]:
     """Run Phase 1: Analyze documents and generate entity files.
 
@@ -54,15 +55,23 @@ async def run_phase1(
         seed_context_path: Path to the filled seed context markdown file.
         output_dir: Directory to write entity files and reports to.
         max_documents: Optional limit on number of documents to process.
+        ontology: Optional custom Ontology for this block. When set, its types drive extraction
+            (prompt + validation + directory routing). None → built-in default meta-model.
 
     Returns:
         List of extraction results, one per document.
     """
+    from context_blocks.ontology import set_active_ontology
+
+    # Types drive prompts, entity validation, and directory routing for this run.
+    set_active_ontology(ontology)
+
     logger.info(
         "phase1_start",
         docs_dir=str(docs_dir),
         seed_context_path=str(seed_context_path),
         output_dir=str(output_dir),
+        ontology=(ontology.source if ontology is not None else "default"),
     )
 
     # Validate and load seed context
@@ -351,7 +360,7 @@ def _write_summary_report(
         lines.append("")
         for entity in result.entities:
             lines.append(
-                f"- **{entity.name}** ({entity.entity_type.value}) "
+                f"- **{entity.name}** ({entity.entity_type}) "
                 f"— {entity.description} [confidence: {entity.confidence:.1f}]"
             )
         lines.append("")

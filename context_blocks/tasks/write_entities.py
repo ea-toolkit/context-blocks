@@ -151,7 +151,7 @@ def write_entity_file(entity: ExtractedEntity, output_dir: Path, source_document
 
     # Build YAML frontmatter
     frontmatter = {
-        "type": entity.entity_type.value,
+        "type": entity.entity_type,
         "id": entity.id,
         "name": entity.name,
         "description": entity.description,
@@ -208,7 +208,7 @@ def write_entity_file(entity: ExtractedEntity, output_dir: Path, source_document
     logger.debug(
         "entity_written",
         entity_id=entity.id,
-        entity_type=entity.entity_type.value,
+        entity_type=entity.entity_type,
         filepath=str(filepath),
     )
 
