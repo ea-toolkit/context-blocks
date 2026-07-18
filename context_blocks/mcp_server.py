@@ -51,6 +51,17 @@ LAYER_MAP = {
 }
 
 
+def _layer_for_type(etype: str) -> str:
+    from context_blocks.ontology import get_active_ontology
+
+    ont = get_active_ontology()
+    if ont is not None:
+        layer = ont.get_layer(etype)
+        if layer and layer != "unknown":
+            return layer.title()
+    return LAYER_MAP.get(etype, "Other")
+
+
 def _parse_frontmatter(raw: str) -> tuple[dict, str]:
     match = re.match(r"^---\n(.*?\n)---\n?(.*)", raw, re.DOTALL)
     if not match:
@@ -79,7 +90,7 @@ def _load_entities(entity_dir: Path) -> list[dict]:
                     "id": eid,
                     "name": fm.get("name", eid),
                     "type": etype,
-                    "layer": LAYER_MAP.get(etype, "Other"),
+                    "layer": _layer_for_type(etype),
                     "description": fm.get("description", ""),
                     "status": fm.get("status", "active"),
                     "confidence": fm.get("confidence", 1.0),
@@ -148,6 +159,23 @@ def _get_available_blocks() -> list[dict]:
     return []
 
 
+def _apply_block_ontology(block: str) -> None:
+    """Set the active ontology to the block's custom ontology (drives type→layer mapping)."""
+    from context_blocks.ontology import load_ontology_from_file, set_active_ontology
+
+    try:
+        from context_blocks.blocks import BlockRegistry, find_project_root
+
+        cfg = BlockRegistry(find_project_root()).resolve_block(block)
+        onto = getattr(cfg, "ontology", "default") or "default"
+        if onto != "default" and Path(onto).exists():
+            set_active_ontology(load_ontology_from_file(onto))
+            return
+    except Exception:
+        pass
+    set_active_ontology(None)
+
+
 def _resolve_block(block: str) -> dict:
     """Resolve a block name to its cached data. Loads entities on first access."""
     available = _get_available_blocks()
@@ -180,6 +208,7 @@ def _resolve_block(block: str) -> dict:
                 "entities": [], "entity_index": {}, "output_dir": output_dir, "name": block,
             }
         else:
+            _apply_block_ontology(block)
             entities = _load_entities(entity_dir)
             _block_cache[block] = {
                 "entities": entities,
