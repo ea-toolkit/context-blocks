@@ -35,6 +35,35 @@ def _resolve_output(block: str | None, output: Path) -> Path:
     return registry.block_output_dir(config.name)
 
 
+def _resolve_ontology(block: str | None):
+    """Load the block's custom ontology if it registered one; else None (built-in default meta-model)."""
+    import os
+
+    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.ontology import load_ontology_from_file
+
+    block_name = block or os.environ.get("CB_BLOCK")
+    if not block_name:
+        return None
+    try:
+        config = BlockRegistry(find_project_root()).resolve_block(block_name)
+    except ValueError:
+        return None
+
+    onto = getattr(config, "ontology", "default") or "default"
+    if onto == "default":
+        return None
+    onto_path = Path(onto)
+    if not onto_path.exists():
+        console.print(f"[yellow]Block ontology not found: {onto_path} — using default meta-model.[/yellow]")
+        return None
+    try:
+        return load_ontology_from_file(onto_path)
+    except Exception as e:
+        console.print(f"[yellow]Failed to load block ontology ({e}) — using default meta-model.[/yellow]")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # cb init
 # ---------------------------------------------------------------------------
@@ -155,11 +184,14 @@ def _run_extract(
     from context_blocks.pipeline import run_phase1
 
     output = _resolve_output(block, output)
+    ontology = _resolve_ontology(block)
 
     console.print(f"\n[bold]Context Blocks — Extract Entities[/bold]\n")
     console.print(f"  Documents:    {docs}")
     console.print(f"  Seed context: {seed}")
     console.print(f"  Output:       {output}")
+    if ontology is not None:
+        console.print(f"  Ontology:     {ontology.source} ({len(ontology.types)} types)")
     if max_docs:
         console.print(f"  Max docs:     {max_docs}")
     console.print()
@@ -174,6 +206,7 @@ def _run_extract(
             output_dir=output,
             max_documents=max_docs,
             on_progress=_on_progress,
+            ontology=ontology,
         ))
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted. Progress has been saved — re-run to resume.[/yellow]")

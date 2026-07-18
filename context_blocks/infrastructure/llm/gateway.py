@@ -386,12 +386,15 @@ Return the corrected JSON. Return ONLY the JSON object, no explanation."""
 
 
 def _get_enum_hints(response_model: type[BaseModel]) -> str:
-    """Extract enum type hints from the response model for the retry prompt."""
+    """Valid entity_type values for the retry prompt — the active/custom ontology's types, or the default."""
     hints = []
 
     try:
-        from context_blocks.meta_model import EntityType, RelationshipType
-        entity_types = [e.value for e in EntityType]
+        from context_blocks.meta_model import EntityType
+        from context_blocks.ontology import get_active_ontology
+
+        ont = get_active_ontology()
+        entity_types = sorted(ont.types) if ont is not None else [e.value for e in EntityType]
         hints.append(f"## Valid entity_type values:\n{', '.join(entity_types)}")
     except ImportError:
         pass

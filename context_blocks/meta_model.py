@@ -364,9 +364,26 @@ ENTITY_TYPE_CONFIG: dict[EntityType, dict] = {
 }
 
 
-def get_directory_for_type(entity_type: EntityType) -> str:
-    """Get the output directory name for an entity type."""
-    return ENTITY_TYPE_CONFIG[entity_type]["directory"]
+def get_directory_for_type(entity_type: "EntityType | str", ontology=None) -> str:
+    """Get the output directory name for an entity type.
+
+    Honors the active/custom ontology (its per-type `directory`) when set, falling back to the
+    built-in default config, then to the type name itself for unmapped custom types.
+    """
+    from context_blocks.ontology import get_active_ontology
+
+    ont = ontology if ontology is not None else get_active_ontology()
+    type_str = entity_type.value if isinstance(entity_type, EntityType) else str(entity_type)
+
+    if ont is not None:
+        directory = ont.directory_for(type_str)
+        if directory:
+            return directory
+
+    try:
+        return ENTITY_TYPE_CONFIG[EntityType(type_str)]["directory"]
+    except (ValueError, KeyError):
+        return type_str
 
 
 def get_layer_for_type(entity_type: EntityType) -> EntityLayer:
@@ -403,8 +420,17 @@ def get_meta_model_reference() -> list[EntityTypeReference]:
     ]
 
 
-def format_meta_model_for_prompt() -> str:
-    """Format the meta-model as a readable string for LLM prompts."""
+def format_meta_model_for_prompt(ontology=None) -> str:
+    """Format the meta-model as a readable string for LLM prompts.
+
+    Honors the active/custom ontology when set (renders its types); otherwise the built-in default.
+    """
+    from context_blocks.ontology import get_active_ontology
+
+    ont = ontology if ontology is not None else get_active_ontology()
+    if ont is not None:
+        return ont.format_for_prompt()
+
     lines = ["## Entity Meta-Model (18 Types in 6 Layers)\n"]
     current_layer = None
 
