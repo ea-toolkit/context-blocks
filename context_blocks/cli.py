@@ -959,8 +959,10 @@ def export_obsidian(
 ) -> None:
     """Export KB entities as an Obsidian vault with wikilinks and a Map of Content."""
     from context_blocks.export_obsidian import export_obsidian as _export
+    from context_blocks.ontology import set_active_ontology
 
     output = _resolve_output(block, output)
+    set_active_ontology(_resolve_ontology(block))
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
@@ -998,8 +1000,10 @@ def export_skill_cmd(
 ) -> None:
     """Export KB as a single portable markdown file for AI agent context windows."""
     from context_blocks.export_skill import export_skill
+    from context_blocks.ontology import set_active_ontology
 
     output = _resolve_output(block, output)
+    set_active_ontology(_resolve_ontology(block))
     entity_dir = output / "entities"
     if not entity_dir.exists():
         console.print(f"[red]Entity directory not found: {entity_dir}[/red]")

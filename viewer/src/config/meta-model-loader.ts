@@ -33,11 +33,13 @@ let _config: MetaModelConfig | null = null;
 export function loadMetaModel(): MetaModelConfig {
   if (_config) return _config;
 
-  // Try multiple paths — works in both dev and build mode
+  // Try multiple paths — works in both dev and build mode.
+  // CB_META_MODEL lets a block point the viewer at its own custom ontology.
   const candidates = [
+    process.env.CB_META_MODEL ? path.resolve(process.env.CB_META_MODEL) : null,
     path.join(process.cwd(), 'src', 'config', 'meta-model.yaml'),
     path.join(process.cwd(), 'viewer', 'src', 'config', 'meta-model.yaml'),
-  ];
+  ].filter((p): p is string => p !== null);
 
   for (const configPath of candidates) {
     if (fs.existsSync(configPath)) {
@@ -81,11 +83,11 @@ export function getEntityTypeConfig(typeKey: string): EntityTypeConfig {
 /** Check if a frontmatter key is a relationship field. */
 export function isRelationshipField(key: string): boolean {
   const config = loadMetaModel();
-  return config.relationship_fields.includes(key);
+  return (config.relationship_fields ?? []).includes(key);
 }
 
 /** Check if a frontmatter key is a standard (non-relationship) field. */
 export function isStandardField(key: string): boolean {
   const config = loadMetaModel();
-  return config.standard_fields.includes(key);
+  return (config.standard_fields ?? []).includes(key);
 }

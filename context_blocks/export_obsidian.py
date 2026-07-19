@@ -208,6 +208,13 @@ LAYER_MAP = {
 
 
 def _layer_for_type(etype: str) -> str:
+    from context_blocks.ontology import get_active_ontology
+
+    ont = get_active_ontology()
+    if ont is not None:
+        layer = ont.get_layer(etype)
+        if layer and layer != "unknown":
+            return layer.title()
     return LAYER_MAP.get(etype, "Other")
 
 
