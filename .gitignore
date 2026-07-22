@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.*
 .firebase/
 *.log
 .DS_Store
@@ -34,6 +35,7 @@ test-data/
 
 # Real-data context blocks + local block registry (never commit real domain data)
 /incidents/
+/e2e-test/
 blocks.yaml
 
 # Builder tooling (not consumer-facing)
