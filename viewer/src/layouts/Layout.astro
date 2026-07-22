@@ -6,6 +6,16 @@
  */
 import '../styles/global.css';
 import { stats, jargon } from '../data/registry';
+import { withBase } from '../lib/base';
+
+// Multi-block switcher: build-blocks.mjs injects a JSON manifest of all blocks
+// (names come from the gitignored blocks.yaml → gitignored build output only).
+let blocks: { id: string; label: string; base: string }[] = [];
+try {
+  if (process.env.CB_BLOCKS_MANIFEST) blocks = JSON.parse(process.env.CB_BLOCKS_MANIFEST);
+} catch { /* single-block dev build: no switcher, keep default label */ }
+const currentBase = import.meta.env.BASE_URL || '/';
+const currentBlock = blocks.find(b => b.base === currentBase);
 
 interface Props {
   title: string;
@@ -51,6 +61,7 @@ const navLinks = [
     const theme = localStorage.getItem('cb-theme') || 'dark';
     if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
   </script>
+  <script is:inline set:html={`window.__CB_BASE__=${JSON.stringify(currentBase.replace(/\/$/, ''))};`}></script>
 </head>
 <body>
   <div class="app-shell">
@@ -73,17 +84,29 @@ const navLinks = [
 
       <div class="app-sidebar-nav__domain">
         <span style="width: 8px; height: 8px; border-radius: 2px; background: var(--cb-primary); flex-shrink: 0;"></span>
-        <span>Domain KB</span>
+        {blocks.length > 1 ? (
+          <select
+            aria-label="Switch block"
+            onchange="if(this.value)window.location.href=this.value"
+            style="flex:1; background:transparent; color:inherit; font:inherit; border:2px solid var(--cb-border); border-radius:0; padding:2px 4px; cursor:pointer;"
+          >
+            {blocks.map(b => (
+              <option value={b.base} selected={b.base === currentBase} style="background:var(--cb-bg); color:var(--cb-text);">{b.label}</option>
+            ))}
+          </select>
+        ) : (
+          <span>{currentBlock?.label || 'Domain KB'}</span>
+        )}
       </div>
 
-      <a href="/" class="app-sidebar-nav__new-btn">
+      <a href={withBase('/')} class="app-sidebar-nav__new-btn">
         + New question
       </a>
 
       <div class="app-sidebar-nav__links">
         {navLinks.map(link => (
           <a
-            href={link.href}
+            href={withBase(link.href)}
             class:list={[
               'app-sidebar-nav__link',
               { 'app-sidebar-nav__link--active': activePage === link.key }
@@ -168,11 +191,28 @@ const navLinks = [
           const short = q.length > 45 ? q.slice(0, 45) + '...' : q;
           const cls = (item.ddcClass || '').toLowerCase();
           const dot = cls === 'clean' ? '#22c55e' : cls === 'incomplete' ? '#eab308' : cls === 'missing' ? '#ef4444' : '#475569';
-          return '<a href="/?q=' + encodeURIComponent(q) + '" class="app-sidebar-nav__recent-item" title="' + q.replace(/"/g, '&quot;') + '">'
+          return '<a href="' + (window.__CB_BASE__ || '') + '/?q=' + encodeURIComponent(q) + '" class="app-sidebar-nav__recent-item" title="' + q.replace(/"/g, '&quot;') + '">'
             + '<span style="width:6px;height:6px;border-radius:50%;background:' + dot + ';flex-shrink:0"></span>'
             + '<span>' + short.replace(/</g, '&lt;') + '</span></a>';
         }).join('');
       } catch(e) {}
+    })();
+
+    // Base-path shim for multi-block builds: prefix in-app absolute links
+    // (including React-rendered deep links like /explorer?entity=...) with the
+    // block base at click time. No-op for single-block builds (base '/').
+    (function() {
+      var base = window.__CB_BASE__ || '';
+      if (!base) return;
+      document.addEventListener('click', function(e) {
+        var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a) return;
+        var href = a.getAttribute('href');
+        if (!href || href.charAt(0) !== '/' || href.charAt(1) === '/') return; // only root-relative in-app links
+        if (href === base || href.indexOf(base + '/') === 0) return;           // already prefixed
+        e.preventDefault();
+        window.location.href = base + href;
+      }, true);
     })();
   </script>
 </body>
