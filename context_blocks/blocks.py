@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
+
+# A block name must be kebab-case (single char allowed): lowercase alnum,
+# hyphen-separated, no leading/trailing hyphen. Shared by the CLI and the API
+# so both enforce the same contract.
+BLOCK_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$"
+_BLOCK_NAME_RE = re.compile(BLOCK_NAME_PATTERN)
+
+
+def is_valid_block_name(name: str) -> bool:
+    """True if ``name`` is a valid kebab-case block name."""
+    return bool(_BLOCK_NAME_RE.match(name))
 
 
 class BlockConfig(BaseModel):
