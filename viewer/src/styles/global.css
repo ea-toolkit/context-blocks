@@ -20,6 +20,9 @@
   --cb-surface-hover: #222738;
   --cb-surface-active: #282d40;
 
+  /* Diagram canvas — always light so black-on-white diagrams (bpmn) stay legible. */
+  --cb-diagram-bg: #ffffff;
+
   /* Borders */
   --cb-border: rgba(255, 255, 255, 0.08);
   --cb-border-strong: rgba(255, 255, 255, 0.15);
@@ -3681,3 +3684,9 @@ code, pre {
 }
 .studio-artifact-fallback { display: flex; flex-direction: column; gap: var(--cb-space-sm); align-items: flex-start; }
 .studio-artifact-fallback .studio-btn { text-decoration: none; }
+.studio-bpmn { position: relative; }
+.studio-bpmn__canvas {
+  width: 100%; height: 480px;
+  background: var(--cb-diagram-bg);
+  border-radius: var(--cb-radius-sm);
+}
