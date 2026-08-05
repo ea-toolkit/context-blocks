@@ -41,6 +41,13 @@ export interface AddEntityResponse {
   path: string;
 }
 
+export interface ArtifactInfo {
+  filename: string;
+  path: string;
+  size: number;
+  content_type: string;
+}
+
 export interface StudioHealth {
   status: string;
   root: string;

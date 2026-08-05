@@ -9,6 +9,7 @@
 
 import type {
   AddEntityResponse,
+  ArtifactInfo,
   BlockDetail,
   BlockSummary,
   CreateBlockPayload,
@@ -64,6 +65,29 @@ export function validationErrors(body: unknown): string[] {
   return [];
 }
 
+/** URL of a block artifact's raw content (for <img>, bpmn-js fetch, etc.). */
+export function artifactUrl(block: string, filename: string): string {
+  return `${STUDIO_API_BASE}/blocks/${encodeURIComponent(block)}/artifacts/${encodeURIComponent(filename)}`;
+}
+
+/** Upload an artifact as multipart form data (no JSON Content-Type — the browser
+ * sets the multipart boundary itself). */
+export async function uploadArtifact(block: string, file: File): Promise<ApiResult<ArtifactInfo>> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${STUDIO_API_BASE}/blocks/${encodeURIComponent(block)}/artifacts`, {
+    method: 'POST',
+    body: form,
+  });
+  let body: ArtifactInfo | null = null;
+  try {
+    body = (await res.json()) as ArtifactInfo;
+  } catch {
+    body = null;
+  }
+  return { ok: res.ok, status: res.status, body };
+}
+
 /** Typed endpoint methods. */
 export const studio = {
   health: () => api<StudioHealth>('/health'),
@@ -71,6 +95,8 @@ export const studio = {
   getBlock: (name: string) => api<BlockDetail>(`/blocks/${encodeURIComponent(name)}`),
   listEntities: (name: string) =>
     api<EntityListItem[]>(`/blocks/${encodeURIComponent(name)}/entities`),
+  listArtifacts: (name: string) =>
+    api<ArtifactInfo[]>(`/blocks/${encodeURIComponent(name)}/artifacts`),
   createBlock: (payload: CreateBlockPayload) =>
     api<BlockDetail>('/blocks', { method: 'POST', body: JSON.stringify(payload) }),
   addEntity: (name: string, content: string) =>
@@ -78,4 +104,5 @@ export const studio = {
       method: 'POST',
       body: JSON.stringify({ content }),
     }),
+  uploadArtifact,
 };
