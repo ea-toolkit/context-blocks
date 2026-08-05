@@ -14,9 +14,11 @@ from context_blocks.mcp_server import (
     _parse_frontmatter,
     _resolve_block,
     ask_kb,
+    fetch_file,
     get_entity,
     get_gap_report,
     get_overview,
+    list_artifacts,
     list_blocks,
     search_entities,
 )
@@ -708,3 +710,54 @@ class TestAskKb:
         result = await ask_kb("test", block="healthcare")
         assert "error" not in result
         assert result["block"] == "healthcare"
+
+
+@pytest.fixture()
+def block_with_artifacts(tmp_path, monkeypatch):
+    """A single block with one entity + two artifacts (text + binary)."""
+    import context_blocks.mcp_server as mod
+    from context_blocks import storage
+
+    out = tmp_path / "myblock"
+    (out / "entities" / "systems").mkdir(parents=True)
+    (out / "entities" / "systems" / "x.md").write_text(
+        "---\ntype: system\nid: x\nname: X\ndescription: d\nstatus: active\n---\n\n# X\n"
+    )
+    storage.save_artifact(out, "flow.bpmn", b"<definitions/>")
+    storage.save_artifact(out, "shot.png", b"\x89PNG\r\n\x1a\nbinary")
+
+    monkeypatch.setattr(mod, "_single_output", str(out))
+    return out
+
+
+class TestArtifactTools:
+    def test_list_artifacts(self, block_with_artifacts) -> None:
+        result = list_artifacts()
+        by_name = {a["filename"]: a for a in result}
+        assert set(by_name) == {"flow.bpmn", "shot.png"}
+        assert by_name["flow.bpmn"]["path"] == "artifacts/flow.bpmn"
+        assert by_name["flow.bpmn"]["content_type"] == "application/xml"
+
+    def test_list_artifacts_empty(self, single_block) -> None:
+        assert list_artifacts() == []
+
+    def test_fetch_text_artifact(self, block_with_artifacts) -> None:
+        r = fetch_file("artifacts/flow.bpmn")
+        assert r["content"] == "<definitions/>"
+        assert r["content_type"] == "application/xml"
+
+    def test_fetch_entity_file(self, block_with_artifacts) -> None:
+        r = fetch_file("entities/systems/x.md")
+        assert "type: system" in r["content"]
+
+    def test_fetch_binary_returns_note_not_content(self, block_with_artifacts) -> None:
+        r = fetch_file("artifacts/shot.png")
+        assert "content" not in r
+        assert "note" in r
+        assert r["content_type"] == "image/png"
+
+    def test_fetch_missing_file(self, block_with_artifacts) -> None:
+        assert "error" in fetch_file("artifacts/nope.bpmn")
+
+    def test_fetch_path_traversal_blocked(self, block_with_artifacts) -> None:
+        assert "error" in fetch_file("../../../etc/passwd")

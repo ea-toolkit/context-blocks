@@ -1,12 +1,14 @@
 """Context Blocks MCP Server — expose KB to AI agents via Model Context Protocol.
 
-6 read-only tools for agents to query knowledge bases:
+8 read-only tools for agents to query knowledge bases:
 - list_blocks: discover available context blocks (domains)
 - get_overview: KB stats and structure for a block
 - search_entities: find entities by text query
 - get_entity: full detail for one entity
 - ask_kb: DAR retrieval pipeline (with LLM synthesis if API key set, retrieval-only otherwise)
 - get_gap_report: coverage gaps, optionally per persona
+- list_artifacts: list a block's non-md files (diagrams, images, xml)
+- fetch_file: read a file inside a block by relative path (artifact or entity)
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
 name to any tool. If only one block exists, it's used by default.
@@ -264,6 +266,48 @@ def get_overview(block: str = "") -> dict:
         "entity_types": sorted(type_counts.keys()),
         "layers": sorted(layer_counts.keys()),
     }
+
+
+@mcp.tool()
+def list_artifacts(block: str = "") -> list[dict]:
+    """List the non-markdown artifacts attached to a block — diagrams (.bpmn/.drawio/.uml), images, and xml files. These are NOT searchable knowledge (use search_entities/ask_kb for that); they are supporting files an entity references, e.g. an architecture diagram. Returns each artifact's filename, path (relative to the block), size in bytes, and content_type. Use fetch_file(path) to read a text artifact; binary images should be fetched via the HTTP artifact endpoint. Pass block name from list_blocks(); if only one block exists it's used automatically."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return [data]
+    from context_blocks import storage
+
+    arts = storage.list_artifacts(Path(data["output_dir"]))
+    return [
+        {"filename": a.filename, "path": a.path, "size": a.size, "content_type": a.content_type}
+        for a in arts
+    ]
+
+
+@mcp.tool()
+def fetch_file(path: str, block: str = "") -> dict:
+    """Fetch the raw content of a file inside a block by its path relative to the block — e.g. 'artifacts/order-flow.bpmn', 'entities/systems/payment-gateway.md', or 'seed-context.md'. Use this to read a diagram/xml artifact (from list_artifacts) or an entity file in full. Returns {path, content_type, content} for text files. Binary files (images) are not returned as text — you get {path, content_type, size, note} instead; fetch those via the HTTP artifact endpoint. Pass block name from list_blocks(); if only one block exists it's used automatically."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    output_dir = Path(data["output_dir"]).resolve()
+    target = (output_dir / path).resolve()
+    if not target.is_relative_to(output_dir):
+        return {"error": f"Path escapes the block: {path}"}
+    if not target.is_file():
+        return {"error": f"File not found: {path}"}
+
+    from context_blocks import storage
+
+    content_type = storage.guess_content_type(target.name)
+    try:
+        return {"path": path, "content_type": content_type, "content": target.read_text(encoding="utf-8")}
+    except UnicodeDecodeError:
+        return {
+            "path": path,
+            "content_type": content_type,
+            "size": target.stat().st_size,
+            "note": "Binary file — not returned as text. Fetch via the HTTP artifact endpoint.",
+        }
 
 
 @mcp.tool()
