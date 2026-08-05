@@ -30,7 +30,7 @@ from context_blocks.blocks import (
 )
 from context_blocks.meta_model import get_directory_for_type
 from context_blocks.ontology import Ontology, load_ontology_from_file
-from context_blocks.validation import validate_entity_frontmatter
+from context_blocks.validation import parse_frontmatter, validate_entity_frontmatter
 
 logger = structlog.get_logger(__name__)
 
@@ -92,6 +92,14 @@ class AddEntityResponse(BaseModel):
     id: str
     type: str
     # Path of the written file, relative to the block's output dir.
+    path: str
+
+
+class EntityListItem(BaseModel):
+    id: str
+    type: str
+    name: str
+    # Path of the entity file, relative to the block's output dir.
     path: str
 
 
@@ -242,6 +250,31 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
         ont = _resolve_ontology(project_root, config)
         base = _summary(reg, config)
         return BlockDetail(**base.model_dump(), ontology_detail=_ontology_summary(ont))
+
+    @app.get("/blocks/{name}/entities", response_model=list[EntityListItem])
+    async def list_entities(name: str) -> list[EntityListItem]:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+
+        output_dir = reg.block_output_dir(name)
+        entities_dir = output_dir / "entities"
+        items: list[EntityListItem] = []
+        if entities_dir.exists():
+            for md in sorted(entities_dir.rglob("*.md")):
+                fm, _ = parse_frontmatter(md.read_text(encoding="utf-8"))
+                if not fm:
+                    continue
+                items.append(
+                    EntityListItem(
+                        id=str(fm.get("id", md.stem)),
+                        type=str(fm.get("type", "")),
+                        name=str(fm.get("name", fm.get("id", md.stem))),
+                        path=str(md.relative_to(output_dir)),
+                    )
+                )
+        return items
 
     @app.post("/blocks/{name}/entities", response_model=AddEntityResponse, status_code=201)
     async def add_entity(name: str, req: AddEntityRequest) -> AddEntityResponse:

@@ -235,3 +235,34 @@ def test_add_duplicate_entity_409(client: TestClient) -> None:
     assert first.status_code == 201
     second = client.post("/blocks/incidents/entities", json={"content": _incident_entity_md()})
     assert second.status_code == 409
+
+
+# ── list entities ────────────────────────────────────────────────────────────
+
+
+def test_list_entities_empty_for_new_block(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    resp = client.get("/blocks/incidents/entities")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_entities_after_add(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    client.post("/blocks/incidents/entities", json={"content": _incident_entity_md()})
+    client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md(id="db-failover", name="DB Failover")},
+    )
+    resp = client.get("/blocks/incidents/entities")
+    assert resp.status_code == 200
+    items = resp.json()
+    by_id = {i["id"]: i for i in items}
+    assert set(by_id) == {"checkout-outage", "db-failover"}
+    assert by_id["checkout-outage"]["type"] == "incident"
+    assert by_id["checkout-outage"]["name"] == "Checkout Outage"
+    assert by_id["checkout-outage"]["path"] == "entities/incidents/checkout-outage.md"
+
+
+def test_list_entities_unknown_block_404(client: TestClient) -> None:
+    assert client.get("/blocks/ghost/entities").status_code == 404
