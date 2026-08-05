@@ -169,6 +169,14 @@ def test_multiple_errors_all_reported(tmp_path: Path) -> None:
 # ── default ontology ─────────────────────────────────────────────────────────
 
 
+def test_artifact_pointer_fields_are_allowed(tmp_path: Path) -> None:
+    ont = _custom_ontology(tmp_path)
+    # `diagrams`/`artifacts` reference non-md files, not entity relationships —
+    # they must not be rejected as unknown relationship fields.
+    assert validate_entity_frontmatter(_entity_md(diagrams="[flow.bpmn]"), ont).valid
+    assert validate_entity_frontmatter(_entity_md(artifacts="[a.png, b.xml]"), ont).valid
+
+
 def test_default_ontology_accepts_default_type_and_rel() -> None:
     md = "\n".join(
         [

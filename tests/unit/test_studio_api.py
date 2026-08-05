@@ -266,3 +266,72 @@ def test_list_entities_after_add(client: TestClient) -> None:
 
 def test_list_entities_unknown_block_404(client: TestClient) -> None:
     assert client.get("/blocks/ghost/entities").status_code == 404
+
+
+# ── artifacts (non-md files) ─────────────────────────────────────────────────
+
+
+def _make_block(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+
+
+def test_upload_and_get_artifact(client: TestClient, tmp_path: Path) -> None:
+    _make_block(client)
+    resp = client.post(
+        "/blocks/incidents/artifacts",
+        files={"file": ("arch.drawio", b"<mxfile/>", "application/xml")},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["filename"] == "arch.drawio"
+    assert body["path"] == "artifacts/arch.drawio"
+    assert body["content_type"] == "application/xml"
+    assert (tmp_path / "incidents" / "artifacts" / "arch.drawio").exists()
+
+    # Raw serve returns the bytes + content-type (works for binary too).
+    raw = client.get("/blocks/incidents/artifacts/arch.drawio")
+    assert raw.status_code == 200
+    assert raw.content == b"<mxfile/>"
+    assert raw.headers["content-type"].startswith("application/xml")
+
+
+def test_upload_binary_image_artifact(client: TestClient) -> None:
+    _make_block(client)
+    png = b"\x89PNG\r\n\x1a\n\x00\x00binary"
+    client.post("/blocks/incidents/artifacts", files={"file": ("shot.png", png, "image/png")})
+    raw = client.get("/blocks/incidents/artifacts/shot.png")
+    assert raw.status_code == 200
+    assert raw.content == png
+    assert raw.headers["content-type"].startswith("image/png")
+
+
+def test_list_artifacts(client: TestClient) -> None:
+    _make_block(client)
+    client.post("/blocks/incidents/artifacts", files={"file": ("a.png", b"x", "image/png")})
+    client.post("/blocks/incidents/artifacts", files={"file": ("b.bpmn", b"<x/>", "application/xml")})
+    items = client.get("/blocks/incidents/artifacts").json()
+    assert {i["filename"] for i in items} == {"a.png", "b.bpmn"}
+
+
+def test_upload_disallowed_type_415(client: TestClient, tmp_path: Path) -> None:
+    _make_block(client)
+    resp = client.post(
+        "/blocks/incidents/artifacts",
+        files={"file": ("notes.md", b"# hi", "text/markdown")},
+    )
+    assert resp.status_code == 415
+    assert not (tmp_path / "incidents" / "artifacts").exists()
+
+
+def test_artifact_endpoints_unknown_block_404(client: TestClient) -> None:
+    assert (
+        client.post("/blocks/ghost/artifacts", files={"file": ("a.png", b"x", "image/png")}).status_code
+        == 404
+    )
+    assert client.get("/blocks/ghost/artifacts").status_code == 404
+    assert client.get("/blocks/ghost/artifacts/a.png").status_code == 404
+
+
+def test_get_missing_artifact_404(client: TestClient) -> None:
+    _make_block(client)
+    assert client.get("/blocks/incidents/artifacts/nope.png").status_code == 404

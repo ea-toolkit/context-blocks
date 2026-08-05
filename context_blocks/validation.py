@@ -29,9 +29,14 @@ import yaml
 from context_blocks.ontology import Ontology
 
 # The standard (non-relationship) frontmatter keys an entity file carries.
-# Mirrors the set used by tasks.write_entities when merging entities.
+# Mirrors the set used by tasks.write_entities when merging entities, plus the
+# artifact-pointer fields (`diagrams`/`artifacts`) that reference non-md files —
+# these are file lists, not entity relationships, so they are not validated as such.
 STANDARD_FIELDS: frozenset[str] = frozenset(
-    {"type", "id", "name", "description", "status", "tags", "source_documents", "confidence"}
+    {
+        "type", "id", "name", "description", "status", "tags", "source_documents", "confidence",
+        "artifacts", "diagrams",
+    }
 )
 
 # Fields an entity MUST carry to be valid (per the DDC entity-format contract).
