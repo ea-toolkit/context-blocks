@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { STUDIO_API_BASE, studio } from '../../lib/studio-client';
 import type { BlockSummary } from '../../lib/studio-types';
+import BlockView from './BlockView';
 import CreateBlockForm from './CreateBlockForm';
 
-type Mode = { kind: 'list' } | { kind: 'create' };
+type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'view'; name: string };
 
 /** Top-level Studio authoring surface: list blocks + create a new one. */
 export default function StudioView() {
@@ -31,6 +32,20 @@ export default function StudioView() {
   }, [refresh]);
 
   const isOnline = online === true;
+
+  if (mode.kind === 'view') {
+    return (
+      <div className="studio">
+        <BlockView
+          name={mode.name}
+          onBack={() => {
+            setMode({ kind: 'list' });
+            void refresh();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="studio">
@@ -80,9 +95,7 @@ export default function StudioView() {
                 <button
                   key={b.name}
                   className="studio-block-card"
-                  onClick={() => {
-                    /* branch 3: open block detail */
-                  }}
+                  onClick={() => setMode({ kind: 'view', name: b.name })}
                 >
                   <div className="studio-block-card__label">{b.label || b.name}</div>
                   <div className="studio-block-card__meta">
