@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { detailMessage, studio } from '../../lib/studio-client';
 import type { BlockDetail, EntityListItem } from '../../lib/studio-types';
 import AddEntityForm from './AddEntityForm';
+import ArtifactsSection from './ArtifactsSection';
 
 interface Props {
   name: string;
@@ -125,6 +126,8 @@ export default function BlockView({ name, onBack }: Props) {
               </table>
             )}
           </div>
+
+          <ArtifactsSection block={name} />
         </>
       )}
     </div>
