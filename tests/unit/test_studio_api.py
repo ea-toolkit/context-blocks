@@ -144,3 +144,94 @@ def test_create_duplicate_409(client: TestClient) -> None:
     client.post("/blocks", json={"name": "dup"})
     resp = client.post("/blocks", json={"name": "dup"})
     assert resp.status_code == 409
+
+
+# ── add entity ───────────────────────────────────────────────────────────────
+
+
+def _incident_entity_md(**overrides: object) -> str:
+    fields = {
+        "type": "incident",
+        "id": "checkout-outage",
+        "name": "Checkout Outage",
+        "description": "Checkout was down",
+        "status": "active",
+    }
+    fields.update(overrides)
+    lines = ["---"]
+    for key, value in fields.items():
+        if value is not None:
+            lines.append(f"{key}: {value}")
+    lines += ["---", "", "# Checkout Outage", "", "## Overview", "", "Body."]
+    return "\n".join(lines)
+
+
+def test_add_entity_to_custom_block(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    resp = client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md()},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["id"] == "checkout-outage"
+    assert body["type"] == "incident"
+    # Routed to the custom directory declared in the ontology.
+    assert body["path"] == "entities/incidents/checkout-outage.md"
+    written = tmp_path / "incidents" / "entities" / "incidents" / "checkout-outage.md"
+    assert written.exists()
+    assert "Checkout was down" in written.read_text()
+
+
+def test_add_entity_to_default_block_routes_by_type(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    system_md = "\n".join(
+        [
+            "---",
+            "type: system",
+            "id: payments-api",
+            "name: Payments API",
+            "description: Handles payments",
+            "status: active",
+            "---",
+            "",
+            "# Payments API",
+        ]
+    )
+    resp = client.post("/blocks/plain/entities", json={"content": system_md})
+    assert resp.status_code == 201, resp.text
+    # Default meta-model routes 'system' -> 'systems'.
+    assert resp.json()["path"] == "entities/systems/payments-api.md"
+
+
+def test_add_entity_invalid_frontmatter_422(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    resp = client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md(type="banana")},
+    )
+    assert resp.status_code == 422
+    # Nothing written.
+    assert not (tmp_path / "incidents" / "entities" / "banana").exists()
+
+
+def test_add_entity_expected_id_mismatch_422(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    resp = client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md(), "id": "some-other-id"},
+    )
+    assert resp.status_code == 422
+
+
+def test_add_entity_unknown_block_404(client: TestClient) -> None:
+    resp = client.post("/blocks/ghost/entities", json={"content": _incident_entity_md()})
+    assert resp.status_code == 404
+
+
+def test_add_duplicate_entity_409(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    first = client.post("/blocks/incidents/entities", json={"content": _incident_entity_md()})
+    assert first.status_code == 201
+    second = client.post("/blocks/incidents/entities", json={"content": _incident_entity_md()})
+    assert second.status_code == 409
