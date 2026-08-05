@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { detailMessage, studio } from '../../lib/studio-client';
 import type { BlockDetail, EntityListItem } from '../../lib/studio-types';
+import AddEntityForm from './AddEntityForm';
 
 interface Props {
   name: string;
@@ -14,6 +15,7 @@ export default function BlockView({ name, onBack }: Props) {
   const [entities, setEntities] = useState<EntityListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,7 +80,26 @@ export default function BlockView({ name, onBack }: Props) {
           </div>
 
           <div className="studio-section">
-            <div className="studio-section__title">Entities ({entities.length})</div>
+            <div className="studio-entities-head">
+              <div className="studio-section__title">Entities ({entities.length})</div>
+              {!adding && (
+                <button className="studio-btn studio-btn--primary" onClick={() => setAdding(true)}>
+                  ＋ Add Entity
+                </button>
+              )}
+            </div>
+
+            {adding && (
+              <AddEntityForm
+                blockName={name}
+                onAdded={() => {
+                  setAdding(false);
+                  void load();
+                }}
+                onCancel={() => setAdding(false)}
+              />
+            )}
+
             {entities.length === 0 ? (
               <p className="studio-empty">No entities yet.</p>
             ) : (
