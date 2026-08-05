@@ -14,7 +14,9 @@ class BlockConfig(BaseModel):
 
     name: str
     description: str = ""
+    label: str = ""
     ontology: str = "default"
+    output: str = ""
     seed_context: str = ""
     model: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -111,6 +113,15 @@ class BlockRegistry:
         raise ValueError(msg)
 
     def block_output_dir(self, name: str) -> Path:
+        """Resolve a block's entity-output directory.
+
+        Honors a block's custom ``output`` path (relative to the project root, or
+        absolute) so the Python registry agrees with blocks.yaml and the viewer.
+        Falls back to ``root/name`` for default blocks or unregistered names.
+        """
+        config = self.get(name)
+        if config and config.output:
+            return self.root / config.output
         return self.root / name
 
 
