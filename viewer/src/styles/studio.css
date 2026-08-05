@@ -212,6 +212,13 @@
 .studio-section {
   margin: var(--cb-space-lg) 0;
 }
+.studio-entities-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cb-space-md);
+  margin-bottom: var(--cb-space-sm);
+}
 .studio-section__title {
   font-size: var(--cb-font-size-xs);
   text-transform: uppercase;
