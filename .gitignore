@@ -38,8 +38,12 @@ test-data/
 /e2e-test/
 blocks.yaml
 
-# Builder tooling (not consumer-facing)
-.claude/
+# Builder tooling (not consumer-facing) — local by default, but SHARE the
+# design/convention guardrails (rules, hooks, and their wiring).
+.claude/*
+!.claude/rules/
+!.claude/hooks/
+!.claude/settings.json
 CLAUDE.md
 
 # Legacy v1 artifacts (untracked)
