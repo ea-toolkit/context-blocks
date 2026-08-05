@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { rendererFor } from '../../lib/artifact-render';
 import { artifactUrl } from '../../lib/studio-client';
 import type { ArtifactInfo } from '../../lib/studio-types';
+import BpmnArtifact from './BpmnArtifact';
 
 interface Props {
   block: string;
@@ -17,6 +18,9 @@ export default function ArtifactViewer({ block, artifact }: Props) {
 
   if (kind === 'image' || kind === 'svg') {
     return <img className="studio-artifact-img" src={url} alt={artifact.filename} loading="lazy" />;
+  }
+  if (kind === 'bpmn') {
+    return <BpmnArtifact url={url} />;
   }
   if (kind === 'xml') {
     return <XmlArtifact url={url} />;

@@ -15,6 +15,7 @@
     "@astrojs/react": "^4.1.0",
     "@xyflow/react": "^12.10.0",
     "astro": "^5.1.0",
+    "bpmn-js": "^18.22.1",
     "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
     "js-yaml": "^4.1.1",
