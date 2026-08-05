@@ -7,7 +7,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "build:blocks": "node build-blocks.mjs",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/react": "^4.1.0",
@@ -22,11 +24,16 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/d3-force": "^3.0.10",
     "@types/dagre": "^0.7.53",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.7.0"
+    "jsdom": "^29.1.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.9"
   }
 }
