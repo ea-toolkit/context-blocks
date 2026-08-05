@@ -77,15 +77,18 @@ def init(
     root: Path = typer.Option(None, "--root", "-r", help="Project root directory (default: current dir)"),
 ) -> None:
     """Initialize a new context block with its configuration."""
-    import re
-
-    from context_blocks.blocks import BlockConfig, BlockRegistry, find_project_root
+    from context_blocks.blocks import (
+        BlockConfig,
+        BlockRegistry,
+        find_project_root,
+        is_valid_block_name,
+    )
 
     project_root = root or find_project_root()
     registry = BlockRegistry(project_root)
 
     # Validate name
-    if not re.match(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$", name):
+    if not is_valid_block_name(name):
         console.print(f"[red]Invalid block name '{name}'. Use kebab-case (e.g., 'payments', 'billing-platform').[/red]")
         raise typer.Exit(1)
 
