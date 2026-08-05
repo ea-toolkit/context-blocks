@@ -28,7 +28,9 @@ from context_blocks.blocks import (
     find_project_root,
     is_valid_block_name,
 )
+from context_blocks.meta_model import get_directory_for_type
 from context_blocks.ontology import Ontology, load_ontology_from_file
+from context_blocks.validation import validate_entity_frontmatter
 
 logger = structlog.get_logger(__name__)
 
@@ -77,6 +79,20 @@ class BlockSummary(BaseModel):
 
 class BlockDetail(BlockSummary):
     ontology_detail: OntologySummary
+
+
+class AddEntityRequest(BaseModel):
+    # Full entity markdown: YAML frontmatter + body.
+    content: str
+    # Optional expected id; when given, the frontmatter id must match it.
+    id: str | None = None
+
+
+class AddEntityResponse(BaseModel):
+    id: str
+    type: str
+    # Path of the written file, relative to the block's output dir.
+    path: str
 
 
 # ── Helpers ──
@@ -226,5 +242,40 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
         ont = _resolve_ontology(project_root, config)
         base = _summary(reg, config)
         return BlockDetail(**base.model_dump(), ontology_detail=_ontology_summary(ont))
+
+    @app.post("/blocks/{name}/entities", response_model=AddEntityResponse, status_code=201)
+    async def add_entity(name: str, req: AddEntityRequest) -> AddEntityResponse:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+
+        ont = _resolve_ontology(project_root, config)
+        result = validate_entity_frontmatter(req.content, ont, expected_id=req.id)
+        if not result.valid:
+            raise HTTPException(status_code=422, detail={"errors": result.error_messages})
+
+        entity_type = str(result.frontmatter["type"])
+        entity_id = str(result.frontmatter["id"])
+        directory = get_directory_for_type(entity_type, ontology=ont)
+
+        output_dir = reg.block_output_dir(name)
+        dest_dir = output_dir / "entities" / directory
+        dest = dest_dir / f"{entity_id}.md"
+        if dest.exists():
+            raise HTTPException(
+                status_code=409,
+                detail=f"Entity '{entity_id}' already exists in block '{name}'",
+            )
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest.write_text(req.content, encoding="utf-8")
+
+        logger.info("studio_entity_added", block=name, entity_id=entity_id, type=entity_type)
+        return AddEntityResponse(
+            id=entity_id,
+            type=entity_type,
+            path=str(dest.relative_to(output_dir)),
+        )
 
     return app
