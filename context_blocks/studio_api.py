@@ -18,10 +18,12 @@ from pathlib import Path
 
 import structlog
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
+from context_blocks import storage
 from context_blocks.blocks import (
     BlockConfig,
     BlockRegistry,
@@ -101,6 +103,13 @@ class EntityListItem(BaseModel):
     name: str
     # Path of the entity file, relative to the block's output dir.
     path: str
+
+
+class ArtifactInfoResponse(BaseModel):
+    filename: str
+    path: str
+    size: int
+    content_type: str
 
 
 # ── Helpers ──
@@ -314,5 +323,43 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             type=entity_type,
             path=str(dest.relative_to(output_dir)),
         )
+
+    def _require_block(name: str) -> None:
+        if registry().get(name) is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+
+    def _artifact_response(info: storage.ArtifactInfo) -> ArtifactInfoResponse:
+        return ArtifactInfoResponse(
+            filename=info.filename, path=info.path, size=info.size, content_type=info.content_type
+        )
+
+    @app.post("/blocks/{name}/artifacts", response_model=ArtifactInfoResponse, status_code=201)
+    async def upload_artifact(name: str, file: UploadFile = File(...)) -> ArtifactInfoResponse:
+        _require_block(name)
+        filename = file.filename or ""
+        if not storage.is_allowed_artifact(filename):
+            allowed = ", ".join(sorted(storage.ARTIFACT_EXTENSIONS))
+            raise HTTPException(
+                status_code=415,
+                detail=f"Unsupported artifact type '{filename}'. Allowed: {allowed}",
+            )
+        data = await file.read()
+        info = storage.save_artifact(registry().block_output_dir(name), filename, data)
+        logger.info("studio_artifact_uploaded", block=name, filename=info.filename, size=info.size)
+        return _artifact_response(info)
+
+    @app.get("/blocks/{name}/artifacts", response_model=list[ArtifactInfoResponse])
+    async def list_block_artifacts(name: str) -> list[ArtifactInfoResponse]:
+        _require_block(name)
+        return [_artifact_response(a) for a in storage.list_artifacts(registry().block_output_dir(name))]
+
+    @app.get("/blocks/{name}/artifacts/{filename}")
+    async def get_artifact(name: str, filename: str) -> Response:
+        _require_block(name)
+        result = storage.read_artifact(registry().block_output_dir(name), filename)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Artifact '{filename}' not found")
+        data, content_type = result
+        return Response(content=data, media_type=content_type)
 
     return app
