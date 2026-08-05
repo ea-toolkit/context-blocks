@@ -266,3 +266,21 @@ def test_list_entities_after_add(client: TestClient) -> None:
 
 def test_list_entities_unknown_block_404(client: TestClient) -> None:
     assert client.get("/blocks/ghost/entities").status_code == 404
+
+
+# ── UI static mount ──────────────────────────────────────────────────────────
+
+
+def test_ui_served_at_ui(tmp_path: Path) -> None:
+    # Default ui_dir = the shipped studio/ dir → served at /ui.
+    c = TestClient(create_studio_app(root=tmp_path))
+    resp = c.get("/ui/")
+    assert resp.status_code == 200
+    assert "Context Blocks" in resp.text
+
+
+def test_ui_not_mounted_when_dir_missing(tmp_path: Path) -> None:
+    c = TestClient(create_studio_app(root=tmp_path, ui_dir=tmp_path / "no-ui-here"))
+    assert c.get("/ui/").status_code == 404
+    # API endpoints still work.
+    assert c.get("/health").status_code == 200

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Context Blocks · Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">CONTEXT&nbsp;BLOCKS</span>
+      <span class="brand-sub">STUDIO</span>
+    </div>
+    <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle light / dark theme">◐ THEME</button>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar" aria-label="Blocks">
+      <div class="sidebar-head">
+        <h2>BLOCKS</h2>
+        <button id="new-block-btn" class="btn btn-accent">＋ CREATE</button>
+      </div>
+      <ul id="blocks-list" class="blocks-list" aria-live="polite"></ul>
+    </aside>
+
+    <section class="content" aria-live="polite">
+      <!-- Empty state -->
+      <div id="empty-view" class="panel empty">
+        <p>Select a block, or <button id="empty-create" class="link">create one</button>.</p>
+      </div>
+
+      <!-- Create block -->
+      <form id="create-view" class="panel" hidden>
+        <h1>Create Block</h1>
+        <label class="field">
+          <span>Name <em>(kebab-case)</em></span>
+          <input id="cb-name" name="name" placeholder="cost-control" autocomplete="off" required />
+        </label>
+        <label class="field">
+          <span>Label</span>
+          <input id="cb-label" name="label" placeholder="Cost Control" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Description</span>
+          <input id="cb-description" name="description" autocomplete="off" />
+        </label>
+
+        <fieldset class="field">
+          <legend>Ontology</legend>
+          <label class="radio"><input type="radio" name="onto" value="default" checked /> Default (built-in 18-type meta-model)</label>
+          <label class="radio"><input type="radio" name="onto" value="custom" /> Custom YAML</label>
+          <textarea id="cb-ontology" class="mono" rows="10" placeholder="layers:&#10;  behavioral: { label: Behavioral }&#10;entity_types:&#10;  incident: { layer: behavioral, directory: incidents, label: Incidents }&#10;relationship_fields:&#10;  - affects" hidden></textarea>
+        </fieldset>
+
+        <label class="field">
+          <span>Seed context <em>(optional markdown)</em></span>
+          <textarea id="cb-seed" class="mono" rows="5" placeholder="# Bounded context orientation..."></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-accent">CREATE BLOCK</button>
+          <button type="button" id="cb-cancel" class="btn btn-ghost">CANCEL</button>
+        </div>
+      </form>
+
+      <!-- Block detail -->
+      <div id="block-view" class="panel" hidden>
+        <div class="block-head">
+          <h1 id="bv-title"></h1>
+          <code id="bv-outputdir" class="path"></code>
+        </div>
+        <p id="bv-description" class="muted"></p>
+
+        <div class="meta-grid">
+          <div>
+            <h3>Ontology</h3>
+            <code id="bv-ontology" class="path"></code>
+            <div id="bv-types" class="chips"></div>
+          </div>
+          <div>
+            <h3>Layers</h3>
+            <div id="bv-layers" class="chips"></div>
+          </div>
+        </div>
+
+        <div class="entities-head">
+          <h3>Entities (<span id="bv-count">0</span>)</h3>
+          <button id="add-entity-btn" class="btn btn-accent">＋ ADD ENTITY</button>
+        </div>
+        <table class="entities">
+          <thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Path</th></tr></thead>
+          <tbody id="bv-entities"></tbody>
+        </table>
+
+        <!-- Add entity -->
+        <form id="add-entity-form" class="add-entity" hidden>
+          <h3>Add Entity</h3>
+          <p class="muted">Paste the entity markdown (YAML frontmatter + body). Validated against this block's ontology.</p>
+          <textarea id="ae-content" class="mono" rows="12" placeholder="---&#10;type: incident&#10;id: checkout-outage&#10;name: Checkout Outage&#10;description: Checkout was down&#10;status: active&#10;---&#10;&#10;# Checkout Outage&#10;&#10;## Overview&#10;&#10;..."></textarea>
+          <ul id="ae-errors" class="errors" hidden></ul>
+          <div class="actions">
+            <button type="submit" class="btn btn-accent">VALIDATE &amp; ADD</button>
+            <button type="button" id="ae-cancel" class="btn btn-ghost">CANCEL</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="assertive" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
