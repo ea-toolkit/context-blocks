@@ -20,7 +20,6 @@ import structlog
 import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from context_blocks.blocks import (
@@ -116,17 +115,6 @@ def _resolve_root(root: str | Path | None) -> Path:
     return find_project_root()
 
 
-def _resolve_ui_dir(ui_dir: str | Path | None) -> Path:
-    """Resolve the Studio UI static dir: explicit arg, CB_STUDIO_UI env, or the
-    ``studio/`` dir shipped alongside this package."""
-    if ui_dir:
-        return Path(ui_dir)
-    env_ui = os.environ.get("CB_STUDIO_UI")
-    if env_ui:
-        return Path(env_ui)
-    return Path(__file__).resolve().parent.parent / "studio"
-
-
 def _resolve_ontology(root: Path, config: BlockConfig) -> Ontology:
     """Load the block's ontology (custom file relative to root, or built-in default)."""
     onto = config.ontology or "default"
@@ -169,11 +157,11 @@ def _summary(reg: BlockRegistry, config: BlockConfig) -> BlockSummary:
 
 # ── App factory ──
 
-def create_studio_app(root: str | Path | None = None, ui_dir: str | Path | None = None) -> FastAPI:
+def create_studio_app(root: str | Path | None = None) -> FastAPI:
     """Create the Studio FastAPI app bound to a project root's block registry.
 
-    If a Studio UI static directory exists (arg, CB_STUDIO_UI env, or the shipped
-    ``studio/`` dir), it is served at ``/ui``.
+    Serves JSON only — the authoring UI lives in the Astro viewer (viewer/) and
+    calls this API via PUBLIC_CB_STUDIO_API_BASE.
     """
     project_root = _resolve_root(root)
 
@@ -326,10 +314,5 @@ def create_studio_app(root: str | Path | None = None, ui_dir: str | Path | None 
             type=entity_type,
             path=str(dest.relative_to(output_dir)),
         )
-
-    ui_path = _resolve_ui_dir(ui_dir)
-    if ui_path.is_dir():
-        app.mount("/ui", StaticFiles(directory=str(ui_path), html=True), name="studio-ui")
-        logger.info("studio_ui_mounted", path=str(ui_path))
 
     return app
