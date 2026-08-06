@@ -8,7 +8,7 @@
  * client:only is required — ReactFlow uses browser-only APIs.
  */
 import Layout from '../layouts/Layout.astro';
-import DomainMap from '../components/map/DomainMap';
+import MapView from '../components/map/MapView';
 import { entities, edges } from '../data/registry';
 import { loadMetaModel } from '../config/meta-model-loader';
 
@@ -60,7 +60,7 @@ const serializedEdges = edges.map(e => ({
 
 <Layout title="Map" activePage="map" pageTitle="Map">
   <div style="height: 100%; overflow: hidden; display: flex; flex-direction: column; margin: calc(-1 * var(--cb-space-xl)); margin-top: 0;">
-    <DomainMap
+    <MapView
       client:only="react"
       entities={serializedEntities}
       edges={serializedEdges}

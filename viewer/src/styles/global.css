@@ -201,6 +201,20 @@ code, pre {
   font-weight: 500;
 }
 
+.app-block-selector {
+  margin: 0 12px var(--cb-space-sm);
+  width: calc(100% - 24px);
+  background: var(--cb-surface-raised);
+  color: var(--cb-text);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius-sm);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: var(--cb-font-size-xs);
+  cursor: pointer;
+}
+.app-block-selector:focus { outline: none; border-color: var(--cb-primary); }
+
 .app-sidebar-nav__new-btn {
   display: flex;
   align-items: center;

@@ -14,14 +14,14 @@ export interface SchemaType {
   layer: string;
 }
 
-interface Props {
+export interface OntologySchemaProps {
   source?: string;
   layers: SchemaLayer[];
   types: SchemaType[];
   relationshipFields: string[];
 }
 
-export default function OntologySchema({ source, layers, types, relationshipFields }: Props) {
+export default function OntologySchema({ source, layers, types, relationshipFields }: OntologySchemaProps) {
   const typesByLayer: Record<string, SchemaType[]> = {};
   for (const t of types) {
     (typesByLayer[t.layer] ||= []).push(t);

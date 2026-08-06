@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import OntologySchema from '../components/ontology/OntologySchema';
+import OntologyView from '../components/ontology/OntologyView';
 import { loadMetaModel } from '../config/meta-model-loader';
 
 // Baked from the active block's meta-model (same source as Map/Explorer).
@@ -20,6 +20,6 @@ const relationshipFields = mm.relationship_fields ?? [];
         </div>
       </div>
     </div>
-    <OntologySchema layers={layers} types={types} relationshipFields={relationshipFields} />
+    <OntologyView client:only="react" layers={layers} types={types} relationshipFields={relationshipFields} />
   </div>
 </Layout>
