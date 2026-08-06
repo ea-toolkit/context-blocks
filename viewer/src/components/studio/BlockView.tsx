@@ -5,6 +5,7 @@ import type { BlockDetail, EntityListItem } from '../../lib/studio-types';
 import AddEntityForm from './AddEntityForm';
 import ArtifactsSection from './ArtifactsSection';
 import BlockGraph from './BlockGraph';
+import BlockOntology from './BlockOntology';
 
 interface Props {
   name: string;
@@ -18,7 +19,7 @@ export default function BlockView({ name, onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [tab, setTab] = useState<'overview' | 'graph'>('overview');
+  const [tab, setTab] = useState<'overview' | 'graph' | 'ontology'>('overview');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +76,12 @@ export default function BlockView({ name, onBack }: Props) {
               onClick={() => setTab('graph')}
             >
               Graph
+            </button>
+            <button
+              className={`studio-tab ${tab === 'ontology' ? 'is-active' : ''}`}
+              onClick={() => setTab('ontology')}
+            >
+              Ontology
             </button>
           </div>
 
@@ -148,6 +155,7 @@ export default function BlockView({ name, onBack }: Props) {
           )}
 
           {tab === 'graph' && <BlockGraph block={name} />}
+          {tab === 'ontology' && <BlockOntology block={name} />}
         </>
       )}
     </div>

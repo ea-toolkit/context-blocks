@@ -399,3 +399,30 @@ def test_block_graph_empty_block(client: TestClient) -> None:
 
 def test_block_graph_unknown_block_404(client: TestClient) -> None:
     assert client.get("/blocks/ghost/graph").status_code == 404
+
+
+# ── ontology (schema blueprint) ──────────────────────────────────────────────
+
+
+def test_block_ontology(client: TestClient) -> None:
+    _make_block(client)
+    resp = client.get("/blocks/incidents/ontology")
+    assert resp.status_code == 200
+    body = resp.json()
+    # Full schema — all declared types, independent of whether entities exist.
+    by_type = {t["key"]: t for t in body["types"]}
+    assert set(by_type) == {"incident", "service"}
+    assert by_type["incident"]["layer"] == "behavioral"
+    assert {l["key"] for l in body["layers"]} == {"behavioral", "structural"}
+    assert set(body["relationship_fields"]) == {"affects", "resolved_by"}
+
+
+def test_default_block_ontology_has_18_types(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    body = client.get("/blocks/plain/ontology").json()
+    assert len(body["types"]) == 18
+    assert "system" in {t["key"] for t in body["types"]}
+
+
+def test_block_ontology_unknown_block_404(client: TestClient) -> None:
+    assert client.get("/blocks/ghost/ontology").status_code == 404

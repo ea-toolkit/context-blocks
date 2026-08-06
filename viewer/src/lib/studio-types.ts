@@ -89,6 +89,25 @@ export interface BlockGraph {
   entity_types: GraphEntityType[];
 }
 
+export interface OntologyTypeInfo {
+  key: string;
+  label: string;
+  layer: string;
+}
+
+export interface OntologyLayerInfo {
+  key: string;
+  label: string;
+  color: string;
+}
+
+export interface BlockOntology {
+  source: string;
+  layers: OntologyLayerInfo[];
+  types: OntologyTypeInfo[];
+  relationship_fields: string[];
+}
+
 export interface StudioHealth {
   status: string;
   root: string;

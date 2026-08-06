@@ -3712,3 +3712,17 @@ code, pre {
   border-radius: var(--cb-radius); overflow: hidden;
 }
 .studio-graph .map { height: 100%; }
+
+/* Studio — ontology schema blueprint */
+.studio-schema {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--cb-space-md); margin: var(--cb-space-md) 0;
+}
+.studio-schema__layer {
+  border: 1px solid var(--cb-border); border-top: 3px solid var(--cb-border-strong);
+  border-radius: var(--cb-radius); background: var(--cb-surface); padding: var(--cb-space-md);
+}
+.studio-schema__layer-head {
+  font-size: var(--cb-font-size-xs); text-transform: uppercase;
+  letter-spacing: 0.05em; font-weight: 600; margin-bottom: var(--cb-space-sm);
+}

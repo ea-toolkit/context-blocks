@@ -12,6 +12,7 @@ import type {
   ArtifactInfo,
   BlockDetail,
   BlockGraph,
+  BlockOntology,
   BlockSummary,
   CreateBlockPayload,
   EntityListItem,
@@ -99,6 +100,7 @@ export const studio = {
   listArtifacts: (name: string) =>
     api<ArtifactInfo[]>(`/blocks/${encodeURIComponent(name)}/artifacts`),
   getGraph: (name: string) => api<BlockGraph>(`/blocks/${encodeURIComponent(name)}/graph`),
+  getOntology: (name: string) => api<BlockOntology>(`/blocks/${encodeURIComponent(name)}/ontology`),
   createBlock: (payload: CreateBlockPayload) =>
     api<BlockDetail>('/blocks', { method: 'POST', body: JSON.stringify(payload) }),
   addEntity: (name: string, content: string) =>

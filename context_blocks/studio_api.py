@@ -192,6 +192,25 @@ class BlockGraphResponse(BaseModel):
     entity_types: list[GraphEntityType]
 
 
+class OntologyTypeInfo(BaseModel):
+    key: str
+    label: str
+    layer: str
+
+
+class OntologyLayerInfo(BaseModel):
+    key: str
+    label: str
+    color: str
+
+
+class BlockOntologyResponse(BaseModel):
+    source: str
+    layers: list[OntologyLayerInfo]
+    types: list[OntologyTypeInfo]
+    relationship_fields: list[str]
+
+
 # ── Helpers ──
 
 def _resolve_root(root: str | Path | None) -> Path:
@@ -474,6 +493,29 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             GraphEntityType(key=t, label=_type_label(ont, t), layer=lyr) for t, lyr in sorted(types_seen.items())
         ]
         return BlockGraphResponse(nodes=nodes, edges=edges, layers=layers, entity_types=entity_types)
+
+    @app.get("/blocks/{name}/ontology", response_model=BlockOntologyResponse)
+    async def get_block_ontology(name: str) -> BlockOntologyResponse:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+        ont = _resolve_ontology(project_root, config)
+
+        types = sorted(ont.types)
+        distinct_layers = sorted({ont.get_layer(t) for t in types})
+        layer_color_of = {layer: _layer_color(layer, i) for i, layer in enumerate(distinct_layers)}
+
+        return BlockOntologyResponse(
+            source=ont.source,
+            layers=[
+                OntologyLayerInfo(key=lyr, label=lyr.title(), color=layer_color_of[lyr]) for lyr in distinct_layers
+            ],
+            types=[
+                OntologyTypeInfo(key=t, label=_type_label(ont, t), layer=ont.get_layer(t)) for t in types
+            ],
+            relationship_fields=sorted(ont.relationship_fields),
+        )
 
     def _require_block(name: str) -> None:
         if registry().get(name) is None:
