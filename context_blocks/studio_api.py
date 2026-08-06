@@ -14,6 +14,7 @@ Run:
 from __future__ import annotations
 
 import os
+from collections import Counter
 from pathlib import Path
 
 import structlog
@@ -40,6 +41,43 @@ logger = structlog.get_logger(__name__)
 META_MODEL_FILENAME = "meta-model.yaml"
 SEED_FILENAME = "seed-context.md"
 PROJECT_MARKER = ".contextblocks"
+
+# Colors for the six built-in layers (mirrors viewer/src/config/meta-model.yaml).
+_LAYER_COLORS = {
+    "structural": "#4A90E2",
+    "behavioral": "#1ABC9C",
+    "reference": "#0891B2",
+    "organizational": "#9B59B6",
+    "language": "#F39C12",
+    "decision": "#B45309",
+}
+# Fallback palette for custom-ontology layers not in the built-in set.
+_LAYER_PALETTE = ["#4A90E2", "#1ABC9C", "#0891B2", "#9B59B6", "#F39C12", "#B45309", "#E74C3C", "#16A085"]
+
+
+def _layer_color(layer: str, index: int = 0) -> str:
+    return _LAYER_COLORS.get(layer) or _LAYER_PALETTE[index % len(_LAYER_PALETTE)]
+
+
+def _type_label(ont: Ontology, entity_type: str) -> str:
+    return ont.type_to_label.get(entity_type) or entity_type.replace("-", " ").title()
+
+
+def _type_icon(label: str) -> str:
+    """Short badge code for a type — initials of the label words (max 3 chars)."""
+    words = [w for w in label.replace("-", " ").split() if w]
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return "".join(w[0] for w in words[:3]).upper()
+
+
+def _as_confidence(value: object) -> float:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 1.0
 
 
 # ── Request / Response models ──
@@ -112,6 +150,46 @@ class ArtifactInfoResponse(BaseModel):
     path: str
     size: int
     content_type: str
+
+
+class GraphNode(BaseModel):
+    id: str
+    name: str
+    type: str
+    type_label: str
+    type_icon: str
+    layer: str
+    layer_color: str
+    confidence: float
+    description: str
+    relationship_count: int
+    incoming_count: int
+    outgoing_count: int
+
+
+class GraphEdge(BaseModel):
+    source: str
+    type: str
+    target: str
+
+
+class GraphLayer(BaseModel):
+    key: str
+    label: str
+    color: str
+
+
+class GraphEntityType(BaseModel):
+    key: str
+    label: str
+    layer: str
+
+
+class BlockGraphResponse(BaseModel):
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    layers: list[GraphLayer]
+    entity_types: list[GraphEntityType]
 
 
 # ── Helpers ──
@@ -326,6 +404,76 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             path=str(dest.relative_to(output_dir)),
             warnings=result.warning_messages,
         )
+
+    @app.get("/blocks/{name}/graph", response_model=BlockGraphResponse)
+    async def get_block_graph(name: str) -> BlockGraphResponse:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+        ont = _resolve_ontology(project_root, config)
+
+        entities_dir = reg.block_output_dir(name) / "entities"
+        parsed: list[dict] = []
+        if entities_dir.exists():
+            for md in sorted(entities_dir.rglob("*.md")):
+                fm, _ = parse_frontmatter(md.read_text(encoding="utf-8"))
+                if fm and fm.get("id"):
+                    parsed.append(fm)
+
+        ids = {str(fm["id"]) for fm in parsed}
+
+        # Edges from ontology relationship fields; degree counters per node.
+        edges: list[GraphEdge] = []
+        outgoing: Counter = Counter()
+        incoming: Counter = Counter()
+        for fm in parsed:
+            src = str(fm["id"])
+            for key, val in fm.items():
+                if not ont.is_relationship_field(key):
+                    continue
+                targets = val if isinstance(val, list) else [val]
+                for target in targets:
+                    tgt = str(target)
+                    edges.append(GraphEdge(source=src, type=key, target=tgt))
+                    outgoing[src] += 1
+                    if tgt in ids:
+                        incoming[tgt] += 1
+
+        # Stable color per distinct layer present.
+        distinct_layers = sorted({ont.get_layer(str(fm.get("type", ""))) for fm in parsed})
+        layer_color_of = {layer: _layer_color(layer, i) for i, layer in enumerate(distinct_layers)}
+
+        nodes: list[GraphNode] = []
+        types_seen: dict[str, str] = {}
+        for fm in parsed:
+            eid = str(fm["id"])
+            etype = str(fm.get("type", ""))
+            layer = ont.get_layer(etype)
+            types_seen[etype] = layer
+            label = _type_label(ont, etype)
+            nodes.append(
+                GraphNode(
+                    id=eid,
+                    name=str(fm.get("name", eid)),
+                    type=etype,
+                    type_label=label,
+                    type_icon=_type_icon(label),
+                    layer=layer,
+                    layer_color=layer_color_of.get(layer, _layer_color(layer)),
+                    confidence=_as_confidence(fm.get("confidence", 1.0)),
+                    description=str(fm.get("description", "")),
+                    relationship_count=outgoing[eid] + incoming[eid],
+                    incoming_count=incoming[eid],
+                    outgoing_count=outgoing[eid],
+                )
+            )
+
+        layers = [GraphLayer(key=lyr, label=lyr.title(), color=layer_color_of[lyr]) for lyr in distinct_layers]
+        entity_types = [
+            GraphEntityType(key=t, label=_type_label(ont, t), layer=lyr) for t, lyr in sorted(types_seen.items())
+        ]
+        return BlockGraphResponse(nodes=nodes, edges=edges, layers=layers, entity_types=entity_types)
 
     def _require_block(name: str) -> None:
         if registry().get(name) is None:
