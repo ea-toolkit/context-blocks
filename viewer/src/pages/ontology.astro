@@ -1,25 +1,53 @@
 ---
+/**
+ * Ontology Page — the type-level schema graph.
+ *
+ * Serializes the same entity/edge data as the Map at build time; OntologyView
+ * aggregates it to the type level (types as nodes, type-relationships as edges),
+ * or fetches the active block live via ?block=. client:only — ReactFlow is
+ * browser-only.
+ */
 import Layout from '../layouts/Layout.astro';
 import OntologyView from '../components/ontology/OntologyView';
+import { entities, edges } from '../data/registry';
 import { loadMetaModel } from '../config/meta-model-loader';
 
-// Baked from the active block's meta-model (same source as Map/Explorer).
-const mm = loadMetaModel();
-const layers = Object.entries(mm.layers).map(([key, l]) => ({ key, label: l.label, color: l.color }));
-const types = Object.entries(mm.entity_types).map(([key, t]) => ({ key, label: t.label, layer: t.layer }));
-const relationshipFields = mm.relationship_fields ?? [];
+const config = loadMetaModel();
+
+const layers = Object.entries(config.layers).map(([key, lc]) => ({ key, label: lc.label, color: lc.color }));
+const entityTypes = Object.entries(config.entity_types).map(([key, tc]) => ({ key, label: tc.label, layer: tc.layer }));
+
+const incomingCounts = new Map<string, number>();
+for (const edge of edges) {
+  incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+}
+
+const serializedEntities = [...entities.values()].map(e => ({
+  id: e.id,
+  name: e.name,
+  type: e.type,
+  typeLabel: e.typeLabel,
+  typeIcon: e.typeIcon,
+  layer: e.layer,
+  layerColor: e.layerColor,
+  confidence: e.confidence,
+  description: e.description,
+  outgoingCount: e.relationships.length,
+  incomingCount: incomingCounts.get(e.id) ?? 0,
+  relationshipCount: e.relationships.length + (incomingCounts.get(e.id) ?? 0),
+}));
+
+const serializedEdges = edges.map(e => ({ source: e.source, target: e.target, type: e.type }));
 ---
 
-<Layout title="Ontology" activePage="ontology">
-  <div class="studio">
-    <div class="studio__header">
-      <div>
-        <div class="studio__title">Ontology</div>
-        <div class="studio__subtitle">
-          The schema blueprint — entity types grouped by layer, and the relationship allowlist.
-        </div>
-      </div>
-    </div>
-    <OntologyView client:only="react" layers={layers} types={types} relationshipFields={relationshipFields} />
+<Layout title="Ontology" activePage="ontology" pageTitle="Ontology">
+  <div style="height: 100%; overflow: hidden; display: flex; flex-direction: column; margin: calc(-1 * var(--cb-space-xl)); margin-top: 0;">
+    <OntologyView
+      client:only="react"
+      entities={serializedEntities}
+      edges={serializedEdges}
+      layers={layers}
+      entityTypes={entityTypes}
+    />
   </div>
 </Layout>
