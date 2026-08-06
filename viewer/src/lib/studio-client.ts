@@ -11,6 +11,7 @@ import type {
   AddEntityResponse,
   ArtifactInfo,
   BlockDetail,
+  BlockGraph,
   BlockSummary,
   CreateBlockPayload,
   EntityListItem,
@@ -97,6 +98,7 @@ export const studio = {
     api<EntityListItem[]>(`/blocks/${encodeURIComponent(name)}/entities`),
   listArtifacts: (name: string) =>
     api<ArtifactInfo[]>(`/blocks/${encodeURIComponent(name)}/artifacts`),
+  getGraph: (name: string) => api<BlockGraph>(`/blocks/${encodeURIComponent(name)}/graph`),
   createBlock: (payload: CreateBlockPayload) =>
     api<BlockDetail>('/blocks', { method: 'POST', body: JSON.stringify(payload) }),
   addEntity: (name: string, content: string) =>
