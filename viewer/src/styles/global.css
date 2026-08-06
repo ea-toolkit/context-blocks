@@ -3638,6 +3638,13 @@ code, pre {
 }
 .studio-errors li { font-family: var(--cb-font-mono); font-size: var(--cb-font-size-xs); color: var(--cb-score-missing); }
 
+.studio-warnings {
+  list-style: none; margin: var(--cb-space-sm) 0; padding: var(--cb-space-sm) var(--cb-space-md);
+  border: 1px solid var(--cb-score-incomplete); border-radius: var(--cb-radius-sm);
+  background: var(--cb-score-incomplete-bg);
+}
+.studio-warnings li { font-family: var(--cb-font-mono); font-size: var(--cb-font-size-xs); color: var(--cb-score-incomplete); }
+
 .studio-chip {
   display: inline-block; font-family: var(--cb-font-mono); font-size: var(--cb-font-size-xs);
   border: 1px solid var(--cb-border); border-radius: var(--cb-radius-pill);

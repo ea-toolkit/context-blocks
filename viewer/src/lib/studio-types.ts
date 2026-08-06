@@ -39,6 +39,7 @@ export interface AddEntityResponse {
   id: string;
   type: string;
   path: string;
+  warnings: string[];
 }
 
 export interface ArtifactInfo {

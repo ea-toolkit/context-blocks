@@ -237,6 +237,17 @@ def test_add_duplicate_entity_409(client: TestClient) -> None:
     assert second.status_code == 409
 
 
+def test_add_entity_with_custom_metadata_returns_warnings(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "incidents", "ontology_yaml": _custom_ontology_yaml()})
+    # `owner` is neither a standard field nor an ontology relationship → allowed, warned.
+    resp = client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md(owner="raj")},
+    )
+    assert resp.status_code == 201, resp.text
+    assert any("owner" in w for w in resp.json()["warnings"])
+
+
 # ── list entities ────────────────────────────────────────────────────────────
 
 

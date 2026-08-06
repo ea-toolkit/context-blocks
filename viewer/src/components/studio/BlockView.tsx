@@ -93,10 +93,7 @@ export default function BlockView({ name, onBack }: Props) {
             {adding && (
               <AddEntityForm
                 blockName={name}
-                onAdded={() => {
-                  setAdding(false);
-                  void load();
-                }}
+                onAdded={() => void load()}
                 onCancel={() => setAdding(false)}
               />
             )}

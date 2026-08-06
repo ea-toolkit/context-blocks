@@ -95,6 +95,8 @@ class AddEntityResponse(BaseModel):
     type: str
     # Path of the written file, relative to the block's output dir.
     path: str
+    # Non-blocking notes (e.g. custom-metadata fields kept but not graphed).
+    warnings: list[str] = []
 
 
 class EntityListItem(BaseModel):
@@ -322,6 +324,7 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             id=entity_id,
             type=entity_type,
             path=str(dest.relative_to(output_dir)),
+            warnings=result.warning_messages,
         )
 
     def _require_block(name: str) -> None:

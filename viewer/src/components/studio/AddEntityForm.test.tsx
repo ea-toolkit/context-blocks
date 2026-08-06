@@ -25,7 +25,12 @@ describe('AddEntityForm', () => {
   });
 
   it('adds a valid entity and calls onAdded', async () => {
-    const body: AddEntityResponse = { id: 'checkout-outage', type: 'incident', path: 'entities/incidents/checkout-outage.md' };
+    const body: AddEntityResponse = {
+      id: 'checkout-outage',
+      type: 'incident',
+      path: 'entities/incidents/checkout-outage.md',
+      warnings: [],
+    };
     const spy = vi.spyOn(client.studio, 'addEntity').mockResolvedValue({ ok: true, status: 201, body });
     const onAdded = vi.fn();
     render(<AddEntityForm blockName="incidents" onAdded={onAdded} />);
@@ -33,6 +38,40 @@ describe('AddEntityForm', () => {
     submit();
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
     expect(spy).toHaveBeenCalledWith('incidents', '---\ntype: incident\n---');
+  });
+
+  it('keeps the form open and shows warnings on a metadata add', async () => {
+    vi.spyOn(client.studio, 'addEntity').mockResolvedValue({
+      ok: true,
+      status: 201,
+      body: {
+        id: 'x',
+        type: 'incident',
+        path: 'p',
+        warnings: ['owner: kept as custom metadata — not a graph relationship'],
+      },
+    });
+    const onAdded = vi.fn();
+    const onCancel = vi.fn();
+    render(<AddEntityForm blockName="incidents" onAdded={onAdded} onCancel={onCancel} />);
+    fireEvent.change(textarea(), { target: { value: '---\ntype: incident\nowner: raj\n---' } });
+    submit();
+    expect(await screen.findByText(/kept as custom metadata/i)).toBeInTheDocument();
+    expect(onAdded).toHaveBeenCalled(); // list refreshed
+    expect(onCancel).not.toHaveBeenCalled(); // stayed open to show the note
+  });
+
+  it('closes the form on a clean add (no warnings)', async () => {
+    vi.spyOn(client.studio, 'addEntity').mockResolvedValue({
+      ok: true,
+      status: 201,
+      body: { id: 'x', type: 'incident', path: 'p', warnings: [] },
+    });
+    const onCancel = vi.fn();
+    render(<AddEntityForm blockName="incidents" onAdded={() => {}} onCancel={onCancel} />);
+    fireEvent.change(textarea(), { target: { value: '---\ntype: incident\n---' } });
+    submit();
+    await waitFor(() => expect(onCancel).toHaveBeenCalled());
   });
 
   it('renders per-field validation errors on 422', async () => {
