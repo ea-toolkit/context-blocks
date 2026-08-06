@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import OntologySchema from '../components/ontology/OntologySchema';
+import { loadMetaModel } from '../config/meta-model-loader';
+
+// Baked from the active block's meta-model (same source as Map/Explorer).
+const mm = loadMetaModel();
+const layers = Object.entries(mm.layers).map(([key, l]) => ({ key, label: l.label, color: l.color }));
+const types = Object.entries(mm.entity_types).map(([key, t]) => ({ key, label: t.label, layer: t.layer }));
+const relationshipFields = mm.relationship_fields ?? [];
+---
+
+<Layout title="Ontology" activePage="ontology">
+  <div class="studio">
+    <div class="studio__header">
+      <div>
+        <div class="studio__title">Ontology</div>
+        <div class="studio__subtitle">
+          The schema blueprint — entity types grouped by layer, and the relationship allowlist.
+        </div>
+      </div>
+    </div>
+    <OntologySchema layers={layers} types={types} relationshipFields={relationshipFields} />
+  </div>
+</Layout>
