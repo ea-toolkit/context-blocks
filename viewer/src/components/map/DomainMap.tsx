@@ -31,6 +31,7 @@ import '@xyflow/react/dist/style.css';
 
 import EntityNode, { type EntityNodeData } from './EntityNode';
 import RelationEdge, { CBEdgeMarkerDefs } from './RelationEdge';
+import { nodeDegrees } from '../../lib/graph-layout';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ export interface DomainMapProps {
   entityTypes: EntityTypeMeta[];
 }
 
-type LayoutMode = 'force' | 'TB' | 'LR';
+type LayoutMode = 'organic' | 'hubs' | 'tree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -169,9 +170,41 @@ function applyFallbackLayout(nodes: Node[]): Node[] {
   }));
 }
 
+/** "Hubs" layout: well-connected nodes force-clustered in a central core,
+ * low-degree leaf nodes arranged on an outer ring. */
+function buildHubsLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const degree = nodeDegrees(nodes, edges);
+  const core = nodes.filter(n => (degree.get(n.id) ?? 0) >= 2);
+  const periphery = nodes.filter(n => (degree.get(n.id) ?? 0) < 2);
+
+  // Core via the force simulation (compact, central around origin).
+  const coreLaid = core.length ? buildForceLayout(core, edges) : [];
+
+  let maxR = 0;
+  for (const n of coreLaid) {
+    const r = Math.hypot(n.position.x + NODE_WIDTH / 2, n.position.y + NODE_HEIGHT / 2);
+    if (r > maxR) maxR = r;
+  }
+  const ringR = Math.max(maxR + 320, Math.sqrt(nodes.length) * 55);
+
+  const periLaid = periphery.map((node, i) => {
+    const angle = (i / Math.max(periphery.length, 1)) * 2 * Math.PI;
+    return {
+      ...node,
+      position: {
+        x: Math.cos(angle) * ringR - NODE_WIDTH / 2,
+        y: Math.sin(angle) * ringR - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  return [...coreLaid, ...periLaid];
+}
+
 function applyLayout(nodes: Node[], edges: Edge[], mode: LayoutMode): Node[] {
-  if (mode === 'force') return buildForceLayout(nodes, edges);
-  return buildDagreLayout(nodes, edges, mode);
+  if (mode === 'organic') return buildForceLayout(nodes, edges);
+  if (mode === 'hubs') return buildHubsLayout(nodes, edges);
+  return buildDagreLayout(nodes, edges, 'TB');
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -202,11 +235,11 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 const LAYOUT_LABELS: Record<LayoutMode, string> = {
-  force: 'Graph',
-  TB: 'Top → Down',
-  LR: 'Left → Right',
+  organic: 'Organic',
+  hubs: 'Hubs',
+  tree: 'Tree',
 };
-const LAYOUT_MODES: LayoutMode[] = ['force', 'TB', 'LR'];
+const LAYOUT_MODES: LayoutMode[] = ['organic', 'hubs', 'tree'];
 
 // ── Inner component ────────────────────────────────────────────────────────
 
@@ -222,8 +255,9 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
   const [confidenceMin, setConfidenceMin] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('force');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('organic');
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [zoomLevel, setZoomLevel] = useState(0.5);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -328,10 +362,13 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
       ? getConnectedIds(hoveredNodeId, allEdgesRef.current)
       : null;
 
+    const term = searchTerm.trim().toLowerCase();
     const visibleNodes = filtered.map(node => {
       const d = node.data as EntityNodeData;
       let opacity = 1;
-      if (hoveredNodeId && connectedToHovered && !connectedToHovered.has(node.id)) {
+      if (term && !(d.name.toLowerCase().includes(term) || node.id.toLowerCase().includes(term))) {
+        opacity = 0.12;
+      } else if (hoveredNodeId && connectedToHovered && !connectedToHovered.has(node.id)) {
         opacity = 0.2;
       }
       return {
@@ -361,7 +398,7 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
 
     setNodes(visibleNodes);
     setEdges(visibleEdges);
-  }, [activeLayers, activeTypes, confidenceMin, hoveredNodeId, focusedNodeId, zoomLevel, isReady, setNodes, setEdges]);
+  }, [activeLayers, activeTypes, confidenceMin, hoveredNodeId, focusedNodeId, zoomLevel, searchTerm, isReady, setNodes, setEdges]);
 
   // ── Event handlers ──
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
@@ -429,7 +466,7 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
   if (!isReady || isComputing) {
     return (
       <div className="map__loading">
-        Computing {layoutMode === 'force' ? 'force' : 'hierarchical'} layout for {entities.length} nodes...
+        Computing {LAYOUT_LABELS[layoutMode].toLowerCase()} layout for {entities.length} nodes...
       </div>
     );
   }
@@ -438,6 +475,19 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
     <div className="map">
       {/* ── Filter toolbar ── */}
       <div className="map__toolbar">
+        <div className="map__filter-group">
+          <input
+            type="search"
+            placeholder="Find a node…"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="map__search"
+            aria-label="Find a node"
+          />
+        </div>
+
+        <div className="map__divider" />
+
         <div className="map__filter-group">
           <span className="map__filter-label">Layers</span>
           {layers.map(layer => (
@@ -651,6 +701,17 @@ function DomainMapInner({ entities, edges: rawEdges, layers, entityTypes }: Doma
           background: var(--cb-surface-hover) !important;
           color: var(--cb-text) !important;
         }
+        .map__search {
+          background: var(--cb-surface-raised);
+          color: var(--cb-text);
+          border: 1px solid var(--cb-border);
+          border-radius: var(--cb-radius-sm);
+          padding: 6px 10px;
+          font: inherit;
+          font-size: var(--cb-font-size-sm);
+          min-width: 180px;
+        }
+        .map__search:focus { outline: none; border-color: var(--cb-primary); }
       `}</style>
     </div>
   );
