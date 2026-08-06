@@ -346,3 +346,56 @@ def test_artifact_endpoints_unknown_block_404(client: TestClient) -> None:
 def test_get_missing_artifact_404(client: TestClient) -> None:
     _make_block(client)
     assert client.get("/blocks/incidents/artifacts/nope.png").status_code == 404
+
+
+# ── graph ────────────────────────────────────────────────────────────────────
+
+_SERVICE_MD = (
+    "---\ntype: service\nid: payments-service\nname: Payments Service\n"
+    "description: Handles payments\nstatus: active\n---\n\n# Payments Service\n"
+)
+
+
+def test_block_graph(client: TestClient) -> None:
+    _make_block(client)
+    client.post(
+        "/blocks/incidents/entities",
+        json={"content": _incident_entity_md(affects="[payments-service]")},
+    )
+    client.post("/blocks/incidents/entities", json={"content": _SERVICE_MD})
+
+    resp = client.get("/blocks/incidents/graph")
+    assert resp.status_code == 200
+    g = resp.json()
+
+    by_id = {n["id"]: n for n in g["nodes"]}
+    assert set(by_id) == {"checkout-outage", "payments-service"}
+
+    # edge built from the ontology relationship field `affects`
+    assert any(
+        e["source"] == "checkout-outage" and e["target"] == "payments-service" and e["type"] == "affects"
+        for e in g["edges"]
+    )
+    # degree counters
+    assert by_id["checkout-outage"]["outgoing_count"] == 1
+    assert by_id["payments-service"]["incoming_count"] == 1
+
+    # node metadata for the graph view
+    assert by_id["checkout-outage"]["type_label"] == "Incidents"
+    assert by_id["checkout-outage"]["layer"] == "behavioral"
+    assert by_id["checkout-outage"]["layer_color"].startswith("#")
+
+    # layers + type legend
+    assert {l["key"] for l in g["layers"]} >= {"behavioral", "structural"}
+    assert {t["key"] for t in g["entity_types"]} == {"incident", "service"}
+
+
+def test_block_graph_empty_block(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "empty"})
+    g = client.get("/blocks/empty/graph").json()
+    assert g["nodes"] == []
+    assert g["edges"] == []
+
+
+def test_block_graph_unknown_block_404(client: TestClient) -> None:
+    assert client.get("/blocks/ghost/graph").status_code == 404
