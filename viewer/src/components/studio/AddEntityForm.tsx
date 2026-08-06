@@ -12,11 +12,13 @@ interface Props {
 export default function AddEntityForm({ blockName, onAdded, onCancel }: Props) {
   const [content, setContent] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setErrors([]);
+    setWarnings([]);
     if (!content.trim()) {
       setErrors(['Paste entity markdown first']);
       return;
@@ -26,7 +28,13 @@ export default function AddEntityForm({ blockName, onAdded, onCancel }: Props) {
       const res = await studio.addEntity(blockName, content);
       if (res.ok) {
         setContent('');
-        onAdded();
+        onAdded(); // refresh the entity list
+        const notes = res.body?.warnings ?? [];
+        if (notes.length) {
+          setWarnings(notes); // keep the form open so the curator sees the notes
+        } else if (onCancel) {
+          onCancel(); // clean add — close the form
+        }
         return;
       }
       if (res.status === 422) {
@@ -64,6 +72,14 @@ export default function AddEntityForm({ blockName, onAdded, onCancel }: Props) {
         <ul className="studio-errors">
           {errors.map((e, i) => (
             <li key={i}>{e}</li>
+          ))}
+        </ul>
+      )}
+
+      {warnings.length > 0 && (
+        <ul className="studio-warnings" aria-label="Warnings">
+          {warnings.map((w, i) => (
+            <li key={i}>{w}</li>
           ))}
         </ul>
       )}
