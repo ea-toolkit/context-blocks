@@ -141,12 +141,29 @@ def test_invalid_status_fails(tmp_path: Path) -> None:
     assert any(e.field == "status" for e in result.errors)
 
 
-def test_unknown_relationship_field_fails(tmp_path: Path) -> None:
+def test_unknown_field_is_warning_not_error(tmp_path: Path) -> None:
     ont = _custom_ontology(tmp_path)
     # "depends_on" is a default relationship field but NOT in this custom ontology.
+    # It is now kept as metadata (valid) with a soft warning, not rejected.
     result = validate_entity_frontmatter(_entity_md(depends_on="x"), ont)
-    assert not result.valid
-    assert any(e.field == "depends_on" for e in result.errors)
+    assert result.valid
+    assert result.errors == []
+    assert any(w.field == "depends_on" for w in result.warnings)
+
+
+def test_custom_metadata_is_allowed_with_warning(tmp_path: Path) -> None:
+    ont = _custom_ontology(tmp_path)
+    result = validate_entity_frontmatter(_entity_md(owner="raj", criticality="high"), ont)
+    assert result.valid, result.error_messages
+    fields = {w.field for w in result.warnings}
+    assert {"owner", "criticality"} <= fields
+
+
+def test_clean_entity_has_no_warnings(tmp_path: Path) -> None:
+    ont = _custom_ontology(tmp_path)
+    result = validate_entity_frontmatter(_entity_md(affects="payments"), ont)
+    assert result.valid
+    assert result.warnings == []
 
 
 def test_dangling_relationship_target_is_tolerated(tmp_path: Path) -> None:
