@@ -63,15 +63,26 @@ class FieldError:
 
 @dataclass
 class ValidationResult:
-    """Outcome of validating one entity file against an ontology."""
+    """Outcome of validating one entity file against an ontology.
+
+    ``errors`` block the entity (``valid`` is False when any exist). ``warnings``
+    do not block — they surface things worth knowing, e.g. an unrecognized
+    frontmatter key that is kept as custom metadata rather than turned into a
+    typed graph relationship.
+    """
 
     valid: bool
     errors: list[FieldError] = field(default_factory=list)
+    warnings: list[FieldError] = field(default_factory=list)
     frontmatter: dict = field(default_factory=dict)
 
     @property
     def error_messages(self) -> list[str]:
         return [str(e) for e in self.errors]
+
+    @property
+    def warning_messages(self) -> list[str]:
+        return [str(w) for w in self.warnings]
 
 
 def parse_frontmatter(content: str) -> tuple[dict | None, str]:
@@ -110,8 +121,11 @@ def validate_entity_frontmatter(
 
     Returns:
         A ``ValidationResult``; ``valid`` is True only when ``errors`` is empty.
+        Unknown frontmatter keys are allowed (kept as custom metadata) and
+        reported as ``warnings``, not errors.
     """
     errors: list[FieldError] = []
+    warnings: list[FieldError] = []
 
     fm, _ = parse_frontmatter(content)
     if fm is None:
@@ -142,13 +156,20 @@ def validate_entity_frontmatter(
         allowed = ", ".join(sorted(VALID_STATUS))
         errors.append(FieldError("status", f"'{status}' must be one of: {allowed}"))
 
-    # Every non-standard key must be a relationship field the ontology allows.
+    # Unknown frontmatter keys are ALLOWED as custom metadata — the ontology
+    # defines what is typed/graphed, not the ceiling on what a file may hold. But
+    # flag each as a soft warning: it is not turned into a typed graph
+    # relationship (this also surfaces a mistyped relationship field such as
+    # `depend_on` instead of `depends_on`).
     for key in fm:
-        if key in STANDARD_FIELDS:
+        if key in STANDARD_FIELDS or ontology.is_relationship_field(key):
             continue
-        if not ontology.is_relationship_field(key):
-            errors.append(
-                FieldError(key, f"'{key}' is not a known relationship field in this block's ontology")
+        warnings.append(
+            FieldError(
+                key,
+                f"'{key}' kept as custom metadata — not a graph relationship "
+                f"(if you meant a relationship, use one of the ontology's relationship fields)",
             )
+        )
 
-    return ValidationResult(valid=not errors, errors=errors, frontmatter=fm)
+    return ValidationResult(valid=not errors, errors=errors, warnings=warnings, frontmatter=fm)
