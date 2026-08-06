@@ -49,6 +49,46 @@ export interface ArtifactInfo {
   content_type: string;
 }
 
+export interface GraphNode {
+  id: string;
+  name: string;
+  type: string;
+  type_label: string;
+  type_icon: string;
+  layer: string;
+  layer_color: string;
+  confidence: number;
+  description: string;
+  relationship_count: number;
+  incoming_count: number;
+  outgoing_count: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  type: string;
+  target: string;
+}
+
+export interface GraphLayer {
+  key: string;
+  label: string;
+  color: string;
+}
+
+export interface GraphEntityType {
+  key: string;
+  label: string;
+  layer: string;
+}
+
+export interface BlockGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  layers: GraphLayer[];
+  entity_types: GraphEntityType[];
+}
+
 export interface StudioHealth {
   status: string;
   root: string;

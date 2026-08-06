@@ -3697,3 +3697,18 @@ code, pre {
   background: var(--cb-diagram-bg);
   border-radius: var(--cb-radius-sm);
 }
+
+/* Studio — tabs + graph */
+.studio-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--cb-border); margin: var(--cb-space-md) 0; }
+.studio-tab {
+  font: inherit; font-size: var(--cb-font-size-sm);
+  background: transparent; border: none; border-bottom: 2px solid transparent;
+  color: var(--cb-text-muted); padding: 8px 14px; cursor: pointer; margin-bottom: -1px;
+}
+.studio-tab:hover { color: var(--cb-text); }
+.studio-tab.is-active { color: var(--cb-primary); border-bottom-color: var(--cb-primary); }
+.studio-graph {
+  height: 640px; border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius); overflow: hidden;
+}
+.studio-graph .map { height: 100%; }
