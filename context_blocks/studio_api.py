@@ -13,7 +13,6 @@ Run:
 
 from __future__ import annotations
 
-import os
 from collections import Counter
 from pathlib import Path
 from typing import Literal
@@ -29,8 +28,8 @@ from context_blocks import storage
 from context_blocks.blocks import (
     BlockConfig,
     BlockRegistry,
-    find_project_root,
     is_valid_block_name,
+    resolve_workspace_root,
 )
 from context_blocks.importer import bulk_add_entities
 from context_blocks.meta_model import get_directory_for_type
@@ -248,13 +247,11 @@ class BlockOntologyResponse(BaseModel):
 # ── Helpers ──
 
 def _resolve_root(root: str | Path | None) -> Path:
-    """Resolve the project root: explicit arg, CB_PROJECT_ROOT env, or discovery."""
+    """Resolve the block-registry root: an explicit arg wins, otherwise defer to
+    the workspace resolver (CB_PROJECT_ROOT / CB_WORKSPACE / walk-up discovery)."""
     if root:
         return Path(root)
-    env_root = os.environ.get("CB_PROJECT_ROOT")
-    if env_root:
-        return Path(env_root)
-    return find_project_root()
+    return resolve_workspace_root()
 
 
 def _resolve_ontology(root: Path, config: BlockConfig) -> Ontology:
