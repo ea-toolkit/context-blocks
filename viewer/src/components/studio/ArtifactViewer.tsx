@@ -4,6 +4,7 @@ import { rendererFor } from '../../lib/artifact-render';
 import { artifactUrl } from '../../lib/studio-client';
 import type { ArtifactInfo } from '../../lib/studio-types';
 import BpmnArtifact from './BpmnArtifact';
+import DmnArtifact from './DmnArtifact';
 
 interface Props {
   block: string;
@@ -21,6 +22,9 @@ export default function ArtifactViewer({ block, artifact }: Props) {
   }
   if (kind === 'bpmn') {
     return <BpmnArtifact url={url} />;
+  }
+  if (kind === 'dmn') {
+    return <DmnArtifact url={url} />;
   }
   if (kind === 'xml') {
     return <XmlArtifact url={url} />;

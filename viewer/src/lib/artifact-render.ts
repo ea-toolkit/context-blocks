@@ -6,7 +6,7 @@
  * never wire in a public diagrams.net / plantuml.com dependency.
  */
 
-export type RendererKind = 'image' | 'svg' | 'bpmn' | 'xml' | 'drawio' | 'uml' | 'download';
+export type RendererKind = 'image' | 'svg' | 'bpmn' | 'dmn' | 'xml' | 'drawio' | 'uml' | 'download';
 
 const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 
@@ -19,6 +19,7 @@ export function rendererFor(filename: string): RendererKind {
   if (IMAGE_EXTS.includes(ext)) return 'image';
   if (ext === '.svg') return 'svg';
   if (ext === '.bpmn') return 'bpmn';
+  if (ext === '.dmn') return 'dmn';
   if (ext === '.xml') return 'xml';
   if (ext === '.drawio') return 'drawio';
   if (ext === '.uml' || ext === '.puml') return 'uml';

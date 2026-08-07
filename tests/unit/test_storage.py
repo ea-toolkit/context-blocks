@@ -8,6 +8,7 @@ from context_blocks import storage
 def test_is_allowed_artifact() -> None:
     assert storage.is_allowed_artifact("architecture.drawio")
     assert storage.is_allowed_artifact("flow.BPMN")  # case-insensitive
+    assert storage.is_allowed_artifact("pricing.dmn")
     assert storage.is_allowed_artifact("photo.png")
     assert not storage.is_allowed_artifact("notes.md")
     assert not storage.is_allowed_artifact("script.py")
@@ -21,6 +22,7 @@ def test_safe_filename_strips_paths() -> None:
 
 def test_guess_content_type() -> None:
     assert storage.guess_content_type("x.bpmn") == "application/xml"
+    assert storage.guess_content_type("x.dmn") == "application/xml"
     assert storage.guess_content_type("x.drawio") == "application/xml"
     assert storage.guess_content_type("x.svg") == "image/svg+xml"
     assert storage.guess_content_type("x.png") == "image/png"
