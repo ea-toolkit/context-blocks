@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,3 +148,45 @@ def find_project_root(start: Path | None = None) -> Path:
         if (parent / ".contextblocks").exists():
             return parent
     return Path.cwd().resolve()
+
+
+def find_repo_root(start: Path | None = None) -> Path:
+    """Walk up for a repo anchor (pyproject.toml or .git) — used to resolve
+    workspace-relative paths regardless of the current working directory."""
+    current = (start or Path.cwd()).resolve()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd().resolve()
+
+
+# Default workspace roots (relative to the repo root); overridable via env.
+DEFAULT_PUBLIC_WORKSPACE = "synthetic-domains"
+DEFAULT_PRIVATE_WORKSPACE = ".private/blocks"
+
+
+def resolve_workspace_root(start: Path | None = None) -> Path:
+    """Resolve the block-registry root, honoring (in order):
+
+    1. ``CB_PROJECT_ROOT`` — explicit override (absolute or relative path).
+    2. ``CB_WORKSPACE`` = ``public`` | ``private`` — selects a workspace root,
+       whose relative path comes from ``CB_WORKSPACE_PUBLIC`` /
+       ``CB_WORKSPACE_PRIVATE`` (defaults: ``synthetic-domains`` /
+       ``.private/blocks``), anchored at the repo root.
+    3. walk-up discovery (``find_project_root``) — the legacy default.
+    """
+    env_root = os.environ.get("CB_PROJECT_ROOT")
+    if env_root:
+        return Path(env_root)
+
+    workspace = os.environ.get("CB_WORKSPACE", "").strip().lower()
+    if workspace in ("public", "private"):
+        repo = find_repo_root(start)
+        if workspace == "public":
+            rel = os.environ.get("CB_WORKSPACE_PUBLIC", DEFAULT_PUBLIC_WORKSPACE)
+        else:
+            rel = os.environ.get("CB_WORKSPACE_PRIVATE", DEFAULT_PRIVATE_WORKSPACE)
+        candidate = Path(rel)
+        return candidate if candidate.is_absolute() else repo / candidate
+
+    return find_project_root(start)

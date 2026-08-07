@@ -19,13 +19,13 @@ def _resolve_output(block: str | None, output: Path) -> Path:
     CB_BLOCK env var is a fallback for --block."""
     import os
 
-    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.blocks import BlockRegistry, resolve_workspace_root
 
     block_name = block or os.environ.get("CB_BLOCK")
     if not block_name:
         return output
 
-    project_root = find_project_root()
+    project_root = resolve_workspace_root()
     registry = BlockRegistry(project_root)
     try:
         config = registry.resolve_block(block_name)
@@ -39,14 +39,14 @@ def _resolve_ontology(block: str | None):
     """Load the block's custom ontology if it registered one; else None (built-in default meta-model)."""
     import os
 
-    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.blocks import BlockRegistry, resolve_workspace_root
     from context_blocks.ontology import load_ontology_from_file
 
     block_name = block or os.environ.get("CB_BLOCK")
     if not block_name:
         return None
     try:
-        config = BlockRegistry(find_project_root()).resolve_block(block_name)
+        config = BlockRegistry(resolve_workspace_root()).resolve_block(block_name)
     except ValueError:
         return None
 
@@ -81,7 +81,7 @@ def import_entities(
     Each .md is validated against the block's ontology, routed to its type
     directory, and written. Invalid files are reported, not fatal.
     """
-    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.blocks import BlockRegistry, resolve_workspace_root
     from context_blocks.importer import bulk_add_entities
     from context_blocks.ontology import Ontology, load_ontology_from_file
 
@@ -92,7 +92,7 @@ def import_entities(
         console.print(f"[red]Folder not found: {folder}[/red]")
         raise typer.Exit(1)
 
-    project_root = root or find_project_root()
+    project_root = root or resolve_workspace_root()
     registry = BlockRegistry(project_root)
     try:
         config = registry.resolve_block(block)
@@ -146,11 +146,11 @@ def init(
     from context_blocks.blocks import (
         BlockConfig,
         BlockRegistry,
-        find_project_root,
+        resolve_workspace_root,
         is_valid_block_name,
     )
 
-    project_root = root or find_project_root()
+    project_root = root or resolve_workspace_root()
     registry = BlockRegistry(project_root)
 
     # Validate name
@@ -216,9 +216,9 @@ def blocks(
     root: Path = typer.Option(None, "--root", "-r", help="Project root directory"),
 ) -> None:
     """List all context blocks in the project."""
-    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.blocks import BlockRegistry, resolve_workspace_root
 
-    project_root = root or find_project_root()
+    project_root = root or resolve_workspace_root()
     registry = BlockRegistry(project_root)
 
     block_list = registry.list_blocks()
