@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from collections import Counter
 from pathlib import Path
+from typing import Literal
 
 import structlog
 import yaml
@@ -135,6 +136,38 @@ class AddEntityResponse(BaseModel):
     path: str
     # Non-blocking notes (e.g. custom-metadata fields kept but not graphed).
     warnings: list[str] = []
+
+
+class BulkEntityItem(BaseModel):
+    # Full entity markdown: YAML frontmatter + body.
+    content: str
+    # Optional expected id; when given, the frontmatter id must match it.
+    id: str | None = None
+
+
+class BulkAddEntitiesRequest(BaseModel):
+    entities: list[BulkEntityItem]
+    # How to treat an entity whose id already exists in the block:
+    #   "error"    -> report it as failed, write nothing for it
+    #   "skip"     -> leave the existing file untouched, report skipped
+    #   "overwrite"-> replace the existing file
+    on_conflict: Literal["error", "skip", "overwrite"] = "error"
+
+
+class BulkEntityResult(BaseModel):
+    id: str
+    type: str = ""
+    status: Literal["created", "skipped", "failed"]
+    path: str = ""
+    errors: list[str] = []
+    warnings: list[str] = []
+
+
+class BulkAddEntitiesResponse(BaseModel):
+    created: int
+    skipped: int
+    failed: int
+    results: list[BulkEntityResult]
 
 
 class EntityListItem(BaseModel):
@@ -422,6 +455,105 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             type=entity_type,
             path=str(dest.relative_to(output_dir)),
             warnings=result.warning_messages,
+        )
+
+    @app.post(
+        "/blocks/{name}/entities/bulk",
+        response_model=BulkAddEntitiesResponse,
+        status_code=201,
+    )
+    async def add_entities_bulk(
+        name: str, req: BulkAddEntitiesRequest
+    ) -> BulkAddEntitiesResponse:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+
+        ont = _resolve_ontology(project_root, config)
+        output_dir = reg.block_output_dir(name)
+
+        results: list[BulkEntityResult] = []
+        created = skipped = failed = 0
+        seen_in_batch: set[str] = set()
+
+        for item in req.entities:
+            result = validate_entity_frontmatter(item.content, ont, expected_id=item.id)
+            if not result.valid:
+                failed += 1
+                results.append(
+                    BulkEntityResult(
+                        id=item.id or "", status="failed", errors=result.error_messages
+                    )
+                )
+                continue
+
+            entity_type = str(result.frontmatter["type"])
+            entity_id = str(result.frontmatter["id"])
+            directory = get_directory_for_type(entity_type, ontology=ont)
+            dest_dir = output_dir / "entities" / directory
+            dest = dest_dir / f"{entity_id}.md"
+
+            # Guard against the same id appearing twice in one request.
+            if entity_id in seen_in_batch:
+                failed += 1
+                results.append(
+                    BulkEntityResult(
+                        id=entity_id,
+                        type=entity_type,
+                        status="failed",
+                        errors=[f"duplicate id '{entity_id}' within this batch"],
+                    )
+                )
+                continue
+
+            if dest.exists() and req.on_conflict != "overwrite":
+                if req.on_conflict == "skip":
+                    skipped += 1
+                    seen_in_batch.add(entity_id)
+                    results.append(
+                        BulkEntityResult(
+                            id=entity_id,
+                            type=entity_type,
+                            status="skipped",
+                            path=str(dest.relative_to(output_dir)),
+                        )
+                    )
+                else:  # "error"
+                    failed += 1
+                    results.append(
+                        BulkEntityResult(
+                            id=entity_id,
+                            type=entity_type,
+                            status="failed",
+                            errors=[f"entity '{entity_id}' already exists"],
+                        )
+                    )
+                continue
+
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest.write_text(item.content, encoding="utf-8")
+            seen_in_batch.add(entity_id)
+            created += 1
+            results.append(
+                BulkEntityResult(
+                    id=entity_id,
+                    type=entity_type,
+                    status="created",
+                    path=str(dest.relative_to(output_dir)),
+                    warnings=result.warning_messages,
+                )
+            )
+
+        logger.info(
+            "studio_entities_bulk_added",
+            block=name,
+            created=created,
+            skipped=skipped,
+            failed=failed,
+        )
+        return BulkAddEntitiesResponse(
+            created=created, skipped=skipped, failed=failed, results=results
         )
 
     @app.get("/blocks/{name}/graph", response_model=BlockGraphResponse)

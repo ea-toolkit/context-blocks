@@ -248,6 +248,125 @@ def test_add_entity_with_custom_metadata_returns_warnings(client: TestClient) ->
     assert any("owner" in w for w in resp.json()["warnings"])
 
 
+# ── bulk add entities ─────────────────────────────────────────────────────────
+
+
+def _system_md(eid: str, name: str = "Sys", desc: str = "d") -> str:
+    return "\n".join(
+        [
+            "---",
+            "type: system",
+            f"id: {eid}",
+            f"name: {name}",
+            f"description: {desc}",
+            "status: active",
+            "---",
+            "",
+            f"# {name}",
+        ]
+    )
+
+
+def test_bulk_add_creates_all(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={
+            "entities": [
+                {"content": _system_md("sys-a")},
+                {"content": _system_md("sys-b")},
+                {"content": _system_md("sys-c")},
+            ]
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert (body["created"], body["skipped"], body["failed"]) == (3, 0, 0)
+    assert {r["status"] for r in body["results"]} == {"created"}
+    assert (tmp_path / "plain" / "entities" / "systems" / "sys-a.md").exists()
+    assert len(client.get("/blocks/plain/entities").json()) == 3
+
+
+def test_bulk_reports_invalid_alongside_valid(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    bad = _system_md("bad").replace("type: system", "type: banana")
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={"entities": [{"content": _system_md("good")}, {"content": bad}]},
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["created"] == 1
+    assert body["failed"] == 1
+    fails = [r for r in body["results"] if r["status"] == "failed"]
+    assert fails and fails[0]["errors"]
+
+
+def test_bulk_on_conflict_skip_keeps_original(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    client.post("/blocks/plain/entities", json={"content": _system_md("dup", name="Original")})
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={
+            "on_conflict": "skip",
+            "entities": [
+                {"content": _system_md("dup", name="New")},
+                {"content": _system_md("fresh")},
+            ],
+        },
+    )
+    body = resp.json()
+    assert (body["created"], body["skipped"], body["failed"]) == (1, 1, 0)
+    dup = tmp_path / "plain" / "entities" / "systems" / "dup.md"
+    assert "Original" in dup.read_text()
+
+
+def test_bulk_on_conflict_error_by_default(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    client.post("/blocks/plain/entities", json={"content": _system_md("dup")})
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={"entities": [{"content": _system_md("dup")}]},
+    )
+    body = resp.json()
+    assert body["failed"] == 1
+    assert body["created"] == 0
+
+
+def test_bulk_on_conflict_overwrite_replaces(client: TestClient, tmp_path: Path) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    client.post("/blocks/plain/entities", json={"content": _system_md("dup", name="Original")})
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={"on_conflict": "overwrite", "entities": [{"content": _system_md("dup", name="Replaced")}]},
+    )
+    assert resp.json()["created"] == 1
+    assert "Replaced" in (tmp_path / "plain" / "entities" / "systems" / "dup.md").read_text()
+
+
+def test_bulk_duplicate_id_within_batch(client: TestClient) -> None:
+    client.post("/blocks", json={"name": "plain"})
+    resp = client.post(
+        "/blocks/plain/entities/bulk",
+        json={
+            "entities": [
+                {"content": _system_md("twin")},
+                {"content": _system_md("twin", name="Second")},
+            ]
+        },
+    )
+    body = resp.json()
+    assert body["created"] == 1
+    assert body["failed"] == 1
+
+
+def test_bulk_unknown_block_404(client: TestClient) -> None:
+    resp = client.post(
+        "/blocks/ghost/entities/bulk", json={"entities": [{"content": _system_md("x")}]}
+    )
+    assert resp.status_code == 404
+
+
 # ── list entities ────────────────────────────────────────────────────────────
 
 
