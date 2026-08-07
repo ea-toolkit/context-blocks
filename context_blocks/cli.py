@@ -67,6 +67,72 @@ def _resolve_ontology(block: str | None):
 # ---------------------------------------------------------------------------
 # cb init
 # ---------------------------------------------------------------------------
+@app.command(name="import")
+def import_entities(
+    folder: Path = typer.Argument(..., help="Folder of entity .md files to import (searched recursively)"),
+    block: str = typer.Option(..., "--block", "-b", help="Target block name"),
+    on_conflict: str = typer.Option(
+        "error", "--on-conflict", help="How to treat existing ids: error | skip | overwrite"
+    ),
+    root: Path = typer.Option(None, "--root", "-r", help="Project root directory (default: current dir)"),
+) -> None:
+    """Bulk-import a folder of entity markdown files into a block.
+
+    Each .md is validated against the block's ontology, routed to its type
+    directory, and written. Invalid files are reported, not fatal.
+    """
+    from context_blocks.blocks import BlockRegistry, find_project_root
+    from context_blocks.importer import bulk_add_entities
+    from context_blocks.ontology import Ontology, load_ontology_from_file
+
+    if on_conflict not in ("error", "skip", "overwrite"):
+        console.print(f"[red]--on-conflict must be error|skip|overwrite, got '{on_conflict}'.[/red]")
+        raise typer.Exit(1)
+    if not folder.is_dir():
+        console.print(f"[red]Folder not found: {folder}[/red]")
+        raise typer.Exit(1)
+
+    project_root = root or find_project_root()
+    registry = BlockRegistry(project_root)
+    try:
+        config = registry.resolve_block(block)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from None
+
+    # Resolve the block's ontology (custom file relative to root, or built-in default).
+    onto = config.ontology or "default"
+    ontology = Ontology()
+    if onto != "default":
+        for candidate in (project_root / onto, Path(onto)):
+            if candidate.exists():
+                ontology = load_ontology_from_file(candidate)
+                break
+
+    md_files = sorted(folder.rglob("*.md"))
+    if not md_files:
+        console.print(f"[yellow]No .md files found under {folder}.[/yellow]")
+        raise typer.Exit(0)
+
+    items = [(f.read_text(encoding="utf-8"), None) for f in md_files]
+    outcome = bulk_add_entities(
+        ontology, registry.block_output_dir(config.name), items, on_conflict=on_conflict
+    )
+
+    console.print(
+        f"\n[bold]Imported into '{config.name}'[/bold]  "
+        f"[green]{outcome.created} created[/green] · "
+        f"[yellow]{outcome.skipped} skipped[/yellow] · "
+        f"[red]{outcome.failed} failed[/red]  "
+        f"(of {len(md_files)} files)\n"
+    )
+    for r in outcome.results:
+        if r.status == "failed":
+            console.print(f"  [red]✗[/red] {r.id or '(no id)'}: {'; '.join(r.errors)}")
+    if outcome.failed:
+        raise typer.Exit(1)
+
+
 @app.command()
 def init(
     name: str = typer.Argument(..., help="Name for the context block (kebab-case)"),
