@@ -1,0 +1,20 @@
+---
+/**
+ * Overview — the block's seed context (orientation markdown).
+ * Rendered from the block's seed-context.md at build time.
+ */
+import Layout from '../layouts/Layout.astro';
+import { seed } from '../data/registry';
+import { marked } from 'marked';
+
+const seedHtml = seed ? marked.parse(seed) : '';
+---
+<Layout title="Overview" activePage="overview" pageTitle="Overview — Seed Context">
+  {seed ? (
+    <div class="digest__section">
+      <div class="digest__narrative cb-markdown" set:html={seedHtml} />
+    </div>
+  ) : (
+    <p class="studio-empty">This block has no seed context yet. Add a <code>seed-context.md</code> to give the agent its orientation.</p>
+  )}
+</Layout>

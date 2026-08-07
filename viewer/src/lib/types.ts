@@ -91,6 +91,8 @@ export interface CBRegistry {
   jargon: CBEntity[];
   /** Health per entity */
   health: Map<string, CBEntityHealth>;
+  /** Block seed context (orientation markdown); empty if none. */
+  seed: string;
 }
 
 /** Confidence tier for visual rendering. */

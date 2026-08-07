@@ -20,26 +20,40 @@ const viewerDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(viewerDir, '..');
 const distDir = path.join(viewerDir, 'dist');
 
+// Workspace root: CB_PROJECT_ROOT wins, else CB_WORKSPACE (public|private) →
+// the configured path, else the repo root (legacy). Mirrors the Python
+// resolve_workspace_root so the build sees the same blocks the CLI/Studio do.
+function resolveWorkspaceRoot() {
+  if (process.env.CB_PROJECT_ROOT) return path.resolve(process.env.CB_PROJECT_ROOT);
+  const ws = (process.env.CB_WORKSPACE || '').trim().toLowerCase();
+  if (ws === 'public') return path.resolve(repoRoot, process.env.CB_WORKSPACE_PUBLIC || 'synthetic-domains');
+  if (ws === 'private') return path.resolve(repoRoot, process.env.CB_WORKSPACE_PRIVATE || '.private/blocks');
+  return repoRoot;
+}
+const wsRoot = resolveWorkspaceRoot();
+
 function titleCase(id) {
   return id.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 // --- load registry ---------------------------------------------------------
-const registryPath = path.join(repoRoot, 'blocks.yaml');
+const registryPath = path.join(wsRoot, 'blocks.yaml');
 if (!fs.existsSync(registryPath)) {
   console.error(`blocks.yaml not found at ${registryPath}`);
   process.exit(1);
 }
+console.log(`workspace: ${process.env.CB_WORKSPACE || '(legacy)'} → ${wsRoot}`);
 const registry = yaml.load(fs.readFileSync(registryPath, 'utf-8')) || {};
 
 const blocks = Object.entries(registry).map(([id, cfg]) => {
   cfg = cfg || {};
   // entities dir: explicit `output`, else <root>/<id> (must contain entities/)
-  const outputDir = path.resolve(repoRoot, cfg.output || id);
+  const outputDir = path.resolve(wsRoot, cfg.output || id);
   const ontology = cfg.ontology && cfg.ontology !== 'default'
-    ? path.resolve(repoRoot, cfg.ontology)
+    ? path.resolve(wsRoot, cfg.ontology)
     : null;
-  return { id, label: cfg.label || titleCase(id), base: `/${id}/`, outputDir, ontology };
+  const seedFile = cfg.seed_context ? path.resolve(wsRoot, cfg.seed_context) : null;
+  return { id, label: cfg.label || titleCase(id), base: `/${id}/`, outputDir, ontology, seedFile };
 }).filter(b => {
   const ok = fs.existsSync(path.join(b.outputDir, 'entities'));
   if (!ok) console.warn(`⚠ skipping "${b.id}" — no entities/ at ${b.outputDir}`);
@@ -65,6 +79,8 @@ for (const b of blocks) {
   };
   if (b.ontology) env.CB_META_MODEL = b.ontology;
   else delete env.CB_META_MODEL;
+  if (b.seedFile) env.CB_SEED_FILE = b.seedFile;
+  else delete env.CB_SEED_FILE;
   const t = Date.now();
   execSync('npx astro build', { cwd: viewerDir, env, stdio: 'inherit' });
   console.log(`   done in ${((Date.now() - t) / 1000).toFixed(1)}s\n`);
