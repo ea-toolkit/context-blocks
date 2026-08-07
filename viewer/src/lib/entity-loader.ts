@@ -311,6 +311,16 @@ export async function loadRegistry(): Promise<CBRegistry> {
 
   console.log(`[context-blocks] Registry loaded: ${entities.size} entities, ${edges.length} edges, ${allQuestions.length} questions`);
 
+  // Seed context: an explicit CB_SEED_FILE (from the multi-block build) wins,
+  // else the block's own seed-context.md sitting beside entities/.
+  const seedPath = process.env.CB_SEED_FILE
+    ? path.resolve(process.env.CB_SEED_FILE)
+    : path.join(OUTPUT_DIR, 'seed-context.md');
+  let seed = '';
+  try {
+    if (fs.existsSync(seedPath)) seed = fs.readFileSync(seedPath, 'utf-8');
+  } catch { /* no seed context for this block */ }
+
   return {
     entities,
     edges,
@@ -320,5 +330,6 @@ export async function loadRegistry(): Promise<CBRegistry> {
     allQuestions,
     jargon,
     health,
+    seed,
   };
 }

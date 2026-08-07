@@ -21,6 +21,7 @@ export const byLayer = _registry.byLayer;
 export const allQuestions = _registry.allQuestions;
 export const jargon = _registry.jargon;
 export const health = _registry.health;
+export const seed = _registry.seed;
 
 // ── Helpers ──
 
