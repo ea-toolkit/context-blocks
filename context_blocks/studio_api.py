@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from collections import Counter
 from pathlib import Path
+from typing import Literal
 
 import structlog
 import yaml
@@ -31,6 +32,7 @@ from context_blocks.blocks import (
     find_project_root,
     is_valid_block_name,
 )
+from context_blocks.importer import bulk_add_entities
 from context_blocks.meta_model import get_directory_for_type
 from context_blocks.ontology import Ontology, load_ontology_from_file
 from context_blocks.validation import parse_frontmatter, validate_entity_frontmatter
@@ -135,6 +137,38 @@ class AddEntityResponse(BaseModel):
     path: str
     # Non-blocking notes (e.g. custom-metadata fields kept but not graphed).
     warnings: list[str] = []
+
+
+class BulkEntityItem(BaseModel):
+    # Full entity markdown: YAML frontmatter + body.
+    content: str
+    # Optional expected id; when given, the frontmatter id must match it.
+    id: str | None = None
+
+
+class BulkAddEntitiesRequest(BaseModel):
+    entities: list[BulkEntityItem]
+    # How to treat an entity whose id already exists in the block:
+    #   "error"    -> report it as failed, write nothing for it
+    #   "skip"     -> leave the existing file untouched, report skipped
+    #   "overwrite"-> replace the existing file
+    on_conflict: Literal["error", "skip", "overwrite"] = "error"
+
+
+class BulkEntityResult(BaseModel):
+    id: str
+    type: str = ""
+    status: Literal["created", "skipped", "failed"]
+    path: str = ""
+    errors: list[str] = []
+    warnings: list[str] = []
+
+
+class BulkAddEntitiesResponse(BaseModel):
+    created: int
+    skipped: int
+    failed: int
+    results: list[BulkEntityResult]
 
 
 class EntityListItem(BaseModel):
@@ -422,6 +456,53 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             type=entity_type,
             path=str(dest.relative_to(output_dir)),
             warnings=result.warning_messages,
+        )
+
+    @app.post(
+        "/blocks/{name}/entities/bulk",
+        response_model=BulkAddEntitiesResponse,
+        status_code=201,
+    )
+    async def add_entities_bulk(
+        name: str, req: BulkAddEntitiesRequest
+    ) -> BulkAddEntitiesResponse:
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+
+        ont = _resolve_ontology(project_root, config)
+        output_dir = reg.block_output_dir(name)
+
+        outcome = bulk_add_entities(
+            ont,
+            output_dir,
+            [(item.content, item.id) for item in req.entities],
+            on_conflict=req.on_conflict,
+        )
+
+        logger.info(
+            "studio_entities_bulk_added",
+            block=name,
+            created=outcome.created,
+            skipped=outcome.skipped,
+            failed=outcome.failed,
+        )
+        return BulkAddEntitiesResponse(
+            created=outcome.created,
+            skipped=outcome.skipped,
+            failed=outcome.failed,
+            results=[
+                BulkEntityResult(
+                    id=r.id,
+                    type=r.type,
+                    status=r.status,
+                    path=r.path,
+                    errors=r.errors,
+                    warnings=r.warnings,
+                )
+                for r in outcome.results
+            ],
         )
 
     @app.get("/blocks/{name}/graph", response_model=BlockGraphResponse)
