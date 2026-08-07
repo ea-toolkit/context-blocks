@@ -23,7 +23,7 @@ ARTIFACTS_DIRNAME = "artifacts"
 # Extension allowlist for non-md artifacts the Studio accepts.
 ARTIFACT_EXTENSIONS: frozenset[str] = frozenset(
     {
-        ".bpmn", ".drawio", ".uml", ".puml", ".xml", ".svg",
+        ".bpmn", ".dmn", ".drawio", ".uml", ".puml", ".xml", ".svg",
         ".png", ".jpg", ".jpeg", ".gif", ".webp",
     }
 )
@@ -31,6 +31,7 @@ ARTIFACT_EXTENSIONS: frozenset[str] = frozenset(
 # Content types for extensions that mimetypes guesses poorly or not at all.
 _CONTENT_TYPE_OVERRIDES = {
     ".bpmn": "application/xml",
+    ".dmn": "application/xml",
     ".drawio": "application/xml",
     ".uml": "text/plain",
     ".puml": "text/plain",

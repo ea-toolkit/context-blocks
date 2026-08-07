@@ -14,8 +14,9 @@ describe('rendererFor', () => {
     expect(rendererFor('arch.drawio.svg')).toBe('svg');
   });
 
-  it('maps bpmn / xml', () => {
+  it('maps bpmn / dmn / xml', () => {
     expect(rendererFor('flow.bpmn')).toBe('bpmn');
+    expect(rendererFor('pricing.dmn')).toBe('dmn');
     expect(rendererFor('config.xml')).toBe('xml');
   });
 
