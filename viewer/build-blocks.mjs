@@ -104,27 +104,52 @@ const indexHtml = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Context Blocks</title>
 <style>
-  :root { --bg:#1a1a1a; --card:#222; --text:#e0e0e0; --muted:#999; --border:#444; --accent:#6b8cae; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; padding:48px 24px; }
-  .wrap { max-width:720px; margin:0 auto; }
-  h1 { font-family:'JetBrains Mono',monospace; font-size:24px; letter-spacing:-0.5px; margin:0 0 4px; }
-  p.sub { color:var(--muted); margin:0 0 32px; font-size:14px; }
-  .grid { display:grid; gap:16px; }
-  .card { display:flex; align-items:center; gap:12px; padding:20px; background:var(--card); border:2px solid var(--border); text-decoration:none; color:var(--text); transition:border-color 150ms; }
-  .card:hover { border-color:var(--accent); }
-  .dot { width:10px; height:10px; background:var(--accent); flex-shrink:0; }
-  .name { font-family:'JetBrains Mono',monospace; font-size:16px; flex:1; }
-  .meta { color:var(--muted); font-size:13px; }
+  :root {
+    --bg:#0f1117; --surface:#161922; --surface-hover:#1c2030;
+    --border:rgba(255,255,255,0.08); --border-hover:rgba(124,92,252,0.55);
+    --text:#e2e8f0; --muted:#94a3b8; --faint:#475569;
+    --primary:#7c5cfc; --primary-muted:rgba(124,92,252,0.14);
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'SF Mono','Fira Code','JetBrains Mono',monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f8fafc; --surface:#ffffff; --surface-hover:#f1f5f9;
+      --border:rgba(15,17,23,0.10); --text:#0f1117; --muted:#475569; --faint:#94a3b8;
+      --primary-muted:rgba(124,92,252,0.10); }
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font);
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px; }
+  .wrap { width:100%; max-width:600px; }
+  .brand { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  .logo { display:grid; grid-template-columns:repeat(3,7px); grid-template-rows:repeat(3,7px); gap:3px; }
+  .logo i { width:7px; height:7px; border-radius:2px; background:var(--primary); }
+  .logo i:nth-child(3n+2) { background:var(--primary-muted); }
+  h1 { font-size:22px; font-weight:600; letter-spacing:-0.02em; }
+  p.sub { color:var(--muted); font-size:14px; margin:0 0 28px 34px; }
+  .grid { display:flex; flex-direction:column; gap:12px; }
+  .card { display:flex; align-items:center; gap:14px; padding:20px 22px; background:var(--surface);
+    border:1px solid var(--border); border-radius:12px; text-decoration:none; color:var(--text);
+    transition:border-color 160ms, background 160ms, transform 160ms; }
+  .card:hover { background:var(--surface-hover); border-color:var(--border-hover); transform:translateY(-1px); }
+  .dot { width:9px; height:9px; border-radius:3px; background:var(--primary);
+    box-shadow:0 0 0 4px var(--primary-muted); flex-shrink:0; }
+  .name { font-size:16px; font-weight:600; flex:1; }
+  .meta { color:var(--muted); font-size:12px; font-family:var(--mono); }
+  .foot { margin-top:26px; color:var(--faint); font-size:12px; text-align:center; font-family:var(--mono); }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Context Blocks</h1>
-    <p class="sub">${blocks.length} block${blocks.length === 1 ? '' : 's'} — select one to explore.</p>
+    <div class="brand">
+      <span class="logo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <h1>Context Blocks</h1>
+    </div>
+    <p class="sub">${blocks.length} block${blocks.length === 1 ? '' : 's'} in this workspace — select one to explore.</p>
     <div class="grid">
 ${cards}
     </div>
+    <p class="foot">${process.env.CB_WORKSPACE || 'default'} workspace</p>
   </div>
 </body>
 </html>

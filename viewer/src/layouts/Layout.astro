@@ -7,7 +7,6 @@
 import '../styles/global.css';
 import { stats, jargon } from '../data/registry';
 import { withBase } from '../lib/base';
-import BlockSelector from '../components/studio/BlockSelector';
 
 // Multi-block switcher: build-blocks.mjs injects a JSON manifest of all blocks
 // (names come from the gitignored blocks.yaml → gitignored build output only).
@@ -105,8 +104,6 @@ const navLinks = [
           <span>{currentBlock?.label || 'Domain KB'}</span>
         )}
       </div>
-
-      <BlockSelector client:only="react" />
 
       <a href={withBase('/')} class="app-sidebar-nav__new-btn">
         + New question
