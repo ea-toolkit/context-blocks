@@ -15,7 +15,11 @@ Routing tool — where to fetch live data / act (pointers, never credentials):
 
 Work-effort tools — the demand log (group an agent's calls under one intent):
 - begin_work_effort / end_work_effort: open/close one unit of work
+- report_gap: record a REASONED gap (contradiction/ambiguity a failed search can't catch)
 - get_work_efforts: read back what agents asked and where the block fell short
+
+Write-back tool — close the curation loop:
+- propose_entity: propose a new entity (validated, staged in proposals/ for human review)
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
 name to any tool. If only one block exists, it's used by default.
@@ -255,6 +259,7 @@ def list_blocks() -> list[dict]:
     """List all available context blocks (domains). Call this first to discover what knowledge bases are available. Each block is an independent domain with its own entities, relationships, and evaluations. Returns a list of blocks with: name, description, entity_count, and whether entities have been extracted. Pass the block name to other tools to query a specific domain."""
     available = _get_available_blocks()
     if not available:
+        _trace("list_blocks", {}, "no blocks found", is_gap=True)
         return [{"message": "No blocks found. Run cb init or cb extract first."}]
 
     results = []
@@ -265,6 +270,7 @@ def list_blocks() -> list[dict]:
         if b.get("entity_count"):
             entry["entity_count"] = b["entity_count"]
         results.append(entry)
+    _trace("list_blocks", {}, f"{len(results)} blocks: {[r['name'] for r in results]}", is_gap=False)
     return results
 
 
@@ -284,6 +290,7 @@ def get_overview(block: str = "") -> dict:
         if entities else 0
     )
 
+    _trace("get_overview", {}, f"{len(entities)} entities, {len(type_counts)} types", is_gap=(len(entities) == 0))
     return {
         "block": data["name"],
         "total_entities": len(entities),
@@ -305,10 +312,12 @@ def list_artifacts(block: str = "") -> list[dict]:
     from context_blocks import storage
 
     arts = storage.list_artifacts(Path(data["output_dir"]))
-    return [
+    results = [
         {"filename": a.filename, "path": a.path, "size": a.size, "content_type": a.content_type}
         for a in arts
     ]
+    _trace("list_artifacts", {}, f"{len(results)} artifacts", is_gap=False)
+    return results
 
 
 @mcp.tool()
@@ -320,16 +329,21 @@ def fetch_file(path: str, block: str = "") -> dict:
     output_dir = Path(data["output_dir"]).resolve()
     target = (output_dir / path).resolve()
     if not target.is_relative_to(output_dir):
+        _trace("fetch_file", {"path": path}, "path escapes block", is_gap=True)
         return {"error": f"Path escapes the block: {path}"}
     if not target.is_file():
+        _trace("fetch_file", {"path": path}, "file not found", is_gap=True)
         return {"error": f"File not found: {path}"}
 
     from context_blocks import storage
 
     content_type = storage.guess_content_type(target.name)
     try:
-        return {"path": path, "content_type": content_type, "content": target.read_text(encoding="utf-8")}
+        content = target.read_text(encoding="utf-8")
+        _trace("fetch_file", {"path": path}, f"fetched {content_type} ({len(content)} chars)", is_gap=False)
+        return {"path": path, "content_type": content_type, "content": content}
     except UnicodeDecodeError:
+        _trace("fetch_file", {"path": path}, f"binary {content_type}", is_gap=False)
         return {
             "path": path,
             "content_type": content_type,
@@ -497,6 +511,55 @@ def end_work_effort(outcome: str = "") -> dict:
 
 
 @mcp.tool()
+def report_gap(description: str, related_entities: list[str] | None = None, block: str = "") -> dict:
+    """Report a KNOWLEDGE GAP you reasoned out — something the block SHOULD answer but doesn't, or where it's contradictory, ambiguous, or unconfirmed. Use this when you find a gap by REASONING, not just a failed search: e.g. 'the block documents connector-by-geography for routes but assumes WOM for services, and nothing reconciles them for EU work orders.' This is the single most valuable thing you can produce — reasoned gaps don't show up as failed lookups, so without this they'd be lost. It's recorded as a first-class gap on the current work-effort and surfaces on the dashboard as the curation backlog. related_entities = the entity ids the gap touches. Requires an open work-effort (call begin_work_effort first)."""
+    if not _current_we:
+        return {"note": "No active work-effort — call begin_work_effort first so the gap attaches to a unit of work."}
+    args = {"related_entities": related_entities} if related_entities else {}
+    try:
+        tracing.log_call(_current_we_dir, _current_we, "report_gap", args, description, is_gap=True)
+    except Exception as e:  # noqa: BLE001 — never let logging break the agent
+        return {"error": f"Could not record gap: {e}"}
+    return {"recorded": True, "work_effort_id": _current_we, "gap": description}
+
+
+@mcp.tool()
+def propose_entity(content: str, actor: str = "agent", block: str = "") -> dict:
+    """Propose a NEW entity to capture knowledge this work revealed — a resolution, a decision, or an answer to a gap you found. Write it as a full markdown entity (YAML frontmatter + body) matching the block's ontology (real `type`, kebab-case `id`, required fields present). It is VALIDATED against the ontology, then written to the block's `proposals/` area — NOT live knowledge — with you as author, timestamped, and logged as a change for HUMAN REVIEW. You are proposing, not publishing. This closes the loop: when a run surfaces a gap or a resolution, propose the entity that fills it. Returns {proposed, id, path} on success, or {error, validation_errors} if it doesn't match the ontology. Set `actor` to your agent name."""
+    from context_blocks.ontology import Ontology, load_ontology_from_file
+    from context_blocks.validation import validate_entity_frontmatter
+
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    output_dir = Path(data["output_dir"])
+
+    mm = output_dir / "meta-model.yaml"
+    ont = load_ontology_from_file(mm) if mm.exists() else Ontology()
+    result = validate_entity_frontmatter(content, ont)
+    if not result.valid:
+        return {"error": "Entity does not match the ontology — fix and re-propose.",
+                "validation_errors": result.error_messages}
+
+    entity_id = str(result.frontmatter["id"])
+    entity_type = str(result.frontmatter["type"])
+    proposals_dir = output_dir / "proposals"
+    proposals_dir.mkdir(parents=True, exist_ok=True)
+    dest = proposals_dir / f"{entity_id}.md"
+    dest.write_text(temporal.stamp_markdown(content, actor), encoding="utf-8")
+    temporal.record_event(
+        output_dir, entity_id, entity_type, "proposed", actor,
+        summary=str(result.frontmatter.get("name", entity_id)),
+        work_effort_id=_current_we,
+    )
+    _trace("propose_entity", {"id": entity_id, "type": entity_type},
+           f"proposed {entity_id} (pending review)", is_gap=False)
+    return {"proposed": True, "id": entity_id, "type": entity_type,
+            "path": str(dest.relative_to(output_dir)), "status": "pending review",
+            "warnings": result.warning_messages}
+
+
+@mcp.tool()
 def get_work_efforts(block: str = "", limit: int = 20) -> dict:
     """Read the DEMAND LOG — recent work-efforts on a block, each with its full call-chain (search → get → resolve → outcome) and which calls hit gaps. Use this to see what agents actually ask a block, where the knowledge falls short (gap-heavy efforts), and what recurring intents deserve curation. Returns {block, work_efforts: [{intent, outcome, call_count, gap_count, calls:[...]}]}. This is the curation backlog, written by real use — not guessed."""
     data = _resolve_block(block)
@@ -604,6 +667,11 @@ async def ask_kb(question: str, block: str = "") -> dict:
         response["ddc_class"] = ddc_map.get(result.score.value, "MISSING")
         response["citations"] = result.citations
 
+    _trace(
+        "ask_kb", {"question": question},
+        f"{len(response['entities'])} entities, {len(response['gaps'])} gaps",
+        is_gap=(len(response["entities"]) == 0 or response.get("ddc_class") == "MISSING"),
+    )
     return response
 
 
@@ -659,6 +727,7 @@ def get_gap_report(block: str = "", persona: str = "") -> dict:
         if q.get("ddc_class", q.get("score", "")) in ("INCOMPLETE", "MISSING", "partial", "not_answerable")
     ]
 
+    _trace("get_gap_report", {"persona": persona}, f"{total} questions, {len(gaps)} coverage-gaps", is_gap=False)
     return {
         "block": block_name,
         "total_questions": total,

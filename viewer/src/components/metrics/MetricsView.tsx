@@ -102,7 +102,11 @@ export default function MetricsView({ block = '' }: Props) {
                 <ul className="metrics-list">
                   {metrics.gaps.map((g, i) => (
                     <li key={i} className="metrics-gap">
-                      <span className="metrics-mono">{String(g.args.entity_id ?? g.args.query ?? g.tool)}</span>
+                      {g.tool === 'report_gap' ? (
+                        <span className="metrics-gap-reasoned">{g.summary}</span>
+                      ) : (
+                        <span className="metrics-mono">{String(g.args.entity_id ?? g.args.query ?? g.tool)}</span>
+                      )}
                       <span className="metrics-faint">{g.intent}</span>
                     </li>
                   ))}

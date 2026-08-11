@@ -307,7 +307,8 @@ def _compute_metrics(output_dir: Path, block_name: str, limit: int = 50) -> dict
             if c["tool"] in ("get_entity", "resolve_source") and eid:
                 hits[eid] += 1
             if c["is_gap"]:
-                gaps.append({"tool": c["tool"], "args": args, "at": c["at"], "intent": e["intent"]})
+                gaps.append({"tool": c["tool"], "args": args, "summary": c["summary"],
+                             "at": c["at"], "intent": e["intent"]})
 
     by_action = Counter(ev["action"] for ev in events)
     by_actor = Counter(ev["actor"] for ev in events)

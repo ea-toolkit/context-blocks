@@ -3785,3 +3785,8 @@ code, pre {
 .metrics-empty, .metrics-loading, .metrics-offline { padding: var(--cb-space-xl); color: var(--cb-text-muted); text-align: center; }
 .metrics-offline pre { text-align: left; background: var(--cb-surface-raised); padding: var(--cb-space-md); border-radius: var(--cb-radius); overflow-x: auto; }
 .metrics-error { color: var(--cb-score-missing); font-size: var(--cb-font-size-sm); margin-top: var(--cb-space-md); }
+
+/* report_gap (reasoned) + proposed-entity surfacing */
+.metrics-gap-reasoned { font-size: var(--cb-font-size-sm); line-height: 1.4; color: var(--cb-text);
+  border-left: 2px solid var(--cb-score-missing); padding-left: 8px; }
+.metrics-action--proposed { color: var(--cb-primary); background: var(--cb-primary-muted); }

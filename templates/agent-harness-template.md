@@ -47,6 +47,15 @@ resolve_source(entity_id, block)   → WHERE to fetch live data / act (routing, 
 end_work_effort(outcome)           → close it, record what happened
 ```
 
+Close the loop when your work reveals something:
+```
+report_gap(description)     → a gap you REASONED out (contradiction / unconfirmed assumption /
+                              a question the block should answer but doesn't). Auto-gap detection
+                              only catches failed lookups; reasoned gaps are lost unless you report them.
+propose_entity(content)     → capture a resolution or a gap-answer as a proposed entity. Validated
+                              and staged for human review — you propose, you don't publish.
+```
+
 Curator view (for reviewing a block's health, not for solving a ticket):
 `get_gap_report(block)` and `get_work_efforts(block)` — the coverage gaps and the demand log.
 
