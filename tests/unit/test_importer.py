@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from context_blocks import temporal
 from context_blocks.importer import bulk_add_entities
 from context_blocks.ontology import Ontology
 
@@ -25,6 +26,29 @@ def test_bulk_writes_all_and_routes_by_type(tmp_path: Path) -> None:
     assert (res.created, res.skipped, res.failed) == (2, 0, 0)
     assert (tmp_path / "entities" / "systems" / "a.md").exists()
     assert (tmp_path / "entities" / "systems" / "b.md").exists()
+
+
+def test_bulk_stamps_temporal_and_records_events(tmp_path: Path) -> None:
+    bulk_add_entities(Ontology(), tmp_path, [(_system_md("a"), None)], actor="luffy")
+    written = (tmp_path / "entities" / "systems" / "a.md").read_text()
+    assert "created_at:" in written and 'updated_by: "luffy"' in written
+    events = temporal.get_events(tmp_path)
+    assert len(events) == 1
+    assert (events[0]["entity_id"], events[0]["action"], events[0]["actor"]) == ("a", "created", "luffy")
+
+
+def test_overwrite_preserves_created_at_and_logs_update(tmp_path: Path) -> None:
+    bulk_add_entities(Ontology(), tmp_path, [(_system_md("dup", name="Original"), None)], actor="import")
+    birth = temporal.read_created_at((tmp_path / "entities" / "systems" / "dup.md").read_text())
+    bulk_add_entities(
+        Ontology(), tmp_path, [(_system_md("dup", name="Replaced"), None)],
+        on_conflict="overwrite", actor="luffy",
+    )
+    after = (tmp_path / "entities" / "systems" / "dup.md").read_text()
+    assert temporal.read_created_at(after) == birth  # birth carried across overwrite
+    assert 'updated_by: "luffy"' in after
+    actions = [e["action"] for e in temporal.get_events(tmp_path)]
+    assert actions == ["updated", "created"]  # newest first
 
 
 def test_invalid_reported_not_written(tmp_path: Path) -> None:
