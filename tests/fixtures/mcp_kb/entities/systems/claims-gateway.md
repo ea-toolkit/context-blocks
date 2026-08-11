@@ -8,6 +8,9 @@ confidence: 0.92
 related_systems: [adjudication-engine]
 depends_on: [member-registry]
 source_documents: [doc-001.md]
+routing:
+  logs: "Grafana/Loki k8s=claims-gateway.*"
+  api: "https://api.example.com/claims-gateway"
 ---
 
 # Claims Gateway

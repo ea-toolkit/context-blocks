@@ -1,6 +1,6 @@
 """Context Blocks MCP Server — expose KB to AI agents via Model Context Protocol.
 
-8 read-only tools for agents to query knowledge bases:
+Knowledge tools (read-only) — query what a block knows:
 - list_blocks: discover available context blocks (domains)
 - get_overview: KB stats and structure for a block
 - search_entities: find entities by text query
@@ -9,6 +9,13 @@
 - get_gap_report: coverage gaps, optionally per persona
 - list_artifacts: list a block's non-md files (diagrams, images, xml)
 - fetch_file: read a file inside a block by relative path (artifact or entity)
+
+Routing tool — where to fetch live data / act (pointers, never credentials):
+- resolve_source: routing map for a live-system entity (logs, incidents, dashboards, APIs)
+
+Work-effort tools — the demand log (group an agent's calls under one intent):
+- begin_work_effort / end_work_effort: open/close one unit of work
+- get_work_efforts: read back what agents asked and where the block fell short
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
 name to any tool. If only one block exists, it's used by default.
@@ -27,6 +34,8 @@ from pathlib import Path
 import yaml
 from mcp.server.fastmcp import FastMCP
 
+from context_blocks import tracing
+
 mcp = FastMCP(
     "Context Blocks",
     instructions="Query domain knowledge bases built by Context Blocks. "
@@ -37,6 +46,24 @@ mcp = FastMCP(
 _block_cache: dict[str, dict] = {}
 _project_root: Path = Path.cwd()
 _single_output: str = ""
+
+# Current work-effort (one intent, grouping this agent's call-chain). Set by
+# begin_work_effort, cleared by end_work_effort. Read tools auto-log to it when
+# set. Safe for stdio MCP (one agent per process); note the caveat for a shared
+# HTTP server (state would be process-global across agents).
+_current_we: str = ""
+_current_we_dir: str = ""
+
+
+def _trace(tool: str, args: dict, summary: str, is_gap: bool) -> None:
+    """Log one read-tool call to the active work-effort, if any. No-op otherwise."""
+    if not _current_we or not _current_we_dir:
+        return
+    try:
+        tracing.log_call(_current_we_dir, _current_we, tool, args, summary, is_gap)
+    except Exception:
+        # Tracing must never break a query.
+        pass
 
 LAYER_MAP = {
     "system": "Structural", "software-component": "Structural",
@@ -98,6 +125,7 @@ def _load_entities(entity_dir: Path) -> list[dict]:
                     "confidence": fm.get("confidence", 1.0),
                     "relationships": _extract_rels(fm),
                     "source_documents": fm.get("source_documents", []),
+                    "routing": fm.get("routing") if isinstance(fm.get("routing"), dict) else {},
                     "body": body.strip(),
                     "file": str(filepath),
                 })
@@ -351,7 +379,7 @@ def search_entities(
 
     scored.sort(key=lambda x: -x[0])
 
-    return [
+    results = [
         {
             "id": e["id"],
             "name": e["name"],
@@ -365,6 +393,13 @@ def search_entities(
         }
         for s, e in scored[:limit]
     ]
+    _trace(
+        "search_entities",
+        {"query": query, "entity_type": entity_type, "layer": layer},
+        f"{len(results)} hits: {[r['id'] for r in results][:8]}",
+        is_gap=(len(results) == 0),
+    )
+    return results
 
 
 @mcp.tool()
@@ -377,8 +412,10 @@ def get_entity(entity_id: str, block: str = "") -> dict:
     index = data.get("entity_index", {})
     e = index.get(entity_id)
     if not e:
+        _trace("get_entity", {"entity_id": entity_id}, "not found", is_gap=True)
         return {"error": f"Entity '{entity_id}' not found in block '{data['name']}'"}
 
+    _trace("get_entity", {"entity_id": entity_id}, f"got {entity_id}", is_gap=False)
     return {
         "id": e["id"],
         "name": e["name"],
@@ -392,6 +429,81 @@ def get_entity(entity_id: str, block: str = "") -> dict:
         "source_documents": e["source_documents"],
         "block": data["name"],
     }
+
+
+@mcp.tool()
+def resolve_source(entity_id: str = "", query: str = "", block: str = "") -> dict:
+    """Resolve the ROUTING for live systems — where to go to fetch fresh data or take action (logs, incidents, dashboards, APIs). This is the map to the live source, NOT the knowledge itself, and NOT credentials (those live in your own workspace, never here). Pass an entity_id (e.g. 'grafana-loki', 'nowit', 'wom-connector') for that system's routing, or a query to find systems whose routing matches (e.g. 'logs', 'incidents'). Returns {block, sources: [{id, name, type, routing}]} where routing is a dict of read-only pointers. Typical flow: search_entities/get_entity tells you which system is involved → resolve_source tells you where its data lives → then use your workspace tools + credentials to actually call it."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+
+    def _has_routing(e: dict) -> bool:
+        r = e.get("routing")
+        return isinstance(r, dict) and len(r) > 0
+
+    if entity_id:
+        e = data.get("entity_index", {}).get(entity_id)
+        if not e:
+            _trace("resolve_source", {"entity_id": entity_id}, "entity not found", is_gap=True)
+            return {"error": f"Entity '{entity_id}' not found in block '{data['name']}'"}
+        if not _has_routing(e):
+            _trace("resolve_source", {"entity_id": entity_id}, "no routing curated", is_gap=True)
+            return {"block": data["name"], "sources": [],
+                    "note": f"'{entity_id}' has no routing — it may not be a live system, or its routing isn't curated yet."}
+        _trace("resolve_source", {"entity_id": entity_id}, f"routed to {entity_id}", is_gap=False)
+        return {"block": data["name"],
+                "sources": [{"id": e["id"], "name": e["name"], "type": e["type"], "routing": e["routing"]}]}
+
+    terms = set(re.findall(r"\w+", query.lower())) if query else set()
+    sources = []
+    for e in data.get("entities", []):
+        if not _has_routing(e):
+            continue
+        if terms:
+            hay = set(re.findall(r"\w+", f"{e['name']} {e['description']} {e['routing']}".lower()))
+            if not (terms & hay):
+                continue
+        sources.append({"id": e["id"], "name": e["name"], "type": e["type"], "routing": e["routing"]})
+    _trace("resolve_source", {"query": query}, f"{len(sources)} sources: {[s['id'] for s in sources][:8]}",
+           is_gap=(len(sources) == 0))
+    return {"block": data["name"], "sources": sources}
+
+
+@mcp.tool()
+def begin_work_effort(intent: str, block: str = "", agent: str = "") -> dict:
+    """Open a WORK-EFFORT — one unit of work with one intent (e.g. 'triage INC12345: WOM connector timeouts'). Call this FIRST when you start working a problem, before you search/get/resolve. Every KB call you make until end_work_effort is grouped under this one intent, forming the demand log: what you needed, what you found, and where the KB fell short. Returns {work_effort_id, block, intent}. This is how the block learns what to curate next — always open one before real work, and close it with end_work_effort when done."""
+    global _current_we, _current_we_dir
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    wid = tracing.begin(data["output_dir"], data["name"], intent, agent)
+    _current_we = wid
+    _current_we_dir = data["output_dir"]
+    return {"work_effort_id": wid, "block": data["name"], "intent": intent}
+
+
+@mcp.tool()
+def end_work_effort(outcome: str = "") -> dict:
+    """Close the active work-effort with an OUTCOME — a one-line result of the unit of work (e.g. 'resolved: purged stuck Solace queue', 'escalated to blue-team', 'no runbook found — gap'). Call this when you finish the problem you opened with begin_work_effort. Returns {closed, outcome}. The outcome plus the call-chain is the demand signal: recurring intents and gap-heavy efforts are exactly what the block should curate next."""
+    global _current_we, _current_we_dir
+    if not _current_we:
+        return {"note": "No active work-effort to close."}
+    wid = _current_we
+    tracing.end(_current_we_dir, wid, outcome)
+    _current_we = ""
+    _current_we_dir = ""
+    return {"closed": wid, "outcome": outcome}
+
+
+@mcp.tool()
+def get_work_efforts(block: str = "", limit: int = 20) -> dict:
+    """Read the DEMAND LOG — recent work-efforts on a block, each with its full call-chain (search → get → resolve → outcome) and which calls hit gaps. Use this to see what agents actually ask a block, where the knowledge falls short (gap-heavy efforts), and what recurring intents deserve curation. Returns {block, work_efforts: [{intent, outcome, call_count, gap_count, calls:[...]}]}. This is the curation backlog, written by real use — not guessed."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    return {"block": data["name"],
+            "work_efforts": tracing.get_work_efforts(data["output_dir"], limit)}
 
 
 @mcp.tool()
