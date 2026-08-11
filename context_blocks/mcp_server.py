@@ -98,6 +98,7 @@ def _load_entities(entity_dir: Path) -> list[dict]:
                     "confidence": fm.get("confidence", 1.0),
                     "relationships": _extract_rels(fm),
                     "source_documents": fm.get("source_documents", []),
+                    "routing": fm.get("routing") if isinstance(fm.get("routing"), dict) else {},
                     "body": body.strip(),
                     "file": str(filepath),
                 })
@@ -392,6 +393,40 @@ def get_entity(entity_id: str, block: str = "") -> dict:
         "source_documents": e["source_documents"],
         "block": data["name"],
     }
+
+
+@mcp.tool()
+def resolve_source(entity_id: str = "", query: str = "", block: str = "") -> dict:
+    """Resolve the ROUTING for live systems — where to go to fetch fresh data or take action (logs, incidents, dashboards, APIs). This is the map to the live source, NOT the knowledge itself, and NOT credentials (those live in your own workspace, never here). Pass an entity_id (e.g. 'grafana-loki', 'nowit', 'wom-connector') for that system's routing, or a query to find systems whose routing matches (e.g. 'logs', 'incidents'). Returns {block, sources: [{id, name, type, routing}]} where routing is a dict of read-only pointers. Typical flow: search_entities/get_entity tells you which system is involved → resolve_source tells you where its data lives → then use your workspace tools + credentials to actually call it."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+
+    def _has_routing(e: dict) -> bool:
+        r = e.get("routing")
+        return isinstance(r, dict) and len(r) > 0
+
+    if entity_id:
+        e = data.get("entity_index", {}).get(entity_id)
+        if not e:
+            return {"error": f"Entity '{entity_id}' not found in block '{data['name']}'"}
+        if not _has_routing(e):
+            return {"block": data["name"], "sources": [],
+                    "note": f"'{entity_id}' has no routing — it may not be a live system, or its routing isn't curated yet."}
+        return {"block": data["name"],
+                "sources": [{"id": e["id"], "name": e["name"], "type": e["type"], "routing": e["routing"]}]}
+
+    terms = set(re.findall(r"\w+", query.lower())) if query else set()
+    sources = []
+    for e in data.get("entities", []):
+        if not _has_routing(e):
+            continue
+        if terms:
+            hay = set(re.findall(r"\w+", f"{e['name']} {e['description']} {e['routing']}".lower()))
+            if not (terms & hay):
+                continue
+        sources.append({"id": e["id"], "name": e["name"], "type": e["type"], "routing": e["routing"]})
+    return {"block": data["name"], "sources": sources}
 
 
 @mcp.tool()

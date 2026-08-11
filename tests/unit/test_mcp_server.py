@@ -20,6 +20,7 @@ from context_blocks.mcp_server import (
     get_overview,
     list_artifacts,
     list_blocks,
+    resolve_source,
     search_entities,
 )
 
@@ -761,3 +762,33 @@ class TestArtifactTools:
 
     def test_fetch_path_traversal_blocked(self, block_with_artifacts) -> None:
         assert "error" in fetch_file("../../../etc/passwd")
+
+
+class TestResolveSource:
+    def test_by_entity_id_returns_routing(self, single_block) -> None:
+        r = resolve_source(entity_id="claims-gateway")
+        assert len(r["sources"]) == 1
+        src = r["sources"][0]
+        assert src["id"] == "claims-gateway"
+        assert src["routing"]["api"] == "https://api.example.com/claims-gateway"
+
+    def test_by_query_finds_systems_with_routing(self, single_block) -> None:
+        r = resolve_source(query="logs")
+        ids = {s["id"] for s in r["sources"]}
+        assert "claims-gateway" in ids
+        assert all(s["routing"] for s in r["sources"])
+
+    def test_entity_without_routing_returns_note(self, single_block) -> None:
+        # adjudication-engine has no routing field
+        r = resolve_source(entity_id="adjudication-engine")
+        assert r["sources"] == []
+        assert "note" in r
+
+    def test_unknown_entity_errors(self, single_block) -> None:
+        assert "error" in resolve_source(entity_id="does-not-exist")
+
+    def test_no_credentials_ever_in_routing(self, single_block) -> None:
+        # routing carries pointers, never secrets
+        r = resolve_source(entity_id="claims-gateway")
+        blob = str(r["sources"][0]["routing"]).lower()
+        assert "password" not in blob and "secret" not in blob and "token" not in blob
