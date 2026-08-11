@@ -47,20 +47,11 @@ resolve_source(entity_id, block)   → WHERE to fetch live data / act (routing, 
 end_work_effort(outcome)           → close it, record what happened
 ```
 
-Close the loop — but a gap and a proposal are DIFFERENT triggers. A gap is the output of *not
-knowing*; a proposal is the output of *learning* (or being corrected). Never manufacture a proposal
-from a gap — if you don't actually know it, it's a gap.
-```
-report_gap(description)     → when you're UNSURE / the KB is contradictory / you need info you don't
-                              have. Reasoned gaps (a contradiction, an unconfirmed assumption) don't
-                              show up as failed lookups — they're lost unless you report them.
-propose_entity(content)     → when you LEARNED something new (from the user, logs, an external call)
-                              the block should capture. Something you now actually know — not a guess.
-propose_update(id, content, rationale)
-                            → when you learned existing KB is WRONG or outdated (user feedback or
-                              evidence that contradicts it). Correct it.
-```
-Proposals are validated and staged for human review — you propose, you don't publish.
+Close the loop when your work reveals something — but a gap and a proposal are DIFFERENT signals.
+A gap is the output of *not knowing*; a proposal is the output of *learning* (or being corrected).
+**Never manufacture a proposal from a gap** — if you don't actually know it, it's a gap. Reach for
+`report_gap`, `propose_entity`, or `propose_update`; **each tool's own description spells out exactly
+when to use it.** Proposals are validated and staged for human review — you propose, you don't publish.
 
 Curator view (for reviewing a block's health, not for solving a ticket):
 `get_gap_report(block)` and `get_work_efforts(block)` — the coverage gaps and the demand log.
