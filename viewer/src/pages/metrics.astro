@@ -1,0 +1,15 @@
+---
+/**
+ * Metrics page — the live demand + change dashboard for this block.
+ * Reads the work-effort demand log and the Context Sourcing change log via the Studio API.
+ */
+import Layout from '../layouts/Layout.astro';
+import MetricsView from '../components/metrics/MetricsView';
+
+// Current block id = the build's base segment (equals the Studio API block name).
+const base = import.meta.env.BASE_URL || '/';
+const blockId = base.replace(/^\/+|\/+$/g, '');
+---
+<Layout title="Metrics" activePage="metrics" pageTitle="Metrics">
+  <MetricsView client:load block={blockId} />
+</Layout>
