@@ -1,6 +1,6 @@
 """Context Blocks MCP Server — expose KB to AI agents via Model Context Protocol.
 
-8 read-only tools for agents to query knowledge bases:
+Knowledge tools (read-only) — query what a block knows:
 - list_blocks: discover available context blocks (domains)
 - get_overview: KB stats and structure for a block
 - search_entities: find entities by text query
@@ -9,6 +9,13 @@
 - get_gap_report: coverage gaps, optionally per persona
 - list_artifacts: list a block's non-md files (diagrams, images, xml)
 - fetch_file: read a file inside a block by relative path (artifact or entity)
+
+Routing tool — where to fetch live data / act (pointers, never credentials):
+- resolve_source: routing map for a live-system entity (logs, incidents, dashboards, APIs)
+
+Work-effort tools — the demand log (group an agent's calls under one intent):
+- begin_work_effort / end_work_effort: open/close one unit of work
+- get_work_efforts: read back what agents asked and where the block fell short
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
 name to any tool. If only one block exists, it's used by default.
