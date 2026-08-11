@@ -18,11 +18,15 @@ from context_blocks.mcp_server import (
     end_work_effort,
     fetch_file,
     get_entity,
+    get_events,
     get_gap_report,
     get_overview,
     get_work_efforts,
     list_artifacts,
     list_blocks,
+    propose_entity,
+    propose_update,
+    report_gap,
     resolve_source,
     search_entities,
 )
@@ -854,3 +858,113 @@ class TestWorkEffortTracing:
 
     def test_end_without_begin_returns_note(self, tmp_block) -> None:
         assert "note" in end_work_effort("nothing open")
+
+    def test_full_trace_covers_discovery_tools(self, tmp_block) -> None:
+        # get_overview is now instrumented — it must show up in the demand log.
+        begin_work_effort("explore the block")
+        get_overview()
+        search_entities("claims")
+        end_work_effort("done")
+        calls = get_work_efforts()["work_efforts"][0]["calls"]
+        assert "get_overview" in [c["tool"] for c in calls]
+
+
+class TestReportGap:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_reasoned_gap_is_recorded_as_a_gap(self, tmp_block) -> None:
+        begin_work_effort("triage something")
+        search_entities("claims")  # a hit, not a gap
+        r = report_gap("Docs say X for routes but assume Y for services — unreconciled.",
+                       related_entities=["claims-gateway"])
+        end_work_effort("escalated")
+        assert r["recorded"] is True
+
+        we = get_work_efforts()["work_efforts"][0]
+        assert we["gap_count"] == 1  # the reasoned gap counts, even though search hit
+        gap_call = [c for c in we["calls"] if c["tool"] == "report_gap"][0]
+        assert gap_call["is_gap"] == 1
+        assert "unreconciled" in gap_call["summary"]
+
+    def test_report_gap_without_work_effort_returns_note(self, tmp_block) -> None:
+        assert "note" in report_gap("a gap with nowhere to attach")
+
+
+class TestProposeEntity:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_valid_proposal_is_staged_not_published(self, tmp_block) -> None:
+        content = (
+            "---\ntype: system\nid: proposed-sync-monitor\nname: Sync Monitor\n"
+            "description: Watches PS->CC sync\nstatus: planned\n---\n\n# Sync Monitor\n\n## Overview\nWatches sync.\n"
+        )
+        r = propose_entity(content, actor="luffy")
+        assert r["proposed"] is True and r["id"] == "proposed-sync-monitor"
+        # staged in proposals/, NOT in entities/ (so read tools don't serve it live)
+        assert (tmp_block / "proposals" / "proposed-sync-monitor.md").exists()
+        assert not (tmp_block / "entities" / "systems" / "proposed-sync-monitor.md").exists()
+        assert get_entity("proposed-sync-monitor").get("error")  # not live-searchable
+        # logged as a 'proposed' change, attributed
+        events = get_events()["events"]
+        assert any(e["action"] == "proposed" and e["actor"] == "luffy" for e in events)
+
+    def test_invalid_proposal_rejected_with_errors(self, tmp_block) -> None:
+        r = propose_entity("---\ntype: not-a-real-type\nid: x\n---\n\n# x", actor="luffy")
+        assert "error" in r and r.get("validation_errors")
+
+    def test_propose_entity_rejects_existing_id(self, tmp_block) -> None:
+        # claims-gateway already exists — create must refuse and point at propose_update
+        content = (
+            "---\ntype: system\nid: claims-gateway\nname: Claims Gateway\n"
+            "description: dupe\nstatus: active\n---\n\n# Claims Gateway\n"
+        )
+        r = propose_entity(content, actor="luffy")
+        assert "error" in r and "propose_update" in r["error"]
+
+
+class TestProposeUpdate:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_update_existing_is_staged_not_published(self, tmp_block) -> None:
+        content = (
+            "---\ntype: system\nid: claims-gateway\nname: Claims Gateway\n"
+            "description: Central ingress — clarified EU path\nstatus: active\n---\n\n"
+            "# Claims Gateway\n\n## Overview\nClarified.\n"
+        )
+        r = propose_update("claims-gateway", content, rationale="clarify EU routing", actor="luffy")
+        assert r["proposed_update"] is True and r["id"] == "claims-gateway"
+        assert (tmp_block / "proposals" / "claims-gateway.md").exists()
+        # live entity is UNCHANGED (propose, don't publish)
+        assert "clarified EU path" not in get_entity("claims-gateway")["description"]
+        # logged as a proposed-update, attributed, with the rationale
+        events = get_events()["events"]
+        ev = [e for e in events if e["action"] == "proposed-update"]
+        assert ev and ev[0]["actor"] == "luffy" and "clarify EU routing" in ev[0]["summary"]
+
+    def test_update_nonexistent_points_to_propose_entity(self, tmp_block) -> None:
+        r = propose_update("no-such-entity", "---\ntype: system\nid: no-such-entity\n---\n", actor="luffy")
+        assert "error" in r and "propose_entity" in r["error"]

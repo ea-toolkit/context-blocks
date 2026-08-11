@@ -149,6 +149,7 @@ export interface ChangeEvent {
 export interface GapEntry {
   tool: string;
   args: Record<string, unknown>;
+  summary: string;
   at: string;
   intent: string;
 }

@@ -21,7 +21,10 @@ const METRICS: BlockMetrics = {
     ],
   },
   top_entities: [{ entity_id: 'wom-connector', hits: 5 }],
-  gaps: [{ tool: 'get_entity', args: { entity_id: 'missing-runbook' }, at: '2026-08-11T10:05:00+00:00', intent: 'triage WOM timeouts' }],
+  gaps: [
+    { tool: 'get_entity', args: { entity_id: 'missing-runbook' }, summary: 'not found', at: '2026-08-11T10:05:00+00:00', intent: 'triage WOM timeouts' },
+    { tool: 'report_gap', args: { related_entities: ['services-not-ingested'] }, summary: 'EU work-order connector is unconfirmed', at: '2026-08-11T10:06:00+00:00', intent: 'triage WOM timeouts' },
+  ],
   changes: {
     total: 2,
     by_action: { created: 1, updated: 1 },
@@ -41,7 +44,8 @@ describe('MetricsView', () => {
     render(<MetricsView block="incident-management" />);
     expect(await screen.findByText('incident-management')).toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument(); // gap rate
-    expect(screen.getByText('missing-runbook')).toBeInTheDocument(); // gap surfaced
+    expect(screen.getByText('missing-runbook')).toBeInTheDocument(); // auto-gap surfaced
+    expect(screen.getByText('EU work-order connector is unconfirmed')).toBeInTheDocument(); // reasoned gap surfaced
     // wom-connector appears as both a top entity and in the change timeline
     expect(screen.getAllByText('wom-connector').length).toBeGreaterThan(0);
   });
