@@ -1100,7 +1100,7 @@ def export_skill_cmd(
 
 @app.command("mcp")
 def mcp_serve(
-    output: Path = typer.Option(Path("output"), "--output", "-o", help="Output directory with entities/"),
+    output: Path = typer.Option(None, "--output", "-o", help="Output directory with entities/ (serves that single block directly)"),
     block: str = typer.Option(None, "--block", "-b", help="Serve a single block (omit to serve all blocks)"),
     transport: str = typer.Option(None, "--transport", "-t", help="Transport: stdio (default), streamable-http, sse. Env: CB_MCP_TRANSPORT"),
     host: str = typer.Option(None, "--host", help="Host for HTTP transport. Env: CB_MCP_HOST"),
@@ -1131,14 +1131,21 @@ def mcp_serve(
     if port:
         kwargs["port"] = port
 
+    # Resolve a single-block target from --block or an explicit --output.
+    # Neither given -> serve all blocks (agents discover via list_blocks()).
+    target = None
     if block:
-        output = _resolve_output(block, output)
-        entity_dir = output / "entities"
+        target = _resolve_output(block, output or Path("output"))
+    elif output is not None:
+        target = output
+
+    if target is not None:
+        entity_dir = target / "entities"
         if not entity_dir.exists():
             console.print(f"[red]Entity directory not found: {entity_dir}[/red]")
             console.print("Run 'cb extract' first to extract entities.")
             raise typer.Exit(1)
-        run_server(output_dir=str(output), **kwargs)
+        run_server(output_dir=str(target), **kwargs)
     else:
         run_server(**kwargs)
 
