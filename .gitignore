@@ -59,3 +59,6 @@ test_api_isolation.py
 viewer/node_modules/
 viewer/dist/
 viewer/.astro/
+
+# Trace / demand-log databases (per-block runtime state, never committed)
+*-traces.db

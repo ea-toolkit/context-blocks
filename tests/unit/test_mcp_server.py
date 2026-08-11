@@ -14,10 +14,13 @@ from context_blocks.mcp_server import (
     _parse_frontmatter,
     _resolve_block,
     ask_kb,
+    begin_work_effort,
+    end_work_effort,
     fetch_file,
     get_entity,
     get_gap_report,
     get_overview,
+    get_work_efforts,
     list_artifacts,
     list_blocks,
     resolve_source,
@@ -35,6 +38,8 @@ def _reset_state(monkeypatch):
 
     monkeypatch.setattr(mod, "_single_output", "")
     monkeypatch.setattr(mod, "_project_root", Path.cwd())
+    monkeypatch.setattr(mod, "_current_we", "")
+    monkeypatch.setattr(mod, "_current_we_dir", "")
 
 
 @pytest.fixture()
@@ -792,3 +797,60 @@ class TestResolveSource:
         r = resolve_source(entity_id="claims-gateway")
         blob = str(r["sources"][0]["routing"]).lower()
         assert "password" not in blob and "secret" not in blob and "token" not in blob
+
+
+class TestWorkEffortTracing:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        """A writable copy of the fixture KB so the trace db lands in tmp."""
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_begin_returns_id_and_sets_current(self, tmp_block) -> None:
+        import context_blocks.mcp_server as mod
+
+        r = begin_work_effort("triage claims routing")
+        assert r["work_effort_id"].startswith("we-")
+        assert mod._current_we == r["work_effort_id"]
+
+    def test_calls_grouped_under_one_effort(self, tmp_block) -> None:
+        begin_work_effort("triage claims routing")
+        search_entities("claims")
+        get_entity("claims-gateway")
+        resolve_source(entity_id="claims-gateway")
+        end_work_effort("resolved")
+
+        log = get_work_efforts()
+        assert len(log["work_efforts"]) == 1
+        we = log["work_efforts"][0]
+        assert we["intent"] == "triage claims routing"
+        assert we["outcome"] == "resolved"
+        assert [c["tool"] for c in we["calls"]] == [
+            "search_entities",
+            "get_entity",
+            "resolve_source",
+        ]
+
+    def test_gaps_are_flagged(self, tmp_block) -> None:
+        begin_work_effort("find something absent")
+        search_entities("nonexistent-topic-xyz")  # 0 hits -> gap
+        get_entity("no-such-entity")  # not found -> gap
+        end_work_effort("no answer")
+
+        we = get_work_efforts()["work_efforts"][0]
+        assert we["gap_count"] == 2
+        assert we["call_count"] == 2
+
+    def test_no_active_effort_is_noop(self, tmp_block) -> None:
+        # tools work fine with no work-effort open; nothing is logged
+        search_entities("claims")
+        get_entity("claims-gateway")
+        assert get_work_efforts()["work_efforts"] == []
+
+    def test_end_without_begin_returns_note(self, tmp_block) -> None:
+        assert "note" in end_work_effort("nothing open")
