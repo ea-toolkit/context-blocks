@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Literal
 
+from context_blocks import temporal
 from context_blocks.meta_model import get_directory_for_type
 from context_blocks.ontology import Ontology
 from context_blocks.validation import validate_entity_frontmatter
@@ -50,6 +51,7 @@ def bulk_add_entities(
     output_dir: Path,
     items: Iterable[tuple[str, str | None]],
     on_conflict: OnConflict = "error",
+    actor: str = "import",
 ) -> BulkImportResult:
     """Validate and write a batch of entity documents into ``output_dir/entities``.
 
@@ -120,8 +122,25 @@ def bulk_add_entities(
                 )
             continue
 
+        # Temporal stamp: preserve the original birth on overwrite, then record the event.
+        overwriting = dest.exists()
+        prior_created = (
+            temporal.read_created_at(dest.read_text(encoding="utf-8"))
+            if overwriting
+            else None
+        )
+        content = temporal.stamp_markdown(content, actor, created_at=prior_created)
+
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest.write_text(content, encoding="utf-8")
+        temporal.record_event(
+            output_dir,
+            entity_id,
+            entity_type,
+            "updated" if overwriting else "created",
+            actor,
+            summary=str(result.frontmatter.get("name", entity_id)),
+        )
         seen_in_batch.add(entity_id)
         results.append(
             EntityImportResult(

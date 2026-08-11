@@ -34,7 +34,7 @@ from pathlib import Path
 import yaml
 from mcp.server.fastmcp import FastMCP
 
-from context_blocks import tracing
+from context_blocks import temporal, tracing
 
 mcp = FastMCP(
     "Context Blocks",
@@ -504,6 +504,17 @@ def get_work_efforts(block: str = "", limit: int = 20) -> dict:
         return data
     return {"block": data["name"],
             "work_efforts": tracing.get_work_efforts(data["output_dir"], limit)}
+
+
+@mcp.tool()
+def get_events(block: str = "", entity_id: str = "", limit: int = 50) -> dict:
+    """Read the CHANGE HISTORY of a block — the temporal event log (created/updated events, newest first), each with a timestamp and the actor who made it. Pass entity_id to see one entity's history, or omit for the whole block. Returns {block, events: [{at, entity_id, entity_type, action, actor, work_effort_id, summary}]}. Use this to answer 'when did this knowledge change and who touched it', or to power a freshness/churn view. Everything the block persists is timestamped and attributed."""
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    return {"block": data["name"],
+            "events": temporal.get_events(data["output_dir"], limit=limit,
+                                          entity_id=entity_id or None)}
 
 
 @mcp.tool()

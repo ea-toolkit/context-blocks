@@ -62,3 +62,4 @@ viewer/.astro/
 
 # Trace / demand-log databases (per-block runtime state, never committed)
 *-traces.db
+.context-events.db

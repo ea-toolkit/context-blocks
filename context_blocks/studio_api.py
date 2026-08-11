@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from context_blocks import storage
+from context_blocks import storage, temporal
 from context_blocks.blocks import (
     BlockConfig,
     BlockRegistry,
@@ -127,6 +127,9 @@ class AddEntityRequest(BaseModel):
     content: str
     # Optional expected id; when given, the frontmatter id must match it.
     id: str | None = None
+    # Who is making this change (agent name, user, or "studio"). Recorded in the
+    # temporal event log and stamped as updated_by.
+    actor: str = "studio"
 
 
 class AddEntityResponse(BaseModel):
@@ -152,6 +155,8 @@ class BulkAddEntitiesRequest(BaseModel):
     #   "skip"     -> leave the existing file untouched, report skipped
     #   "overwrite"-> replace the existing file
     on_conflict: Literal["error", "skip", "overwrite"] = "error"
+    # Who is making these changes; recorded in the temporal event log.
+    actor: str = "studio"
 
 
 class BulkEntityResult(BaseModel):
@@ -445,7 +450,12 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             )
 
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest.write_text(req.content, encoding="utf-8")
+        content = temporal.stamp_markdown(req.content, req.actor)
+        dest.write_text(content, encoding="utf-8")
+        temporal.record_event(
+            output_dir, entity_id, entity_type, "created", req.actor,
+            summary=str(result.frontmatter.get("name", entity_id)),
+        )
 
         logger.info("studio_entity_added", block=name, entity_id=entity_id, type=entity_type)
         return AddEntityResponse(
@@ -476,6 +486,7 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
             output_dir,
             [(item.content, item.id) for item in req.entities],
             on_conflict=req.on_conflict,
+            actor=req.actor,
         )
 
         logger.info(
