@@ -545,3 +545,36 @@ def test_default_block_ontology_has_18_types(client: TestClient) -> None:
 
 def test_block_ontology_unknown_block_404(client: TestClient) -> None:
     assert client.get("/blocks/ghost/ontology").status_code == 404
+
+
+# ── metrics ───────────────────────────────────────────────────────────────────
+
+
+def test_metrics_endpoint_aggregates_efforts_and_changes(client: TestClient) -> None:
+    from context_blocks import tracing
+
+    assert client.post("/blocks", json={"name": "cc", "description": "d"}).status_code == 201
+    out = Path([b for b in client.get("/blocks").json() if b["name"] == "cc"][0]["output_dir"])
+
+    # Adding an entity logs a change event (actor recorded).
+    md = "---\ntype: system\nid: svc-a\nname: Svc A\ndescription: d\nstatus: active\n---\n\n# Svc A\n"
+    assert client.post("/blocks/cc/entities", json={"content": md, "actor": "luffy"}).status_code == 201
+
+    # Simulate one work-effort: one hit, one gap.
+    wid = tracing.begin(out, "cc", "triage svc-a", agent="luffy")
+    tracing.log_call(out, wid, "get_entity", {"entity_id": "svc-a"}, "got svc-a", is_gap=False)
+    tracing.log_call(out, wid, "get_entity", {"entity_id": "missing"}, "not found", is_gap=True)
+    tracing.end(out, wid, "resolved")
+
+    m = client.get("/blocks/cc/metrics").json()
+    we = m["work_efforts"]
+    assert (we["total"], we["total_calls"], we["total_gaps"], we["gap_rate"]) == (1, 2, 1, 0.5)
+    assert {"entity_id": "svc-a", "hits": 1} in m["top_entities"]
+    assert any(g["args"].get("entity_id") == "missing" for g in m["gaps"])
+    assert m["changes"]["total"] >= 1
+    assert m["changes"]["by_action"].get("created", 0) >= 1
+    assert any(a["actor"] == "luffy" for a in m["changes"]["by_actor"])
+
+
+def test_metrics_404_for_unknown_block(client: TestClient) -> None:
+    assert client.get("/blocks/nope/metrics").status_code == 404

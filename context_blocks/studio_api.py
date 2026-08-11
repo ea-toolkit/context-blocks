@@ -13,6 +13,7 @@ Run:
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 from typing import Literal
@@ -24,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from context_blocks import storage, temporal
+from context_blocks import storage, temporal, tracing
 from context_blocks.blocks import (
     BlockConfig,
     BlockRegistry,
@@ -283,6 +284,63 @@ def _ontology_summary(ont: Ontology) -> OntologySummary:
     )
 
 
+def _compute_metrics(output_dir: Path, block_name: str, limit: int = 50) -> dict:
+    """Compose a live metrics payload for a block from the two timestamped stores:
+    the work-effort demand log (tracing) and the Context Sourcing change log (temporal).
+    Pure aggregation — no HTTP — so it can be unit-tested directly."""
+    efforts = tracing.get_work_efforts(output_dir, limit=500)
+    events = temporal.get_events(output_dir, limit=1000)
+
+    total_calls = sum(e["call_count"] for e in efforts)
+    total_gaps = sum(e["gap_count"] for e in efforts)
+    outcomes = Counter((e["outcome"] or "(open)") for e in efforts)
+
+    hits: Counter = Counter()
+    gaps: list[dict] = []
+    for e in efforts:
+        for c in e.get("calls", []):
+            try:
+                args = json.loads(c["args"]) if c["args"] else {}
+            except (TypeError, ValueError):
+                args = {}
+            eid = args.get("entity_id")
+            if c["tool"] in ("get_entity", "resolve_source") and eid:
+                hits[eid] += 1
+            if c["is_gap"]:
+                gaps.append({"tool": c["tool"], "args": args, "at": c["at"], "intent": e["intent"]})
+
+    by_action = Counter(ev["action"] for ev in events)
+    by_actor = Counter(ev["actor"] for ev in events)
+
+    return {
+        "block": block_name,
+        "work_efforts": {
+            "total": len(efforts),
+            "with_gaps": sum(1 for e in efforts if e["gap_count"] > 0),
+            "total_calls": total_calls,
+            "total_gaps": total_gaps,
+            "gap_rate": round(total_gaps / total_calls, 3) if total_calls else 0.0,
+            "outcomes": [{"outcome": k, "count": v} for k, v in outcomes.most_common()],
+            "recent": [
+                {
+                    "id": e["id"], "intent": e["intent"], "outcome": e["outcome"],
+                    "call_count": e["call_count"], "gap_count": e["gap_count"],
+                    "started_at": e["started_at"], "ended_at": e["ended_at"],
+                }
+                for e in efforts[:limit]
+            ],
+        },
+        "top_entities": [{"entity_id": k, "hits": v} for k, v in hits.most_common(10)],
+        "gaps": gaps[:limit],
+        "changes": {
+            "total": len(events),
+            "by_action": dict(by_action),
+            "by_actor": [{"actor": k, "count": v} for k, v in by_actor.most_common()],
+            "recent": events[:limit],
+        },
+    }
+
+
 def _summary(reg: BlockRegistry, config: BlockConfig) -> BlockSummary:
     return BlockSummary(
         name=config.name,
@@ -512,6 +570,16 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
                 for r in outcome.results
             ],
         )
+
+    @app.get("/blocks/{name}/metrics")
+    async def get_metrics(name: str, limit: int = 50) -> dict:
+        """Live metrics for a block: work-effort demand log + Context Sourcing change log,
+        aggregated (gap rate, top-hit entities, gaps, outcomes, recent changes)."""
+        reg = registry()
+        config = reg.get(name)
+        if config is None:
+            raise HTTPException(status_code=404, detail=f"Block '{name}' not found")
+        return _compute_metrics(reg.block_output_dir(name), name, limit=limit)
 
     @app.get("/blocks/{name}/graph", response_model=BlockGraphResponse)
     async def get_block_graph(name: str) -> BlockGraphResponse:

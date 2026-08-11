@@ -124,3 +124,52 @@ export interface CreateBlockPayload {
   ontology_yaml?: string;
   seed_context?: string;
 }
+
+/** Live metrics for a block (GET /blocks/{name}/metrics) — the demand log + change log. */
+export interface WorkEffortSummary {
+  id: string;
+  intent: string;
+  outcome: string | null;
+  call_count: number;
+  gap_count: number;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface ChangeEvent {
+  at: string;
+  entity_id: string;
+  entity_type: string;
+  action: string;
+  actor: string;
+  work_effort_id: string;
+  summary: string;
+}
+
+export interface GapEntry {
+  tool: string;
+  args: Record<string, unknown>;
+  at: string;
+  intent: string;
+}
+
+export interface BlockMetrics {
+  block: string;
+  work_efforts: {
+    total: number;
+    with_gaps: number;
+    total_calls: number;
+    total_gaps: number;
+    gap_rate: number;
+    outcomes: { outcome: string; count: number }[];
+    recent: WorkEffortSummary[];
+  };
+  top_entities: { entity_id: string; hits: number }[];
+  gaps: GapEntry[];
+  changes: {
+    total: number;
+    by_action: Record<string, number>;
+    by_actor: { actor: string; count: number }[];
+    recent: ChangeEvent[];
+  };
+}
