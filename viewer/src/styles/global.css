@@ -3790,3 +3790,4 @@ code, pre {
 .metrics-gap-reasoned { font-size: var(--cb-font-size-sm); line-height: 1.4; color: var(--cb-text);
   border-left: 2px solid var(--cb-score-missing); padding-left: 8px; }
 .metrics-action--proposed { color: var(--cb-primary); background: var(--cb-primary-muted); }
+.metrics-action--proposed-update { color: var(--cb-primary); background: var(--cb-primary-muted); }

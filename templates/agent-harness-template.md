@@ -52,8 +52,10 @@ Close the loop when your work reveals something:
 report_gap(description)     → a gap you REASONED out (contradiction / unconfirmed assumption /
                               a question the block should answer but doesn't). Auto-gap detection
                               only catches failed lookups; reasoned gaps are lost unless you report them.
-propose_entity(content)     → capture a resolution or a gap-answer as a proposed entity. Validated
-                              and staged for human review — you propose, you don't publish.
+propose_entity(content)     → capture NEW knowledge (a resolution / gap-answer) as a proposed entity.
+propose_update(id, content, rationale)
+                            → propose a change to an EXISTING entity. Both are validated and staged
+                              for human review — you propose, you don't publish.
 ```
 
 Curator view (for reviewing a block's health, not for solving a ticket):

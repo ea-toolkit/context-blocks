@@ -25,6 +25,7 @@ from context_blocks.mcp_server import (
     list_artifacts,
     list_blocks,
     propose_entity,
+    propose_update,
     report_gap,
     resolve_source,
     search_entities,
@@ -926,3 +927,44 @@ class TestProposeEntity:
     def test_invalid_proposal_rejected_with_errors(self, tmp_block) -> None:
         r = propose_entity("---\ntype: not-a-real-type\nid: x\n---\n\n# x", actor="luffy")
         assert "error" in r and r.get("validation_errors")
+
+    def test_propose_entity_rejects_existing_id(self, tmp_block) -> None:
+        # claims-gateway already exists — create must refuse and point at propose_update
+        content = (
+            "---\ntype: system\nid: claims-gateway\nname: Claims Gateway\n"
+            "description: dupe\nstatus: active\n---\n\n# Claims Gateway\n"
+        )
+        r = propose_entity(content, actor="luffy")
+        assert "error" in r and "propose_update" in r["error"]
+
+
+class TestProposeUpdate:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_update_existing_is_staged_not_published(self, tmp_block) -> None:
+        content = (
+            "---\ntype: system\nid: claims-gateway\nname: Claims Gateway\n"
+            "description: Central ingress — clarified EU path\nstatus: active\n---\n\n"
+            "# Claims Gateway\n\n## Overview\nClarified.\n"
+        )
+        r = propose_update("claims-gateway", content, rationale="clarify EU routing", actor="luffy")
+        assert r["proposed_update"] is True and r["id"] == "claims-gateway"
+        assert (tmp_block / "proposals" / "claims-gateway.md").exists()
+        # live entity is UNCHANGED (propose, don't publish)
+        assert "clarified EU path" not in get_entity("claims-gateway")["description"]
+        # logged as a proposed-update, attributed, with the rationale
+        events = get_events()["events"]
+        ev = [e for e in events if e["action"] == "proposed-update"]
+        assert ev and ev[0]["actor"] == "luffy" and "clarify EU routing" in ev[0]["summary"]
+
+    def test_update_nonexistent_points_to_propose_entity(self, tmp_block) -> None:
+        r = propose_update("no-such-entity", "---\ntype: system\nid: no-such-entity\n---\n", actor="luffy")
+        assert "error" in r and "propose_entity" in r["error"]

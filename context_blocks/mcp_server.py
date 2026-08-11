@@ -18,8 +18,9 @@ Work-effort tools — the demand log (group an agent's calls under one intent):
 - report_gap: record a REASONED gap (contradiction/ambiguity a failed search can't catch)
 - get_work_efforts: read back what agents asked and where the block fell short
 
-Write-back tool — close the curation loop:
-- propose_entity: propose a new entity (validated, staged in proposals/ for human review)
+Write-back tools — close the curation loop (propose, don't publish; staged in proposals/):
+- propose_entity: propose a NEW entity (validated, human-reviewed)
+- propose_update: propose an UPDATE to an existing entity (validated, birth preserved)
 
 Block-aware: agents discover blocks via list_blocks(), then pass the block
 name to any tool. If only one block exists, it's used by default.
@@ -542,6 +543,8 @@ def propose_entity(content: str, actor: str = "agent", block: str = "") -> dict:
                 "validation_errors": result.error_messages}
 
     entity_id = str(result.frontmatter["id"])
+    if entity_id in data.get("entity_index", {}):
+        return {"error": f"'{entity_id}' already exists — use propose_update to change an existing entity."}
     entity_type = str(result.frontmatter["type"])
     proposals_dir = output_dir / "proposals"
     proposals_dir.mkdir(parents=True, exist_ok=True)
@@ -557,6 +560,49 @@ def propose_entity(content: str, actor: str = "agent", block: str = "") -> dict:
     return {"proposed": True, "id": entity_id, "type": entity_type,
             "path": str(dest.relative_to(output_dir)), "status": "pending review",
             "warnings": result.warning_messages}
+
+
+@mcp.tool()
+def propose_update(entity_id: str, content: str, rationale: str = "", actor: str = "agent", block: str = "") -> dict:
+    """Propose an UPDATE to an EXISTING entity — a correction, a clarification, or the answer to a gap that belongs in an entity that already exists (rather than a brand-new one). `entity_id` must already exist in the block. Provide the FULL new markdown for the entity (frontmatter + body) plus a one-line `rationale` for the change. The new version is validated against the ontology, its original `created_at` is preserved, and it's staged in `proposals/` as an UPDATE for human review (a reviewer diffs it against the live entity) — you propose, you don't publish. Use propose_entity for genuinely new knowledge; use this when the right home is an existing entity. Returns {proposed_update, id, path, rationale} or {error, validation_errors}."""
+    from context_blocks.ontology import Ontology, load_ontology_from_file
+    from context_blocks.validation import validate_entity_frontmatter
+
+    data = _resolve_block(block)
+    if "error" in data:
+        return data
+    existing = data.get("entity_index", {}).get(entity_id)
+    if not existing:
+        return {"error": f"'{entity_id}' does not exist — use propose_entity to create a new entity."}
+    output_dir = Path(data["output_dir"])
+
+    mm = output_dir / "meta-model.yaml"
+    ont = load_ontology_from_file(mm) if mm.exists() else Ontology()
+    result = validate_entity_frontmatter(content, ont, expected_id=entity_id)
+    if not result.valid:
+        return {"error": "Updated entity does not match the ontology — fix and re-propose.",
+                "validation_errors": result.error_messages}
+
+    prior_created = None
+    try:
+        prior_created = temporal.read_created_at(Path(existing["file"]).read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — birth-preservation is best-effort
+        pass
+
+    entity_type = str(result.frontmatter["type"])
+    proposals_dir = output_dir / "proposals"
+    proposals_dir.mkdir(parents=True, exist_ok=True)
+    dest = proposals_dir / f"{entity_id}.md"
+    dest.write_text(temporal.stamp_markdown(content, actor, created_at=prior_created), encoding="utf-8")
+    temporal.record_event(
+        output_dir, entity_id, entity_type, "proposed-update", actor,
+        summary=(rationale or f"update {entity_id}"), work_effort_id=_current_we,
+    )
+    _trace("propose_update", {"id": entity_id, "rationale": rationale},
+           f"proposed update to {entity_id} (pending review)", is_gap=False)
+    return {"proposed_update": True, "id": entity_id, "type": entity_type,
+            "path": str(dest.relative_to(output_dir)), "status": "pending review",
+            "rationale": rationale, "warnings": result.warning_messages}
 
 
 @mcp.tool()
