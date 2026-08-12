@@ -44,8 +44,14 @@ search_entities(query, block)      → what does the block KNOW about this?
 get_entity(id, block)              → full detail on a match (body, relationships, provenance)
 resolve_source(entity_id, block)   → WHERE to fetch live data / act (routing, no creds)
    … now use YOUR workspace tools + credentials to actually fetch/act …
+log_finding(observation, reasoning)→ record what you saw + your read at each meaningful step
 end_work_effort(outcome)           → close it, record what happened
 ```
+
+The work-effort should read back as a sequential **log of everything you did** — CB calls auto-log
+the *action*; `log_finding` adds your *reasoning* and any *external evidence* (a ServiceNow response,
+a log snippet) the CB log can't see on its own. Log a finding when you **conclude** or **observe**,
+pairing each observation with your read of it.
 
 Close the loop when your work reveals something — but a gap and a proposal are DIFFERENT signals.
 A gap is the output of *not knowing*; a proposal is the output of *learning* (or being corrected).

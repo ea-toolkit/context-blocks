@@ -15,6 +15,8 @@ Routing tool — where to fetch live data / act (pointers, never credentials):
 
 Work-effort tools — the demand log (group an agent's calls under one intent):
 - begin_work_effort / end_work_effort: open/close one unit of work
+- log_finding: record an observation + reasoning (builds the ordered investigation log; also
+  captures external evidence — ServiceNow/Grafana calls — that the CB log can't see)
 - report_gap: record a REASONED gap (contradiction/ambiguity a failed search can't catch)
 - get_work_efforts: read back what agents asked and where the block fell short
 
@@ -522,6 +524,20 @@ def report_gap(description: str, related_entities: list[str] | None = None, bloc
     except Exception as e:  # noqa: BLE001 — never let logging break the agent
         return {"error": f"Could not record gap: {e}"}
     return {"recorded": True, "work_effort_id": _current_we, "gap": description}
+
+
+@mcp.tool()
+def log_finding(observation: str, reasoning: str = "", source: str = "", block: str = "") -> dict:
+    """Record a FINDING in your investigation log — something you observed and what you make of it. Call this after each meaningful step so the work-effort becomes a full, ordered investigation log: what you did, what you saw, and your reasoning, in sequence. Use it for BOTH block conclusions ("matched services-not-ingested — trigger keywords 'completed in PS' align") AND external observations that don't auto-log ("queried the WOM service-event-log: 6/8 orders show processingStatus=PROCESSED"). `observation` = what you saw; `reasoning` = what it means / your read; `source` = where it came from (e.g. 'block:services-not-ingested', 'servicenow:INC123', 'grafana:loki'). Log when you CONCLUDE or OBSERVE — not for every trivial call (CB calls auto-log; this adds the reasoning and the external evidence). Requires an open work-effort."""
+    if not _current_we:
+        return {"note": "No active work-effort — call begin_work_effort first so the finding attaches to a unit of work."}
+    summary = observation if not reasoning else f"{observation} — {reasoning}"
+    args = {k: v for k, v in {"source": source, "reasoning": reasoning}.items() if v}
+    try:
+        tracing.log_call(_current_we_dir, _current_we, "finding", args, summary, is_gap=False)
+    except Exception as e:  # noqa: BLE001 — never let logging break the agent
+        return {"error": f"Could not record finding: {e}"}
+    return {"logged": True, "work_effort_id": _current_we, "source": source}
 
 
 @mcp.tool()
