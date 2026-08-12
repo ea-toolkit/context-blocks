@@ -411,7 +411,7 @@ def create_studio_app(root: str | Path | None = None) -> FastAPI:
         if not is_valid_block_name(req.name):
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid block name '{req.name}'. Use kebab-case (e.g. 'payments', 'cost-control').",
+                detail=f"Invalid block name '{req.name}'. Use kebab-case (e.g. 'payments', 'logistics').",
             )
         if reg.exists(req.name):
             raise HTTPException(status_code=409, detail=f"Block '{req.name}' already exists")
