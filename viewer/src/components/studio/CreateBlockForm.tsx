@@ -58,7 +58,7 @@ export default function CreateBlockForm({ onCreated, onCancel }: Props) {
           className="studio-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="cost-control"
+          placeholder="payments"
           autoComplete="off"
         />
       </div>
