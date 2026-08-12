@@ -24,6 +24,7 @@ from context_blocks.mcp_server import (
     get_work_efforts,
     list_artifacts,
     list_blocks,
+    log_finding,
     propose_entity,
     propose_update,
     report_gap,
@@ -896,6 +897,38 @@ class TestReportGap:
 
     def test_report_gap_without_work_effort_returns_note(self, tmp_block) -> None:
         assert "note" in report_gap("a gap with nowhere to attach")
+
+
+class TestLogFinding:
+    @pytest.fixture()
+    def tmp_block(self, tmp_path, monkeypatch):
+        import shutil
+
+        import context_blocks.mcp_server as mod
+
+        shutil.copytree(FIXTURES, tmp_path / "kb")
+        monkeypatch.setattr(mod, "_single_output", str(tmp_path / "kb"))
+        return tmp_path / "kb"
+
+    def test_findings_interleave_with_auto_calls_in_sequence(self, tmp_block) -> None:
+        # The work-effort call-chain IS the investigation log: auto calls + findings, in order.
+        begin_work_effort("investigate")
+        search_entities("claims")  # auto
+        r = log_finding("claims-gateway is the ingress", "so the fault is likely upstream",
+                        source="block:claims-gateway")
+        log_finding("external: 6/8 orders PROCESSED", "broker->ICC gap", source="servicenow:INC1")
+        end_work_effort("done")
+        assert r["logged"] is True
+
+        calls = get_work_efforts()["work_efforts"][0]["calls"]
+        tools = [c["tool"] for c in calls]
+        assert tools == ["search_entities", "finding", "finding"]  # interleaved, ordered
+        finding = [c for c in calls if c["tool"] == "finding"][0]
+        assert finding["is_gap"] == 0  # a finding is not a gap
+        assert "so the fault is likely upstream" in finding["summary"]  # reasoning captured
+
+    def test_log_finding_without_work_effort_returns_note(self, tmp_block) -> None:
+        assert "note" in log_finding("an observation with nowhere to attach")
 
 
 class TestProposeEntity:
