@@ -831,6 +831,44 @@ def run_server(
         mcp.settings.host = resolved_host
         mcp.settings.port = resolved_port
 
+        # Per-agent bearer tokens over HTTP — never expose an open MCP over a KB.
+        #   CB_MCP_AUTH_TOKENS='{"luffy":"tokA","billy":"tokB"}'  → per-agent, independently revocable
+        #   CB_MCP_AUTH_TOKEN='tok'                               → single shared token (still supported)
+        # Client sends:  Authorization: Bearer <token>.  (Per-agent state isolation is handled by
+        # running one instance per agent — process isolation, not per-request state in this server.)
+        import json
+
+        valid: set[str] = set()
+        raw = os.environ.get("CB_MCP_AUTH_TOKENS")
+        if raw:
+            try:
+                valid = {str(t) for t in json.loads(raw).values()}
+            except Exception:
+                print("[cb mcp] CB_MCP_AUTH_TOKENS is not valid JSON — ignoring", flush=True)
+        single = os.environ.get("CB_MCP_AUTH_TOKEN")
+        if single:
+            valid.add(single)
+
+        if valid:
+            import hmac
+
+            import uvicorn
+            from starlette.middleware.base import BaseHTTPMiddleware
+            from starlette.responses import JSONResponse
+
+            class _BearerAuth(BaseHTTPMiddleware):
+                async def dispatch(self, request, call_next):
+                    header = request.headers.get("authorization", "")
+                    token = header[7:] if header.startswith("Bearer ") else ""
+                    if not any(len(token) == len(t) and hmac.compare_digest(token, t) for t in valid):
+                        return JSONResponse({"error": "unauthorized"}, status_code=401)
+                    return await call_next(request)
+
+            app = mcp.sse_app() if resolved_transport == "sse" else mcp.streamable_http_app()
+            app.add_middleware(_BearerAuth)
+            uvicorn.run(app, host=resolved_host, port=resolved_port)
+            return
+
     mcp.run(transport=resolved_transport)
 
 

@@ -1115,6 +1115,10 @@ def mcp_serve(
         cb mcp --transport streamable-http
 
     Configure via env vars: CB_MCP_TRANSPORT, CB_MCP_HOST, CB_MCP_PORT.
+    For a deployed (HTTP) server, require 'Authorization: Bearer <token>':
+    set CB_MCP_AUTH_TOKENS='{"luffy":"tokA","billy":"tokB"}' (per-agent, independently
+    revocable) or a single CB_MCP_AUTH_TOKEN. Otherwise the endpoint is open. Run one
+    instance per agent for state isolation (process isolation, not shared per-request state).
     """
     try:
         from context_blocks.mcp_server import run_server
